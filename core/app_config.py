@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from services.bridge_service import GCFBridgeAgent
+from services.bridge_service import AxonService
 from services.sqlite_memory_store import SessionMemoryStore
 from services.security_policy import SecurityConfig
 from services.token_optimizer import TokenOptimizer
@@ -16,7 +16,7 @@ from core.settings import settings
 
 
 # ── Core bridge ────────────────────────────────────────────────────────────────
-bridge = GCFBridgeAgent(include_json_fallback=settings.include_json_fallback)
+axon_service = AxonService(include_json_fallback=settings.include_json_fallback)
 
 # ── Persistent session memory (SQLite) ────────────────────────────────────────
 memory_store = SessionMemoryStore(db_path=settings.memory_db_path)
@@ -64,7 +64,7 @@ orchestrator.register(AgentDefinition(
 
 def initialize_app() -> dict[str, object]:
     return {
-        "bridge": bridge,
+        "axon_service": axon_service,
         "memory_store": memory_store,
         "security_config": security_config,
         "token_optimizer": token_optimizer,
@@ -73,6 +73,6 @@ def initialize_app() -> dict[str, object]:
 
 
 __all__ = [
-    "bridge", "memory_store", "security_config",
+    "axon_service", "memory_store", "security_config",
     "token_optimizer", "orchestrator", "initialize_app",
 ]

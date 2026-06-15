@@ -1,4 +1,4 @@
-"""GCF Bridge FastAPI application entry point.
+"""Token Bridge FastAPI application entry point.
 
 The main app is now modular with routes organized by concern:
 - Core: health, translate_in, translate_out

@@ -76,45 +76,45 @@ class AppSettings:
 
 
 def load_settings() -> AppSettings:
-    port_raw = os.getenv("GCF_PORT", "8080")
+    port_raw = os.getenv("AXON_PORT", "8080")
     try:
         port = int(port_raw)
     except ValueError:
         port = 8080
 
     return AppSettings(
-        app_title=os.getenv("GCF_APP_TITLE", "GCF Bridge Middleware"),
-        app_version=os.getenv("GCF_APP_VERSION", "0.3.0"),
+        app_title=os.getenv("AXON_APP_TITLE", "Axon Token Bridge"),
+        app_version=os.getenv("AXON_APP_VERSION", "0.3.0"),
         app_description=os.getenv(
-            "GCF_APP_DESCRIPTION",
+            "AXON_APP_DESCRIPTION",
             "Token-efficient bridge layer with session deduplication, security, and persistence",
         ),
         openapi_description=os.getenv(
-            "GCF_OPENAPI_DESCRIPTION",
+            "AXON_OPENAPI_DESCRIPTION",
             "Token-efficient bridge with 25-71% savings (up to 70%+ in multi-turn sessions)",
         ),
-        openapi_logo_url=os.getenv("GCF_OPENAPI_LOGO_URL", ""),
-        host=os.getenv("GCF_HOST", "127.0.0.1"),
+        openapi_logo_url=os.getenv("AXON_OPENAPI_LOGO_URL", ""),
+        host=os.getenv("AXON_HOST", "127.0.0.1"),
         port=port,
-        include_json_fallback=_as_bool(os.getenv("GCF_INCLUDE_JSON_FALLBACK"), True),
-        memory_db_path=os.getenv("GCF_MEMORY_DB_PATH", "/tmp/gcf_sessions.db"),
-        require_api_key=_as_bool(os.getenv("GCF_REQUIRE_API_KEY"), False),
-        allow_all_domains=_as_bool(os.getenv("GCF_ALLOW_ALL_DOMAINS"), False),
-        api_key=os.getenv("GCF_API_KEY"),
-        allowed_domains=_as_list(os.getenv("GCF_ALLOWED_DOMAINS"), _DEFAULT_ALLOWED_DOMAINS),
-        route_prefix_core=os.getenv("GCF_ROUTE_PREFIX_CORE", ""),
-        route_prefix_process=os.getenv("GCF_ROUTE_PREFIX_PROCESS", ""),
-        route_prefix_proxy=os.getenv("GCF_ROUTE_PREFIX_PROXY", "/proxy"),
-        route_prefix_memory=os.getenv("GCF_ROUTE_PREFIX_MEMORY", "/memory"),
-        route_prefix_security=os.getenv("GCF_ROUTE_PREFIX_SECURITY", "/security"),
-        enable_core_routes=_as_bool(os.getenv("GCF_ENABLE_CORE_ROUTES"), True),
-        enable_process_routes=_as_bool(os.getenv("GCF_ENABLE_PROCESS_ROUTES"), True),
-        enable_proxy_routes=_as_bool(os.getenv("GCF_ENABLE_PROXY_ROUTES"), True),
-        enable_memory_routes=_as_bool(os.getenv("GCF_ENABLE_MEMORY_ROUTES"), True),
-        enable_security_routes=_as_bool(os.getenv("GCF_ENABLE_SECURITY_ROUTES"), True),
-        enable_agent_routes=_as_bool(os.getenv("GCF_ENABLE_AGENT_ROUTES"), True),
+        include_json_fallback=_as_bool(os.getenv("AXON_INCLUDE_JSON_FALLBACK"), True),
+        memory_db_path=os.getenv("AXON_MEMORY_DB_PATH", "/tmp/axon_sessions.db"),
+        require_api_key=_as_bool(os.getenv("AXON_REQUIRE_API_KEY"), False),
+        allow_all_domains=_as_bool(os.getenv("AXON_ALLOW_ALL_DOMAINS"), False),
+        api_key=os.getenv("AXON_API_KEY"),
+        allowed_domains=_as_list(os.getenv("AXON_ALLOWED_DOMAINS"), _DEFAULT_ALLOWED_DOMAINS),
+        route_prefix_core=os.getenv("AXON_ROUTE_PREFIX_CORE", ""),
+        route_prefix_process=os.getenv("AXON_ROUTE_PREFIX_PROCESS", ""),
+        route_prefix_proxy=os.getenv("AXON_ROUTE_PREFIX_PROXY", "/proxy"),
+        route_prefix_memory=os.getenv("AXON_ROUTE_PREFIX_MEMORY", "/memory"),
+        route_prefix_security=os.getenv("AXON_ROUTE_PREFIX_SECURITY", "/security"),
+        enable_core_routes=_as_bool(os.getenv("AXON_ENABLE_CORE_ROUTES"), True),
+        enable_process_routes=_as_bool(os.getenv("AXON_ENABLE_PROCESS_ROUTES"), True),
+        enable_proxy_routes=_as_bool(os.getenv("AXON_ENABLE_PROXY_ROUTES"), True),
+        enable_memory_routes=_as_bool(os.getenv("AXON_ENABLE_MEMORY_ROUTES"), True),
+        enable_security_routes=_as_bool(os.getenv("AXON_ENABLE_SECURITY_ROUTES"), True),
+        enable_agent_routes=_as_bool(os.getenv("AXON_ENABLE_AGENT_ROUTES"), True),
         enabled_formats=_as_list(
-            os.getenv("GCF_ENABLED_FORMATS"),
+            os.getenv("AXON_ENABLED_FORMATS"),
             ["gcf_graph", "gcf_session", "gcf_delta",
              "gcf_generic", "gcf_generic_delta", "gcf_generic_session", "json"],
         ),

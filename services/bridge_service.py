@@ -1,4 +1,4 @@
-"""Token-efficient bridge layer that converts arbitrary inputs/outputs to GCF.
+"""Axon service: a token-efficient bridge that converts payloads to a compact format.
 
 Use this between clients and any API/agent to normalize incoming payloads,
 convert responses to GCF, and optionally keep JSON alongside for compatibility.
@@ -25,8 +25,8 @@ from gcf import (
 )
 
 
-class GCFBridgeAgent:
-    """Bridge for converting arbitrary payloads to and from GCF."""
+class AxonService:
+    """Core service for converting payloads to and from compact, token-efficient formats."""
 
     def __init__(self, include_json_fallback: bool = True) -> None:
         self.include_json_fallback = include_json_fallback

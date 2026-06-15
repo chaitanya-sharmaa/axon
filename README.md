@@ -1,17 +1,107 @@
-# GCF Bridge Agent (Token-Saving Middleware)
+# Axon: The AI Token-Saving Bridge
 
-This workspace includes a production-ready bridge layer that sits between any API/agent and your caller.
+**Axon** is a smart middleware layer that sits between your application and Large Language Models (LLMs) to dramatically reduce API costs and improve response speed.
 
-It accepts:
-- JSON string input
-- GCF string input (generic or graph)
-- Python objects (dict/list/dataclass/pydantic-like)
+It automatically intercepts your data payloads, benchmarks multiple advanced compression formats (like TOON and TRON), and sends the most token-efficient version to the LLM—**saving you up to 70% on tokens**.
 
-It emits:
-- GCF output (primary, 25-71% token savings)
-- Optional JSON output (fallback compatibility)
-- Estimated token savings (JSON vs GCF)
-- Session-aware deduplication (70%+ savings on multi-turn)
+## Why Axon?
+
+In the brain, an **axon** is a nerve fiber that transmits information efficiently. This library acts as a digital axon for your AI systems, connecting your services and optimizing the data that flows between them. It ensures every payload is transmitted in the most compact and efficient form possible.
+
+## Key Benefits
+
+*   💰 **Drastic Cost Reduction**: Automatically finds the cheapest data format for every call, significantly cutting your LLM API bills.
+*   ⚡️ **Increased Speed & Performance**: Fewer tokens mean faster processing by the LLM, leading to quicker API responses and a snappier user experience.
+*   🧠 **Expanded Context Window**: Fit up to 4x more data into the same context window, enabling more capable and knowledgeable agents.
+*   🔌 **Effortless Integration**: Start saving tokens in minutes. Use it as a simple proxy for existing APIs with **zero code changes** or as a library in your Python code.
+
+## How It Works
+
+Axon acts as a "last-mile" translation layer right before the LLM. It intelligently compresses outgoing data and decompresses incoming data, keeping your internal systems clean.
+
+```
+[ Your Application / Agent ]
+             |
+    (Sends standard JSON)
+             |
+             ▼
+    ┌────────────────────┐
+    │     Axon Bridge    │
+    │ (Middleware Layer) │
+    ├────────────────────┤
+    │ 1. Intercepts JSON │
+    │ 2. Benchmarks TOON,│
+    │    TRON, GCF, etc. │
+    │ 3. Selects cheapest│
+    │    format.         │
+    └────────────────────┘
+             |
+    (Sends compressed text)
+             |
+             ▼
+       [ LLM API ]
+ (e.g., OpenAI, Anthropic)
+```
+
+## Getting Started in 3 Steps
+
+### Step 1: Install Dependencies
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+### Step 2: Run the Axon Server
+
+From the project root directory, start the FastAPI server.
+
+```bash
+python -m uvicorn app:app --host 127.0.0.1 --port 8080 --reload
+```
+
+### Step 3: Integrate with Your Application
+
+You have two primary options for integration:
+
+#### Option A: Proxy an Existing API (Easiest)
+
+This method requires **no code changes** to your existing services. Simply tell Axon to call your API, and it will handle the compression of the response.
+
+Send a `POST` request to Axon's `/proxy/upstream` endpoint:
+
+```bash
+curl -X POST http://127.0.0.1:8080/proxy/upstream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "upstream_url": "https://api.your-service.com/get-data",
+    "method": "GET",
+    "session_id": "user-session-123"
+  }'
+```
+
+Axon returns a token-optimized payload, ready for the LLM.
+
+#### Option B: Use as a Python Library
+
+For more control, import `AxonService` directly into your Python code to wrap agent functions.
+
+```python
+from services.bridge_service import AxonService
+
+axon = AxonService()
+
+def my_agent_function(payload: dict) -> dict:
+    # Your agent's logic here...
+    return {"status": "complete", "result": payload["input"] * 2}
+
+# Wrap the function call with Axon
+inbound_data = {"input": 123}
+envelope = axon.process(inbound_data, my_agent_function, session_id="agent-session-456")
+
+# `envelope["gcf"]` contains the compressed output for the LLM
+print(envelope["gcf"])
+print(f"Saved {envelope['metrics']['estimated_savings_percent']}% tokens!")
+```
 
 ## Files
 
@@ -32,73 +122,51 @@ It emits:
 - `requirements.txt`: dependencies
 
 ## Install
-
-```bash
-python -m pip install -r requirements.txt
-```
-
-## Run Demo
-
-```bash
-python examples/demo_usage.py
-```
-
-## Run Middleware API
-
-```bash
-PYTHONPATH=/Users/chasharm4/Documents/gcf/bridge \
-python -m uvicorn app:app --host 127.0.0.1 --port 8080
-```
-
-You can also run with env-configured host/port:
-
-```bash
-PYTHONPATH=/Users/chasharm4/Documents/gcf/bridge python app.py
-```
+*(See "Getting Started" above for installation and run commands)*
 
 ## Configuration (Env Vars)
 
 All major behavior is configurable via environment variables in `core/settings.py`.
 
-- `GCF_APP_TITLE` (default: `GCF Bridge Middleware`)
-- `GCF_APP_VERSION` (default: `0.3.0`)
-- `GCF_APP_DESCRIPTION`
-- `GCF_OPENAPI_DESCRIPTION`
-- `GCF_OPENAPI_LOGO_URL`
-- `GCF_HOST` (default: `127.0.0.1`)
-- `GCF_PORT` (default: `8080`)
-- `GCF_INCLUDE_JSON_FALLBACK` (`true|false`)
-- `GCF_MEMORY_DB_PATH` (default: `/tmp/gcf_sessions.db`)
-- `GCF_ENABLE_RUFLO_MEMORY` (`true|false`, default: `false`)
-- `GCF_RUFLO_ENDPOINT` (optional endpoint when using Python client)
-- `GCF_RUFLO_NAMESPACE` (default: `gcf-bridge`)
-- `GCF_RUFLO_CLI_COMMAND` (default: `ruflo`)
-- `GCF_RUFLO_PYTHON_MODULE` (default: `ruflo.memory`)
-- `GCF_REQUIRE_API_KEY` (`true|false`)
-- `GCF_ALLOW_ALL_DOMAINS` (`true|false`)
-- `GCF_API_KEY`
-- `GCF_ALLOWED_DOMAINS` (comma-separated list)
-- `GCF_ROUTE_PREFIX_CORE` (default: empty)
-- `GCF_ROUTE_PREFIX_PROCESS` (default: empty)
-- `GCF_ROUTE_PREFIX_PROXY` (default: `/proxy`)
-- `GCF_ROUTE_PREFIX_MEMORY` (default: `/memory`)
-- `GCF_ROUTE_PREFIX_SECURITY` (default: `/security`)
-- `GCF_ENABLE_CORE_ROUTES` (`true|false`)
-- `GCF_ENABLE_PROCESS_ROUTES` (`true|false`)
-- `GCF_ENABLE_PROXY_ROUTES` (`true|false`)
-- `GCF_ENABLE_MEMORY_ROUTES` (`true|false`)
-- `GCF_ENABLE_SECURITY_ROUTES` (`true|false`)
+- `AXON_APP_TITLE` (default: `Axon Token Bridge`)
+- `AXON_APP_VERSION` (default: `0.3.0`)
+- `AXON_APP_DESCRIPTION`
+- `AXON_OPENAPI_DESCRIPTION`
+- `AXON_OPENAPI_LOGO_URL`
+- `AXON_HOST` (default: `127.0.0.1`)
+- `AXON_PORT` (default: `8080`)
+- `AXON_INCLUDE_JSON_FALLBACK` (`true|false`)
+- `AXON_MEMORY_DB_PATH` (default: `/tmp/axon_sessions.db`)
+- `AXON_ENABLE_RUFLO_MEMORY` (`true|false`, default: `false`)
+- `AXON_RUFLO_ENDPOINT` (optional endpoint when using Python client)
+- `AXON_RUFLO_NAMESPACE` (default: `axon-bridge`)
+- `AXON_RUFLO_CLI_COMMAND` (default: `ruflo`)
+- `AXON_RUFLO_PYTHON_MODULE` (default: `ruflo.memory`)
+- `AXON_REQUIRE_API_KEY` (`true|false`)
+- `AXON_ALLOW_ALL_DOMAINS` (`true|false`)
+- `AXON_API_KEY`
+- `AXON_ALLOWED_DOMAINS` (comma-separated list)
+- `AXON_ROUTE_PREFIX_CORE` (default: empty)
+- `AXON_ROUTE_PREFIX_PROCESS` (default: empty)
+- `AXON_ROUTE_PREFIX_PROXY` (default: `/proxy`)
+- `AXON_ROUTE_PREFIX_MEMORY` (default: `/memory`)
+- `AXON_ROUTE_PREFIX_SECURITY` (default: `/security`)
+- `AXON_ENABLE_CORE_ROUTES` (`true|false`)
+- `AXON_ENABLE_PROCESS_ROUTES` (`true|false`)
+- `AXON_ENABLE_PROXY_ROUTES` (`true|false`)
+- `AXON_ENABLE_MEMORY_ROUTES` (`true|false`)
+- `AXON_ENABLE_SECURITY_ROUTES` (`true|false`)
 
 Example:
 
 ```bash
-export GCF_API_KEY="prod-key-12345"
-export GCF_REQUIRE_API_KEY=true
-export GCF_ALLOWED_DOMAINS="api.github.com,httpbin.org"
-export GCF_ROUTE_PREFIX_PROXY="/api/proxy"
-export GCF_ENABLE_RUFLO_MEMORY=true
-export GCF_RUFLO_CLI_COMMAND="ruflo"
-export GCF_RUFLO_NAMESPACE="gcf-bridge"
+export AXON_API_KEY="prod-key-12345"
+export AXON_REQUIRE_API_KEY=true
+export AXON_ALLOWED_DOMAINS="api.github.com,httpbin.org"
+export AXON_ROUTE_PREFIX_PROXY="/api/proxy"
+export AXON_ENABLE_RUFLO_MEMORY=true
+export AXON_RUFLO_CLI_COMMAND="ruflo"
+export AXON_RUFLO_NAMESPACE="axon-bridge"
 ```
 
 ### Core Endpoints (6)
@@ -170,7 +238,7 @@ Memory automatically logs:
 - Token savings per call
 - Symbol schemas for deduplication tracking
 
-**Ruflo Integration:** When `GCF_ENABLE_RUFLO_MEMORY=true`, process and proxy events are mirrored to Ruflo via Python client (`ruflo.memory`) or Ruflo CLI memory tools. The service falls back gracefully if Ruflo is unavailable.
+**Ruflo Integration:** When `AXON_ENABLE_RUFLO_MEMORY=true`, process and proxy events are mirrored to Ruflo via Python client (`ruflo.memory`) or Ruflo CLI memory tools. The service falls back gracefully if Ruflo is unavailable.
 
 Check runtime integration status:
 
@@ -225,7 +293,7 @@ security_config.require_api_key = True
 Or via environment variable:
 
 ```bash
-export GCF_API_KEY="prod-key-12345"
+export AXON_API_KEY="prod-key-12345"
 ```
 
 ### Unrestricted Mode (Dev Only)
@@ -284,19 +352,22 @@ Per-call savings stabilize as repeated symbols get referenced, not re-encoded.
 
 ## Quick Integration
 
-```python
-from gcf_bridge_agent import GCFBridgeAgent
+For wrapping **in-process** Python functions or agents:
 
-bridge = GCFBridgeAgent(include_json_fallback=True)
+```python
+from services.bridge_service import GCFBridgeAgent
+
+bridge = GCFBridgeAgent()
 
 def my_agent(payload: dict) -> dict:
     return {"ok": True, "input": payload}
 
 # Multi-turn: reuse same session_id across calls
+inbound_data = {"user": "test", "action": "submit"}
 envelope = bridge.process(inbound_data, my_agent, session_id="chat-123")
 
-# send envelope["gcf"] to the next model hop
-# keep envelope["json"] for legacy systems
+# Send envelope["gcf"] to the next model hop
+# Use envelope["json"] for legacy systems if include_json_fallback=True
 ```
 
 ## MCP-Style Adapter Example

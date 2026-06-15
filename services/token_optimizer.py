@@ -30,6 +30,7 @@ Supported strategies:
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
@@ -209,6 +210,29 @@ def _build_generic_session(current: Any, seen_values: dict[str, str]) -> Any:
     return compressed
 
     """Build a delta payload representing *added* symbols vs. previous set."""
+def _build_delta(payload: Payload | None, prev_symbols: list[str] | None) -> DeltaPayload | None:
+    """Build a delta payload representing *added* symbols vs. previous set."""
+    if payload is None:
+        return None
+    if prev_symbols is None:
+        prev_symbols = []
+    prev_set = set(prev_symbols)
+    added = [s for s in payload.symbols if s.qualified_name not in prev_set]
+    removed = [Symbol(qualified_name=qn, kind="unknown", score=0, provenance="", distance=0)
+               for qn in prev_set - {s.qualified_name for s in payload.symbols}]
+    return DeltaPayload(
+        tool=payload.tool,
+        base_root="",
+        new_root="gcf_root",
+        added=added,
+        removed=removed,
+        added_edges=payload.edges,
+    )
+
+
+def _build_delta_misplaced(payload: Payload | None, prev_symbols: list[str] | None) -> DeltaPayload | None:
+    """This function was misplaced inside _build_generic_session and is now corrected as _build_delta."""
+    # The following block was here erroneously.
     if payload is None:
         return None
     if prev_symbols is None:
@@ -310,16 +334,16 @@ class TokenOptimizer:
         if STRATEGY_GCF_GRAPH in active and payload is not None:
             try:
                 _add(STRATEGY_GCF_GRAPH, encode(payload))
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_GCF_GRAPH} failed: {e}", exc_info=False)
 
         # ── GCF session (TRON-style multi-turn dedup) ──────────────────────────
         if STRATEGY_GCF_SESSION in active and payload is not None and session_id:
             try:
                 sess = self._get_session(session_id)
                 _add(STRATEGY_GCF_SESSION, encode_with_session(payload, sess))
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_GCF_SESSION} failed: {e}", exc_info=False)
 
         # ── GCF delta (TOON-style change-only encoding) ───────────────────────
         if STRATEGY_GCF_DELTA in active and payload is not None and session_id:
@@ -328,15 +352,15 @@ class TokenOptimizer:
                 delta = _build_delta(payload, prev)
                 if delta is not None:
                     _add(STRATEGY_GCF_DELTA, encode_delta(delta))
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_GCF_DELTA} failed: {e}", exc_info=False)
 
         # ── GCF generic (universal fallback) ──────────────────────────────────
         if STRATEGY_GCF_GENERIC in active:
             try:
                 _add(STRATEGY_GCF_GENERIC, encode_generic(obj))
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_GCF_GENERIC} failed: {e}", exc_info=False)
 
         # ── GCF generic delta / TOON for non-graph ────────────────────────────
         if STRATEGY_GCF_GENERIC_DELTA in active and session_id and not is_graph:
@@ -344,8 +368,8 @@ class TokenOptimizer:
                 prev = self._prev_generic.get(session_id)
                 delta_obj = _build_generic_delta(obj, prev)
                 _add(STRATEGY_GCF_GENERIC_DELTA, encode_generic(delta_obj))
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_GCF_GENERIC_DELTA} failed: {e}", exc_info=False)
 
         # ── GCF generic session / TRON for non-graph ──────────────────────────
         if STRATEGY_GCF_GENERIC_SESSION in active and session_id and not is_graph:
@@ -353,8 +377,8 @@ class TokenOptimizer:
                 seen = self._seen_values.setdefault(session_id, {})
                 session_obj = _build_generic_session(obj, seen)
                 _add(STRATEGY_GCF_GENERIC_SESSION, encode_generic(session_obj))
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_GCF_GENERIC_SESSION} failed: {e}", exc_info=False)
 
         # ── JSON baseline ──────────────────────────────────────────────────────
         if STRATEGY_JSON in active:

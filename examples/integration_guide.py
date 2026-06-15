@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-GCF Token Bridge — Setup & Integration Guide
+Axon Token Bridge — Setup & Integration Guide
 =============================================
 
 Run this file to validate your setup and see worked integration examples.
@@ -18,44 +18,41 @@ Start the server (separate terminal)
 
 Environment variables (all optional, sensible defaults)
 ---------------------------------------------------------
-  GCF_HOST                 Server bind host          (default: 127.0.0.1)
-  GCF_PORT                 Server bind port          (default: 8080)
-  GCF_ENABLED_FORMATS      Comma-separated strategy list
+  AXON_HOST                 Server bind host          (default: 127.0.0.1)
+  AXON_PORT                 Server bind port          (default: 8080)
+  AXON_ENABLED_FORMATS      Comma-separated strategy list
                              choices: gcf_graph, gcf_session, gcf_delta,
                                       gcf_generic, gcf_generic_delta,
                                       gcf_generic_session, json
                              default: all of the above
-  GCF_MEMORY_DB_PATH       SQLite file for session memory  (default: /tmp/gcf_sessions.db)
-  GCF_API_KEY              Bearer token for proxy auth     (default: disabled)
-  GCF_REQUIRE_API_KEY      Enforce API key on proxy        (default: false)
-  GCF_ALLOW_ALL_DOMAINS    Skip domain allowlist           (default: false)
-  GCF_ALLOWED_DOMAINS      Comma-separated proxy allowlist
+  AXON_MEMORY_DB_PATH       SQLite file for session memory  (default: /tmp/axon_sessions.db)
+  AXON_API_KEY              Bearer token for proxy auth     (default: disabled)
+  AXON_REQUIRE_API_KEY      Enforce API key on proxy        (default: false)
+  AXON_ALLOW_ALL_DOMAINS    Skip domain allowlist           (default: false)
+  AXON_ALLOWED_DOMAINS      Comma-separated proxy allowlist
 """
 
 from __future__ import annotations
 
 import json
 import sys
-import urllib.error
-import urllib.request
 from typing import Any
+
+import requests
 
 BASE = "http://127.0.0.1:8080"
 
 
 def post(path: str, body: Any) -> dict:
-    data = json.dumps(body).encode()
-    req = urllib.request.Request(
-        f"{BASE}{path}", data=data,
-        headers={"Content-Type": "application/json"}, method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=10) as r:
-        return json.loads(r.read())
+    response = requests.post(f"{BASE}{path}", json=body, timeout=10)
+    response.raise_for_status()
+    return response.json()
 
 
 def get(path: str) -> dict:
-    with urllib.request.urlopen(f"{BASE}{path}", timeout=10) as r:
-        return json.loads(r.read())
+    response = requests.get(f"{BASE}{path}", timeout=10)
+    response.raise_for_status()
+    return response.json()
 
 
 def pp(label: str, d: Any) -> None:
@@ -257,12 +254,12 @@ def section_memory():
 # ══════════════════════════════════════════════════════════
 
 def main():
-    print("GCF Token Bridge — Setup & Integration Guide")
+    print("Axon Token Bridge — Setup & Integration Guide")
     print("============================================")
 
     try:
         get("/health")
-    except (urllib.error.URLError, ConnectionRefusedError):
+    except requests.exceptions.RequestException:
         print(f"\nERROR: Server not reachable at {BASE}")
         print("Start it first:\n  python3 -m uvicorn gcf_fastapi:app --host 127.0.0.1 --port 8080")
         sys.exit(1)
@@ -272,6 +269,7 @@ def main():
     section_graph()
     section_agents()
     section_memory()
+    section_proxy()
 
     print("\n\n  All sections passed. Integration guide complete.\n")
 

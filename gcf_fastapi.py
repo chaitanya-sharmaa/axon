@@ -1,8 +1,9 @@
-"""Backward-compatible entrypoint.
+"""Backward-compatible entrypoint within the bridge package.
 
-Prefer using `app.py` directly. This file exists to keep older startup commands working.
+This file re-exports the FastAPI application from `bridge.app`.
+The primary entrypoint is `app.py` at the project root.
 """
 
-from app import app, create_app
+from .app import app, create_app
 
 __all__ = ["app", "create_app"]

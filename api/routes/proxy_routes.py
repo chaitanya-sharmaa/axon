@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 from typing import Any
+import httpx
 import json
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import JSONResponse
 
 from domain.api_models import UpstreamProxyRequest
-from core.app_config import bridge, memory_store, security_config
+from core.app_config import axon_service, memory_store, security_config
 
 
 router = APIRouter(tags=["proxy"])
@@ -52,45 +51,35 @@ async def proxy_upstream(
     if method not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
         raise HTTPException(status_code=400, detail=f"Unsupported method: {method}")
 
-    # Prepare request
-    headers = dict(req.headers or {})
-    body_bytes: bytes | None = None
-
-    if req.data is not None:
-        if isinstance(req.data, (dict, list, int, float, bool)) or req.data is None:
-            body_bytes = json.dumps(req.data, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
-            headers.setdefault("Content-Type", "application/json")
-        elif isinstance(req.data, str):
-            body_bytes = req.data.encode("utf-8")
-            headers.setdefault("Content-Type", "text/plain; charset=utf-8")
-        else:
-            normalized = bridge.from_any_to_object(req.data)
-            body_bytes = json.dumps(normalized, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
-            headers.setdefault("Content-Type", "application/json")
-
-    http_request = Request(req.upstream_url, data=body_bytes, method=method)
-    for key, value in headers.items():
-        http_request.add_header(key, value)
-
     # Execute upstream request
-    response_status = 200
-    response_headers: dict[str, str] = {}
-    response_body = b""
-
-    try:
-        with urlopen(http_request, timeout=req.timeout_seconds) as response:
-            response_status = response.status
-            response_headers = dict(response.headers.items())
-            response_body = response.read()
-    except HTTPError as http_err:
-        response_status = http_err.code
-        response_headers = dict(http_err.headers.items()) if http_err.headers else {}
-        response_body = http_err.read() if http_err.fp is not None else b""
-    except URLError as url_err:
-        raise HTTPException(status_code=502, detail=f"Upstream connection failed: {url_err.reason}") from url_err
+    async with httpx.AsyncClient(timeout=req.timeout_seconds) as client:
+        try:
+            # Prepare data/json for httpx
+            json_payload, content_payload = None, None
+            if isinstance(req.data, (dict, list)):
+                json_payload = req.data
+            elif isinstance(req.data, str):
+                content_payload = req.data.encode("utf-8")
+            elif req.data is not None:
+                json_payload = axon_service.from_any_to_object(req.data)
+            
+            response = await client.request(
+                method=method,
+                url=req.upstream_url,
+                headers=req.headers,
+                json=json_payload,
+                content=content_payload,
+            )
+            response_status = response.status_code
+            response_headers = dict(response.headers)
+            response_body = response.content
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Upstream connection failed: {exc}"
+            ) from exc
 
     # Parse and encode response
-    content_type = response_headers.get("Content-Type", "")
+    content_type = response_headers.get("content-type", "")
     decoded_text = response_body.decode("utf-8", errors="replace")
     
     if "application/json" in content_type:
@@ -102,7 +91,7 @@ async def proxy_upstream(
         upstream_payload = {"_raw_text": decoded_text}
 
     # Convert to GCF envelope
-    envelope = bridge.convert_output(upstream_payload, session_id=req.session_id)
+    envelope = axon_service.convert_output(upstream_payload, session_id=req.session_id)
     envelope["upstream"] = {
         "url": req.upstream_url,
         "method": method,
@@ -118,8 +107,8 @@ async def proxy_upstream(
             "status": response_status,
             "tokens_saved": envelope["metrics"]["estimated_savings_percent"],
         }
-        memory_store.create_session(req.session_id)
-        memory_store.log_event(
+        await memory_store.create_session(req.session_id)
+        await memory_store.log_event(
             req.session_id,
             "upstream_proxy",
             event_payload,

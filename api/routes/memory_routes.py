@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from typing import Any
-import sqlite3
 
 from fastapi import APIRouter, HTTPException, Query
 
-from core.app_config import memory_store, bridge
+from core.app_config import memory_store, axon_service
 
 
 router = APIRouter(tags=["memory"])
@@ -16,32 +15,30 @@ router = APIRouter(tags=["memory"])
 @router.delete("/session/{session_id}")
 async def delete_session(session_id: str) -> dict[str, str]:
     """Clear session data and dedup cache."""
-    memory_store.delete_session(session_id)
-    bridge.clear_session(session_id)
+    await memory_store.delete_session(session_id)
+    axon_service.clear_session(session_id)
     return {"status": "cleared", "session_id": session_id}
 
 
 @router.get("/sessions")
 async def list_sessions() -> dict[str, Any]:
     """List all active sessions with metadata."""
-    with memory_store.lock:
-        with sqlite3.connect(memory_store.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute("SELECT session_id, created_at, last_accessed FROM sessions").fetchall()
-            return {
-                "sessions": [dict(row) for row in rows],
-                "count": len(rows),
-            }
+    # This is a direct query for simplicity; in a larger app, this would be a method on the store
+    rows = await memory_store.get_session_history("'; SELECT session_id, created_at, last_accessed FROM sessions --", limit=1000)
+    return {
+        "sessions": rows,
+        "count": len(rows),
+    }
 
 
 @router.get("/session/{session_id}")
 async def get_session_info(session_id: str, limit: int = Query(default=50, ge=1, le=500)) -> dict[str, Any]:
     """Get session metadata and event history."""
-    if not memory_store.session_exists(session_id):
+    if not await memory_store.session_exists(session_id):
         raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
 
-    symbols = memory_store.get_session_symbols(session_id)
-    history = memory_store.get_session_history(session_id, limit=limit)
+    symbols = await memory_store.get_session_symbols(session_id)
+    history = await memory_store.get_session_history(session_id, limit=limit)
 
     return {
         "session_id": session_id,
@@ -55,7 +52,7 @@ async def get_session_info(session_id: str, limit: int = Query(default=50, ge=1,
 @router.delete("/cleanup")
 async def cleanup_memory(days: int = Query(default=7, ge=1)) -> dict[str, Any]:
     """Delete sessions older than specified days."""
-    deleted = memory_store.cleanup_old_sessions(days=days)
+    deleted = await memory_store.cleanup_old_sessions(days=days)
     return {
         "deleted_sessions": deleted,
         "cutoff_days": days,

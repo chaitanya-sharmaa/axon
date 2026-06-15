@@ -142,6 +142,35 @@ class AgentOrchestrator:
         except Exception:
             return None, None, None
 
+    async def _run_agent_handler(
+        self, agent: AgentDefinition, payload: Any, session_id: str | None
+    ) -> AgentResult:
+        """Execute an agent's handler and wrap the result."""
+        t0 = time.monotonic()
+        try:
+            if asyncio.iscoroutinefunction(agent.handler):
+                result = await agent.handler(payload)
+            else:
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, agent.handler, payload)
+
+            encoded, strategy, savings = self._encode(payload, session_id)
+            return AgentResult(
+                agent_name=agent.name,
+                result=result,
+                success=True,
+                encoded_output=encoded,
+                strategy_used=strategy,
+                token_savings_pct=savings,
+                latency_ms=round((time.monotonic() - t0) * 1000, 2),
+            )
+        except Exception as exc:
+            return AgentResult(
+                agent_name=agent.name, result=None, success=False,
+                error=str(exc),
+                latency_ms=round((time.monotonic() - t0) * 1000, 2),
+            )
+
     # ── Single dispatch ────────────────────────────────────────────────────────
 
     async def dispatch(
@@ -180,29 +209,7 @@ class AgentOrchestrator:
                 )
             agent = next(iter(sorted(self._registry.values(), key=lambda a: (a.priority, a.name))))
 
-        t0 = time.monotonic()
-        try:
-            if asyncio.iscoroutinefunction(agent.handler):
-                result = await agent.handler(payload)
-            else:
-                loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(None, agent.handler, payload)
-            encoded, strategy, savings = self._encode(payload, session_id)
-            return AgentResult(
-                agent_name=agent.name,
-                result=result,
-                success=True,
-                encoded_output=encoded,
-                strategy_used=strategy,
-                token_savings_pct=savings,
-                latency_ms=round((time.monotonic() - t0) * 1000, 2),
-            )
-        except Exception as exc:
-            return AgentResult(
-                agent_name=agent.name, result=None, success=False,
-                error=str(exc),
-                latency_ms=round((time.monotonic() - t0) * 1000, 2),
-            )
+        return await self._run_agent_handler(agent, payload, session_id)
 
     # ── Parallel fan-out dispatch ──────────────────────────────────────────────
 
@@ -215,10 +222,26 @@ class AgentOrchestrator:
         """Run one agent per capability concurrently and return all results."""
         t0 = time.monotonic()
 
-        async def run_one(cap: str) -> AgentResult:
-            return await self.dispatch(payload, capability=cap, session_id=session_id)
+        # Find the highest-priority agent for each requested capability.
+        # Using a dict ensures we don't run the same agent multiple times if it
+        # satisfies multiple capabilities in the request.
+        agents_to_run: dict[str, AgentDefinition] = {}
+        unmatched_caps: list[str] = []
+        for cap in capabilities:
+            candidates = self.find_for_capability(cap)
+            if candidates:
+                agent = candidates[0]
+                agents_to_run[agent.name] = agent
+            else:
+                unmatched_caps.append(cap)
 
-        results = list(await asyncio.gather(*[run_one(c) for c in capabilities]))
+        tasks = [self._run_agent_handler(agent, payload, session_id) for agent in agents_to_run.values()]
+        results = list(await asyncio.gather(*tasks))
+
+        # Add error results for any capabilities that had no matching agent.
+        for cap in unmatched_caps:
+            results.append(AgentResult(agent_name="none", result=None, success=False, error=f"No agent registered for capability '{cap}'"))
+
         return ParallelDispatchResult(
             results=results,
             total_latency_ms=round((time.monotonic() - t0) * 1000, 2),
@@ -244,29 +267,8 @@ class AgentOrchestrator:
         if not agents:
             return ParallelDispatchResult(results=[], total_latency_ms=0)
 
-        async def run_agent(agent: AgentDefinition) -> AgentResult:
-            inner_t0 = time.monotonic()
-            try:
-                if asyncio.iscoroutinefunction(agent.handler):
-                    result = await agent.handler(payload)
-                else:
-                    loop = asyncio.get_event_loop()
-                    result = await loop.run_in_executor(None, agent.handler, payload)
-                encoded, strategy, savings = self._encode(payload, session_id)
-                return AgentResult(
-                    agent_name=agent.name, result=result, success=True,
-                    encoded_output=encoded, strategy_used=strategy,
-                    token_savings_pct=savings,
-                    latency_ms=round((time.monotonic() - inner_t0) * 1000, 2),
-                )
-            except Exception as exc:
-                return AgentResult(
-                    agent_name=agent.name, result=None, success=False,
-                    error=str(exc),
-                    latency_ms=round((time.monotonic() - inner_t0) * 1000, 2),
-                )
-
-        results = list(await asyncio.gather(*[run_agent(a) for a in agents]))
+        tasks = [self._run_agent_handler(agent, payload, session_id) for agent in agents]
+        results = list(await asyncio.gather(*tasks))
         return ParallelDispatchResult(
             results=results,
             total_latency_ms=round((time.monotonic() - t0) * 1000, 2),

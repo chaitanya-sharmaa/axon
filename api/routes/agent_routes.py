@@ -82,8 +82,8 @@ async def dispatch(req: DispatchRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=result.error)
 
     if req.session_id:
-        memory_store.create_session(req.session_id)
-        memory_store.log_event(req.session_id, "agent_dispatch", {
+        await memory_store.create_session(req.session_id)
+        await memory_store.log_event(req.session_id, "agent_dispatch", {
             "agent": result.agent_name,
             "capability": req.capability,
             "strategy": result.strategy_used,
@@ -108,6 +108,16 @@ async def parallel_dispatch(req: ParallelDispatchRequest) -> dict[str, Any]:
         capabilities=req.capabilities,
         session_id=req.session_id,
     )
+
+    if req.session_id:
+        await memory_store.create_session(req.session_id)
+        await memory_store.log_event(req.session_id, "agent_parallel", {
+            "capabilities": req.capabilities,
+            "succeeded": len(parallel_result.succeeded),
+            "failed": len(parallel_result.failed),
+            "latency_ms": parallel_result.total_latency_ms,
+        })
+
     return {
         "results": [_agent_result_to_response(r) for r in parallel_result.results],
         "succeeded": len(parallel_result.succeeded),
@@ -128,12 +138,19 @@ async def swarm(req: SwarmRequest) -> dict[str, Any]:
         session_id=req.session_id,
         filter_type=req.filter_type,
     )
+
+    if req.session_id:
+        await memory_store.create_session(req.session_id)
+        await memory_store.log_event(req.session_id, "agent_swarm", {
+            "filter_type": req.filter_type,
+            "succeeded": len(parallel_result.succeeded),
+            "failed": len(parallel_result.failed),
+            "latency_ms": parallel_result.total_latency_ms,
+        })
+
     return {
         "results": [_agent_result_to_response(r) for r in parallel_result.results],
         "succeeded": len(parallel_result.succeeded),
         "failed": len(parallel_result.failed),
         "total_latency_ms": parallel_result.total_latency_ms,
     }
-
-
-

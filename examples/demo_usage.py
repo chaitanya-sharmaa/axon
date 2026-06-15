@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Live demo: GCF Token Bridge — auto-format selection, TOON/TRON, multi-agent.
+"""Live demo: Axon Token Bridge — auto-format selection, TOON/TRON, multi-agent.
 
 Shows all core capabilities of the bridge against a running server.
 
 Usage
 -----
-  # Start the server in one terminal (from workspace root):
-  python3 -m uvicorn gcf_fastapi:app --host 127.0.0.1 --port 8080
+  # 1. Start the server in one terminal (from the project root directory):
+  python3 -m uvicorn app:app --host 127.0.0.1 --port 8080
 
-  # Run this demo in another terminal:
-  cd /Users/chasharm4/Documents/gcf
+  # 2. Run this demo in another terminal (also from the project root):
   python3 bridge/examples/demo_usage.py
 """
 
@@ -17,9 +16,9 @@ from __future__ import annotations
 
 import json
 import sys
-import urllib.error
-import urllib.request
 from typing import Any
+
+import requests
 
 BASE_URL = "http://127.0.0.1:8080"
 DIVIDER = "\n" + "─" * 60
@@ -28,20 +27,15 @@ DIVIDER = "\n" + "─" * 60
 # ── HTTP helpers ───────────────────────────────────────────────────────────────
 
 def post(path: str, body: Any) -> dict:
-    data = json.dumps(body).encode()
-    req = urllib.request.Request(
-        f"{BASE_URL}{path}",
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        return json.loads(resp.read())
+    response = requests.post(f"{BASE_URL}{path}", json=body, timeout=10)
+    response.raise_for_status()
+    return response.json()
 
 
 def get(path: str) -> dict:
-    with urllib.request.urlopen(f"{BASE_URL}{path}", timeout=10) as resp:
-        return json.loads(resp.read())
+    response = requests.get(f"{BASE_URL}{path}", timeout=10)
+    response.raise_for_status()
+    return response.json()
 
 
 # ── Formatting helpers ─────────────────────────────────────────────────────────
@@ -203,14 +197,14 @@ def demo_agent_swarm() -> None:
 # ── Entry point ────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    print("\n  GCF Token Bridge — Live Demo")
+    print("\n  Axon Token Bridge — Live Demo")
     print("  Auto-format selection  |  TOON (delta)  |  TRON (session)  |  Multi-agent")
 
     try:
         get("/health")
-    except (urllib.error.URLError, ConnectionRefusedError):
+    except requests.exceptions.RequestException:
         print(f"\n  ERROR: Server not reachable at {BASE_URL}")
-        print("  Start it first:\n    python3 -m uvicorn gcf_fastapi:app --host 127.0.0.1 --port 8080")
+        print("  Start it first from the project root:\n    python3 -m uvicorn app:app --host 127.0.0.1 --port 8080")
         sys.exit(1)
 
     demo_health()
@@ -228,4 +222,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

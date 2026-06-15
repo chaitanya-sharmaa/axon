@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from domain.api_models import ProcessRequest
-from core.app_config import bridge, memory_store, token_optimizer
+from core.app_config import axon_service, memory_store, token_optimizer
 from domain.process_handlers import get_handler, list_handlers
 
 
@@ -30,7 +30,7 @@ async def process(req: ProcessRequest) -> dict[str, Any]:
         )
 
     # Normalize inbound — this is the context that would be forwarded to the LLM
-    normalized = bridge.from_any_to_object(req.inbound)
+    normalized = axon_service.from_any_to_object(req.inbound)
 
     # Auto-pick cheapest encoding of the INBOUND payload (the LLM context)
     # This is what saves tokens: the bridge compresses the prompt/context before
@@ -47,8 +47,8 @@ async def process(req: ProcessRequest) -> dict[str, Any]:
     }
     if req.session_id:
         envelope["session_id"] = req.session_id
-    if bridge.include_json_fallback:
-        envelope["json"] = normalized    # original normalised inbound for reference
+    if axon_service.include_json_fallback:
+        envelope["json"] = normalized    # original normalized inbound for reference
 
     # Persist to memory
     if req.session_id:
@@ -57,8 +57,7 @@ async def process(req: ProcessRequest) -> dict[str, Any]:
             "strategy_used": opt.winner.strategy,
             "tokens_saved_pct": opt.winner.savings_vs_json_pct,
         }
-        memory_store.create_session(req.session_id)
-        memory_store.log_event(req.session_id, "process", event_payload)
+        await memory_store.create_session(req.session_id)
+        await memory_store.log_event(req.session_id, "process", event_payload)
 
     return envelope
-

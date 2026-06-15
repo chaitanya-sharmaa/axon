@@ -1,17 +1,17 @@
-"""MCP-style adapter layer using GCFBridgeAgent for compact tool I/O."""
+"""MCP-style adapter layer using the Axon service for compact tool I/O."""
 
 from __future__ import annotations
 
 from typing import Any, Callable
 
-from services.bridge_service import GCFBridgeAgent
+from services.bridge_service import AxonService
 
 
-class GCFMCPAdapter:
+class AxonMCPAdapter:
     """Adapter helpers for wrapping tool results and decoding model inputs."""
 
-    def __init__(self, bridge: GCFBridgeAgent | None = None) -> None:
-        self.bridge = bridge or GCFBridgeAgent(include_json_fallback=True)
+    def __init__(self, axon_service: AxonService | None = None) -> None:
+        self.bridge = axon_service or AxonService(include_json_fallback=True)
 
     def decode_model_input(self, inbound: Any) -> Any:
         """Decode inbound JSON/GCF/object to normalized Python object."""

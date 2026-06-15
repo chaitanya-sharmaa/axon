@@ -279,43 +279,46 @@ If your payload contains a `symbols` key, the bridge automatically uses the **gr
 }
 ```
 
-Flexible symbol format (auto-converts to GCF):
-- `name` + `module` → combined as qualified name
-- `type` (class/function) → kind
-- Optional: `docstring`, `params`, `returns`
+## API Endpoint Reference
 
-Flexible edge format:
-- `from`/`to` instead of `source`/`target`
-- `type` (calls/references/etc.) instead of `edge_type`
+### Agent Orchestration
 
-## Multi-Turn Session Optimization
+- `GET /agent/list`: Lists all registered agents and their capabilities.
+- `POST /agent/dispatch`: Routes a payload to the single best agent based on a requested `capability` or `agent_name`.
+- `POST /agent/parallel`: Dispatches a payload to multiple agents concurrently, one for each specified `capability`.
+- `POST /agent/swarm`: Fans out a payload to all registered agents in parallel.
 
-Run the benchmark to see cumulative savings across 10 calls in the same session:
+### Proxy
 
-```bash
-python examples/session_benchmark.py
-```
+- `POST /proxy/upstream`: Forwards a request to any external API and compresses its response. This is the easiest way to integrate Axon.
 
-Example output (graph payloads):
-```
-Call  1: Symbols=15, Edges= 6 → GCF savings: 47.9%
-Call  2: Symbols=18, Edges= 8 → GCF savings: 50.0%  (symbols cached)
-Call  3: Symbols=21, Edges= 9 → GCF savings: 51.9%  (reusing refs)
-...
-Call 10: Symbols=42, Edges=20 → GCF savings: 52.1%
-```
+### Processing & Translation
 
-Per-call savings stabilize as repeated symbols get referenced, not re-encoded.
+- `POST /process`: Runs a payload through a built-in handler function (e.g., `echo`) and returns the compressed *input* payload. Useful for testing compression strategies.
+- `POST /translate/in`: A utility to decode any format (JSON, GCF) into a standard Python object.
+- `POST /translate/out`: A utility to encode a Python object into the Axon envelope with compression metrics.
 
-## Quick Integration
+### Session Memory
 
-For wrapping **in-process** Python functions or agents:
+- `GET /memory/sessions`: Lists all active sessions being tracked.
+- `GET /memory/session/{session_id}`: Retrieves the event history and cached data for a specific session.
+- `DELETE /memory/session/{session_id}`: Deletes all data for a specific session.
+- `DELETE /memory/cleanup`: A maintenance endpoint to purge old sessions.
 
-*(See "Scenario 4" in the "How to Use Axon" section above for an example.)*
+### Security
 
-## MCP-Style Adapter Example
+- `GET /security/config`: Shows the current security settings (e.g., domain allowlist).
+- `POST /security/domain/allow`: Adds a new domain to the proxy's allowlist.
+- `DELETE /security/domain`: Removes a domain from the proxy's allowlist.
+- `POST /security/require-api-key`: Toggles whether the proxy endpoint requires an API key.
 
-The `AxonMCPAdapter` provides helpers for integrating with systems that follow the Model-Context-Protocol pattern.
+## Contributing
+
+Contributions are welcome! Please feel free to submit a pull request.
+
+## License
+
+This project is licensed under the MIT License.
 
 ## Architecture
 

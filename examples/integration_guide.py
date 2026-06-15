@@ -4,6 +4,8 @@ Axon Token Bridge — Setup & Integration Guide
 =============================================
 
 Run this file to validate your setup and see worked integration examples.
+This script validates a running Axon server and demonstrates its core features
+through a series of API calls.
 
   python3 bridge/examples/integration_guide.py
 
@@ -30,6 +32,8 @@ Environment variables (all optional, sensible defaults)
   AXON_REQUIRE_API_KEY      Enforce API key on proxy        (default: false)
   AXON_ALLOW_ALL_DOMAINS    Skip domain allowlist           (default: false)
   AXON_ALLOWED_DOMAINS      Comma-separated proxy allowlist
+Before running, ensure the Axon server is running. See the main README.md
+for setup and server start instructions.
 """
 
 from __future__ import annotations

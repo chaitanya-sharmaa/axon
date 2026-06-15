@@ -111,7 +111,6 @@ print(f"Saved {envelope['metrics']['estimated_savings_percent']}% tokens!")
 - `core/settings.py`: environment-driven configuration
 - `services/bridge_service.py`: reusable GCF bridge with graph + generic support
 - `services/sqlite_memory_store.py`: persistent SQLite-backed session storage
-- `services/hybrid_memory.py`: multi-backend memory abstraction with Ruflo CLI/Python integration
 - `services/security_policy.py`: domain allowlist + API key policy
 - `domain/api_models.py`: API request/response models
 - `domain/process_handlers.py`: payload processing handlers
@@ -137,11 +136,6 @@ All major behavior is configurable via environment variables in `core/settings.p
 - `AXON_PORT` (default: `8080`)
 - `AXON_INCLUDE_JSON_FALLBACK` (`true|false`)
 - `AXON_MEMORY_DB_PATH` (default: `/tmp/axon_sessions.db`)
-- `AXON_ENABLE_RUFLO_MEMORY` (`true|false`, default: `false`)
-- `AXON_RUFLO_ENDPOINT` (optional endpoint when using Python client)
-- `AXON_RUFLO_NAMESPACE` (default: `axon-bridge`)
-- `AXON_RUFLO_CLI_COMMAND` (default: `ruflo`)
-- `AXON_RUFLO_PYTHON_MODULE` (default: `ruflo.memory`)
 - `AXON_REQUIRE_API_KEY` (`true|false`)
 - `AXON_ALLOW_ALL_DOMAINS` (`true|false`)
 - `AXON_API_KEY`
@@ -164,34 +158,7 @@ export AXON_API_KEY="prod-key-12345"
 export AXON_REQUIRE_API_KEY=true
 export AXON_ALLOWED_DOMAINS="api.github.com,httpbin.org"
 export AXON_ROUTE_PREFIX_PROXY="/api/proxy"
-export AXON_ENABLE_RUFLO_MEMORY=true
-export AXON_RUFLO_CLI_COMMAND="ruflo"
-export AXON_RUFLO_NAMESPACE="axon-bridge"
 ```
-
-### Core Endpoints (6)
-
-- `GET /health` — status check
-- `POST /translate/in` — normalize input to object
-- `POST /translate/out` — convert output to GCF envelope
-- `POST /process` — route through handler, return GCF (with graph auto-detection + session tracking)
-- `POST /proxy/upstream` — forward HTTP request to upstream API
-- `DELETE /memory/session/{session_id}` — clear session data and dedup cache
-
-### Session Memory Endpoints (3)
-
-- `GET /memory/sessions` — list all active sessions
-- `GET /memory/session/{session_id}` — get session event history + cached symbols
-- `DELETE /memory/cleanup` — remove sessions older than N days
-
-### Security Endpoints (6)
-
-- `GET /security/config` — view current security settings
-- `POST /security/domain/allow?domain=...` — add domain to allowlist
-- `DELETE /security/domain?domain=...` — remove domain from allowlist
-- `POST /security/require-api-key?required=true|false` — toggle API key requirement
-- `POST /security/allow-all-domains?allow=true|false` — enable unrestricted access (dev only)
-- `GET /security/ruflo-status` — integration status for Ruflo backend
 
 ## Upstream Proxy Example
 
@@ -235,18 +202,8 @@ curl -X DELETE http://127.0.0.1:8080/memory/cleanup?days=7
 Memory automatically logs:
 - Process calls and handlers invoked
 - Upstream proxy calls and response status
-- Token savings per call
-- Symbol schemas for deduplication tracking
 
-**Ruflo Integration:** When `AXON_ENABLE_RUFLO_MEMORY=true`, process and proxy events are mirrored to Ruflo via Python client (`ruflo.memory`) or Ruflo CLI memory tools. The service falls back gracefully if Ruflo is unavailable.
-
-Check runtime integration status:
-
-```bash
-curl http://127.0.0.1:8080/security/ruflo-status
-```
-
-## Security Features
+## Reference: Security & Configuration
 
 ### Domain Allowlist
 
@@ -354,34 +311,11 @@ Per-call savings stabilize as repeated symbols get referenced, not re-encoded.
 
 For wrapping **in-process** Python functions or agents:
 
-```python
-from services.bridge_service import GCFBridgeAgent
-
-bridge = GCFBridgeAgent()
-
-def my_agent(payload: dict) -> dict:
-    return {"ok": True, "input": payload}
-
-# Multi-turn: reuse same session_id across calls
-inbound_data = {"user": "test", "action": "submit"}
-envelope = bridge.process(inbound_data, my_agent, session_id="chat-123")
-
-# Send envelope["gcf"] to the next model hop
-# Use envelope["json"] for legacy systems if include_json_fallback=True
-```
+*(See "Scenario 4" in the "How to Use Axon" section above for an example.)*
 
 ## MCP-Style Adapter Example
 
-```python
-from mcp_adapter import GCFMCPAdapter
-
-adapter = GCFMCPAdapter()
-
-def tool_handler(payload: dict) -> dict:
-    return {"received": payload, "ok": True}
-
-result = adapter.invoke_tool(tool_handler, inbound_data, session_id="mcp-session-1")
-```
+The `AxonMCPAdapter` provides helpers for integrating with systems that follow the Model-Context-Protocol pattern.
 
 ## Architecture
 
@@ -389,17 +323,17 @@ result = adapter.invoke_tool(tool_handler, inbound_data, session_id="mcp-session
 Client API/Agent
         ↓
 ┌───────────────────────┐
-│  GCF Bridge Middleware│
+│  Axon Bridge          │
 │  (FastAPI Service)    │
 ├───────────────────────┤
 │ • Normalize input     │
 │ • Route to handler    │
 │ • Graph auto-detect   │
 │ • Session dedup cache │
-├───────────────────────┤
+├───────────────────────┤_
 │ SecurityConfig        │
 │ SessionMemoryStore    │
-│ GCFBridgeAgent        │
+│ AxonService           │
 └───────────────────────┘
         ↓
     GCF Output

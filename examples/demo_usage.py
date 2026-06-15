@@ -73,7 +73,7 @@ def demo_generic_first_turn() -> None:
         "session_id": "demo-generic",
     })
     print_metrics(r["metrics"])
-    print(f"\n  Encoded:\n  {r['encoded'].strip()}")
+    print(f"\n  Encoded:\n  {r['compact_text'].strip()}")
 
 
 def demo_tron_generic() -> None:
@@ -87,7 +87,7 @@ def demo_tron_generic() -> None:
         "session_id": "demo-generic",
     })
     print_metrics(r["metrics"])
-    print(f"\n  Encoded:\n  {r['encoded'].strip()}")
+    print(f"\n  Encoded:\n  {r['compact_text'].strip()}")
 
 
 def demo_toon_generic() -> None:
@@ -101,11 +101,11 @@ def demo_toon_generic() -> None:
         "session_id": "demo-generic",
     })
     print_metrics(r["metrics"])
-    print(f"\n  Encoded (only the changed field is sent to LLM):\n  {r['encoded'].strip()}")
+    print(f"\n  Encoded (only the changed field is sent to LLM):\n  {r['compact_text'].strip()}")
 
 
 def demo_graph_first_turn() -> None:
-    section("5. Graph payload (code context) — turn 1  [GCF graph wins]")
+    section("5. Graph payload (code context) — turn 1  [Compact graph format wins]")
     r = post("/process", {
         "inbound": {
             "symbols": [
@@ -126,7 +126,7 @@ def demo_graph_first_turn() -> None:
 
 
 def demo_graph_delta() -> None:
-    section("6. Graph payload — turn 2, one new symbol added  [TOON/gcf_delta wins]")
+    section("6. Graph payload — turn 2, one new symbol added  [TOON/delta wins]")
     r = post("/process", {
         "inbound": {
             "symbols": [

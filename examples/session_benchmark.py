@@ -92,7 +92,7 @@ def run_benchmark():
             metrics = resp_data.get("metrics", {})
             
             json_tokens = metrics.get("estimated_json_tokens", 0)
-            gcf_tokens = metrics.get("estimated_gcf_tokens", 0)
+            gcf_tokens = metrics.get("estimated_optimized_tokens", 0)
             savings_pct = metrics.get("estimated_savings_percent", 0)
             
             results["calls"].append(call_num)
@@ -102,8 +102,8 @@ def run_benchmark():
             
             print(
                 f"Call {call_num:2d}: "
-                f"Symbols={len(payload['symbols']):2d}, Edges={len(payload['edges']):2d} → "
-                f"JSON={json_tokens:5d} → GCF={gcf_tokens:5d} | "
+                f"Symbols={len(payload['symbols']):2d}, Edges={len(payload['edges']):2d} -> "
+                f"JSON={json_tokens:5d} -> Optimized={gcf_tokens:5d} | "
                 f"Savings: {savings_pct:5.1f}%"
             )
         except Exception as e:
@@ -128,14 +128,14 @@ def run_benchmark():
     
     print(f"\n💾 Total payload compression (10 calls):")
     print(f"   JSON total:       {total_json:,} tokens")
-    print(f"   GCF total:        {total_gcf:,} tokens")
+    print(f"   Optimized total:  {total_gcf:,} tokens")
     print(f"   Bytes saved:      {total_json - total_gcf:,}")
     print(f"   Overall savings:  {overall_savings:.1f}%")
     
     if total_gcf > 0:
         print(f"\n🧠 Context window improvement:")
         print(f"   10 JSON calls at std 4K token limit: {total_json / 4000:.1f}x window usage")
-        print(f"   10 GCF calls:                         {total_gcf / 4000:.1f}x window usage")
+        print(f"   10 Optimized calls:                   {total_gcf / 4000:.1f}x window usage")
         print(f"   Effective expansion:                  {(total_json / total_gcf):.1f}x")
     
     # Query session memory

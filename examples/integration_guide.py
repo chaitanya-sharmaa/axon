@@ -3,37 +3,16 @@
 Axon Token Bridge — Setup & Integration Guide
 =============================================
 
-Run this file to validate your setup and see worked integration examples.
 This script validates a running Axon server and demonstrates its core features
 through a series of API calls.
 
-  python3 bridge/examples/integration_guide.py
-
 Requirements
 ------------
-  pip install gcf-python fastapi uvicorn
+  pip install -r requirements.txt
 
 Start the server (separate terminal)
 -------------------------------------
-  cd /path/to/gcf
-  python3 -m uvicorn gcf_fastapi:app --host 127.0.0.1 --port 8080
-
-Environment variables (all optional, sensible defaults)
----------------------------------------------------------
-  AXON_HOST                 Server bind host          (default: 127.0.0.1)
-  AXON_PORT                 Server bind port          (default: 8080)
-  AXON_ENABLED_FORMATS      Comma-separated strategy list
-                             choices: gcf_graph, gcf_session, gcf_delta,
-                                      gcf_generic, gcf_generic_delta,
-                                      gcf_generic_session, json
-                             default: all of the above
-  AXON_MEMORY_DB_PATH       SQLite file for session memory  (default: /tmp/axon_sessions.db)
-  AXON_API_KEY              Bearer token for proxy auth     (default: disabled)
-  AXON_REQUIRE_API_KEY      Enforce API key on proxy        (default: false)
-  AXON_ALLOW_ALL_DOMAINS    Skip domain allowlist           (default: false)
-  AXON_ALLOWED_DOMAINS      Comma-separated proxy allowlist
-Before running, ensure the Axon server is running. See the main README.md
-for setup and server start instructions.
+  python3 -m uvicorn app:app --host 127.0.0.1 --port 8080
 """
 
 from __future__ import annotations
@@ -89,9 +68,9 @@ def section_generic():
     print("╚══════════════════════════════════════════════════════╝")
     print("""
   Any dict / list payload goes through these strategies:
-    gcf_generic         — compact key=value encoding (always runs)
-    gcf_generic_delta   — TOON: only changed keys vs previous turn
-    gcf_generic_session — TRON: replaces repeated scalar values with refs
+    generic           — compact key=value encoding (always runs)
+    generic_delta     — TOON: only changed keys vs previous turn
+    generic_session   — TRON: replaces repeated scalar values with refs
 
   The cheapest one for this payload wins automatically.
 """)
@@ -106,14 +85,14 @@ def section_generic():
     r1 = post("/process", {"inbound": payload, "handler": "echo", "session_id": session})
     m = r1["metrics"]
     print(f"    winner={m['strategy_used']}  savings={m['estimated_savings_percent']:+.1f}%")
-    print(f"    encoded:\n{r1['encoded']}")
+    print(f"    encoded:\n{r1['compact_text']}")
 
     print("  Turn 2 — same payload, one field changed (region):")
     payload2 = {**payload, "region": "ap-southeast-1"}
     r2 = post("/process", {"inbound": payload2, "handler": "echo", "session_id": session})
     m = r2["metrics"]
     print(f"    winner={m['strategy_used']}  savings={m['estimated_savings_percent']:+.1f}%")
-    print(f"    encoded:\n{r2['encoded']}")
+    print(f"    encoded:\n{r2['compact_text']}")
     print("  ↑ Only the changed field was sent — TOON delta saved tokens")
 
 
@@ -123,14 +102,14 @@ def section_generic():
 
 def section_graph():
     print("\n\n╔══════════════════════════════════════════════════════╗")
-    print("║  SECTION 3: Graph payload — GCF / TOON / TRON        ║")
+    print("║  SECTION 3: Graph payload — Compact / TOON / TRON    ║")
     print("╚══════════════════════════════════════════════════════╝")
     print("""
   Graph payloads must contain a "symbols" list.
   Additional strategies available vs generic:
-    gcf_graph   — GCF graph profile with symbol/edge deduplication
-    gcf_delta   — TOON for graphs: only added/removed symbols+edges
-    gcf_session — TRON for graphs: session-aware symbol elision
+    graph         — Compact graph profile with symbol/edge deduplication
+    graph_delta   — TOON for graphs: only added/removed symbols+edges
+    graph_session — TRON for graphs: session-aware symbol elision
 """)
 
     session = "guide-graph"
@@ -227,6 +206,38 @@ def section_agents():
 
 
 # ══════════════════════════════════════════════════════════
+# SECTION 6 — Wrapping an External API (Proxy)
+# ══════════════════════════════════════════════════════════
+
+def section_proxy():
+    print("\n\n╔══════════════════════════════════════════════════════╗")
+    print("║  SECTION 6: Wrapping an External API (Proxy)         ║")
+    print("╚══════════════════════════════════════════════════════╝")
+    print("""
+  The easiest way to get started.
+  POST /proxy/upstream to call any external API. The bridge fetches the
+  response and automatically encodes it into the most token-efficient format.
+  No code changes needed for your existing API.
+""")
+
+    # We'll use httpbin.org as our "external API"
+    proxy_request = {
+        "upstream_url": "https://httpbin.org/json",
+        "method": "GET",
+        "session_id": "guide-proxy",
+    }
+
+    print("  Calling external API via /proxy/upstream:")
+    r = post("/proxy/upstream", proxy_request)
+
+    print(f"    → Upstream responded with status {r['upstream']['status']}")
+    m = r["metrics"]
+    print(f"    → Bridge encoded response with '{m['strategy_used']}'")
+    print(f"    → Savings: {m['estimated_savings_percent']:+.1f}% ({m['estimated_json_tokens']}t → {m['estimated_optimized_tokens']}t)")
+    print(f"    → Compact text for LLM:\n{r['compact_text']}")
+
+
+# ══════════════════════════════════════════════════════════
 # SECTION 5 — Session memory
 # ══════════════════════════════════════════════════════════
 
@@ -247,7 +258,7 @@ def section_memory():
     post("/process", {"inbound": {"x": 2}, "handler": "echo", "session_id": "guide-mem"})
 
     sessions = get("/memory/sessions")
-    print(f"  Active sessions: {[s.get('session_id') for s in sessions.get('sessions', [])]}")
+    print(f"  Active sessions: {[s.get('session_id') for s in sessions.get('sessions', [])] if sessions.get('sessions') else 'None'}")
 
     history = get("/memory/session/guide-mem")
     print(f"  Events in 'guide-mem': {len(history.get('events', []))}")
@@ -265,7 +276,7 @@ def main():
         get("/health")
     except requests.exceptions.RequestException:
         print(f"\nERROR: Server not reachable at {BASE}")
-        print("Start it first:\n  python3 -m uvicorn gcf_fastapi:app --host 127.0.0.1 --port 8080")
+        print("Start it first from the project root:\n  python3 -m uvicorn app:app --host 127.0.0.1 --port 8080")
         sys.exit(1)
 
     section_health()

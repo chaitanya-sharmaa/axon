@@ -47,12 +47,13 @@ from gcf import (
 )
 
 # ── Strategy names ─────────────────────────────────────────────────────────────
-STRATEGY_GCF_GRAPH = "gcf_graph"
-STRATEGY_GCF_SESSION = "gcf_session"
-STRATEGY_GCF_DELTA = "gcf_delta"
-STRATEGY_GCF_GENERIC = "gcf_generic"
-STRATEGY_GCF_GENERIC_DELTA = "gcf_generic_delta"      # TOON for non-graph
-STRATEGY_GCF_GENERIC_SESSION = "gcf_generic_session"  # TRON for non-graph
+STRATEGY_GCF_GRAPH = "graph"
+STRATEGY_GCF_SESSION = "graph_session"
+STRATEGY_GCF_DELTA = "graph_delta"
+STRATEGY_GCF_GENERIC = "generic"
+STRATEGY_GCF_GENERIC_DELTA = "generic_delta"      # TOON for non-graph
+STRATEGY_GCF_GENERIC_SESSION = "generic_session"  # TRON for non-graph
+STRATEGY_SCHEMA_VALUES = "schema_values"
 STRATEGY_JSON = "json"
 
 ALL_STRATEGIES = [
@@ -62,6 +63,7 @@ ALL_STRATEGIES = [
     STRATEGY_GCF_GENERIC,
     STRATEGY_GCF_GENERIC_DELTA,
     STRATEGY_GCF_GENERIC_SESSION,
+    STRATEGY_SCHEMA_VALUES,
     STRATEGY_JSON,
 ]
 
@@ -272,11 +274,16 @@ class TokenOptimizer:
         self._prev_generic: dict[str, Any] = {}
         # Per-session seen scalar values (for generic TRON session dedup)
         self._seen_values: dict[str, dict[str, str]] = {}
+        # Per-session schema keys (for generic schema_values dedup)
+        self._schema_keys: dict[str, tuple[str, ...]] = {}
 
     def _get_session(self, session_id: str) -> Session:
         if session_id not in self._sessions:
             self._sessions[session_id] = Session()
         return self._sessions[session_id]
+
+    def get_gcf_session(self, session_id: str) -> Session:
+        return self._get_session(session_id)
 
     def _get_prev_symbols(self, session_id: str) -> list[str] | None:
         return self._prev_symbols.get(session_id)
@@ -289,6 +296,7 @@ class TokenOptimizer:
         self._prev_symbols.pop(session_id, None)
         self._prev_generic.pop(session_id, None)
         self._seen_values.pop(session_id, None)
+        self._schema_keys.pop(session_id, None)
 
     def optimize(
         self,
@@ -314,7 +322,7 @@ class TokenOptimizer:
 
         # Detect payload type
         payload: Payload | None = None
-        is_graph = isinstance(obj, Mapping) and isinstance(obj.get("symbols"), list)
+        is_graph = isinstance(obj, Mapping) and isinstance(obj.get("symbols"), list) and len(obj.get("symbols")) > 0
         payload_type = "graph" if is_graph else "generic"
         if is_graph:
             payload = _build_payload(obj)
@@ -379,6 +387,25 @@ class TokenOptimizer:
                 _add(STRATEGY_GCF_GENERIC_SESSION, encode_generic(session_obj))
             except Exception as e:
                 logging.warning(f"Strategy {STRATEGY_GCF_GENERIC_SESSION} failed: {e}", exc_info=False)
+
+        # ── Schema values ───────────────────────────────────────────────────────
+        if STRATEGY_SCHEMA_VALUES in active and session_id and not is_graph and isinstance(obj, dict):
+            try:
+                # Check if all values are scalars (for flat data)
+                if all(isinstance(v, (str, int, float, bool)) for v in obj.values()):
+                    current_keys = tuple(obj.keys())
+                    prev_keys = self._schema_keys.get(session_id)
+                    if prev_keys == current_keys:
+                        # Keys match exactly, send only values
+                        encoded = ",".join(str(v) for v in obj.values())
+                    else:
+                        # First turn or keys changed, send key=value
+                        encoded = ",".join(f"{k}={v}" for k, v in obj.items())
+                    _add(STRATEGY_SCHEMA_VALUES, encoded)
+                    
+                    self._schema_keys[session_id] = current_keys
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_SCHEMA_VALUES} failed: {e}", exc_info=False)
 
         # ── JSON baseline ──────────────────────────────────────────────────────
         if STRATEGY_JSON in active:

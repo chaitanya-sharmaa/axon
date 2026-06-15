@@ -15,12 +15,6 @@ from domain.process_handlers import (
 from core.settings import settings
 
 
-# ── Core bridge ────────────────────────────────────────────────────────────────
-axon_service = AxonService(include_json_fallback=settings.include_json_fallback)
-
-# ── Persistent session memory (SQLite) ────────────────────────────────────────
-memory_store = SessionMemoryStore(db_path=settings.memory_db_path)
-
 # ── Security ──────────────────────────────────────────────────────────────────
 security_config = SecurityConfig(
     api_key=settings.api_key,
@@ -31,6 +25,15 @@ security_config = SecurityConfig(
 
 # ── Token optimizer — auto-picks cheapest encoding (GCF/TOON/TRON) ────────────
 token_optimizer = TokenOptimizer(enabled_strategies=settings.enabled_formats)
+
+# ── Core bridge service (delegates session management to the optimizer) ─────────
+axon_service = AxonService(
+    token_optimizer=token_optimizer,
+    include_json_fallback=settings.include_json_fallback,
+)
+
+# ── Persistent event log (SQLite) ──────────────────────────────────────────────
+memory_store = SessionMemoryStore(db_path=settings.memory_db_path)
 
 # ── Agent orchestrator — multi-agent dispatch layer ───────────────────────────
 orchestrator = AgentOrchestrator(token_optimizer=token_optimizer)

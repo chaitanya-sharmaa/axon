@@ -41,7 +41,7 @@ async def process(req: ProcessRequest) -> dict[str, Any]:
     result = handler(normalized)
 
     envelope: dict[str, Any] = {
-        "encoded": opt.winner.encoded,   # cheapest encoding of the inbound context
+        "compact_text": opt.winner.encoded,   # cheapest encoding of the inbound context
         "metrics": opt.to_metrics(),
         "handler_result": result,        # handler-processed output
     }

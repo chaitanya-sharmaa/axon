@@ -9,41 +9,45 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 import inspect
 import json
-import threading
 from typing import Any, Awaitable, Callable, Dict, Mapping
+import tiktoken
 
 from gcf import (
     Edge,
     Payload,
     Session,
     Symbol,
-    decode,
     decode_generic,
+    decode,
     encode,
     encode_generic,
     encode_with_session,
 )
+from core.settings import settings
+from services.token_optimizer import TokenOptimizer
 
 
 class AxonService:
     """Core service for converting payloads to and from compact, token-efficient formats."""
 
-    def __init__(self, include_json_fallback: bool = True) -> None:
+    def __init__(
+        self, token_optimizer: TokenOptimizer, include_json_fallback: bool = True
+    ) -> None:
         self.include_json_fallback = include_json_fallback
-        self._sessions: Dict[str, Session] = {}
-        self._sessions_lock = threading.Lock()
+        # Use the optimizer as the single source of truth for session state
+        self._optimizer = token_optimizer
+        self._tokenizer = tiktoken.get_encoding(settings.tokenizer_model)
+
+    def _estimate_tokens(self, text: str) -> int:
+        """Estimate tokens using tiktoken."""
+        return len(self._tokenizer.encode(text))
 
     @staticmethod
-    def _estimate_tokens(text: str) -> int:
-        # Fast provider-agnostic estimate. Good enough for relative savings tracking.
-        return max(1, len(text) // 4)
-
-    @staticmethod
-    def _is_gcf_text(value: str) -> bool:
+    def _is_compact_format_text(value: str) -> bool:
         return value.lstrip().startswith("GCF profile=")
 
     @staticmethod
-    def _gcf_profile(value: str) -> str | None:
+    def _get_profile(value: str) -> str | None:
         stripped = value.lstrip()
         if not stripped.startswith("GCF profile="):
             return None
@@ -87,8 +91,8 @@ class AxonService:
             stripped = value.strip()
             if not stripped:
                 return ""
-            if self._is_gcf_text(stripped):
-                profile = self._gcf_profile(stripped)
+            if self._is_compact_format_text(stripped):
+                profile = self._get_profile(stripped)
                 if profile == "graph":
                     return self._normalize_object(decode(stripped))
                 return decode_generic(stripped)
@@ -164,22 +168,17 @@ class AxonService:
         )
 
     def _get_session(self, session_id: str) -> Session:
-        with self._sessions_lock:
-            if session_id not in self._sessions:
-                self._sessions[session_id] = Session()
-            return self._sessions[session_id]
+        """Delegates to the TokenOptimizer to get the shared gcf.Session object."""
+        return self._optimizer.get_gcf_session(session_id)
 
     def clear_session(self, session_id: str) -> None:
-        with self._sessions_lock:
-            self._sessions.pop(session_id, None)
+        """Delegates to the TokenOptimizer to clear the shared session state."""
+        self._optimizer.clear_session(session_id)
 
-    def clear_all_sessions(self) -> None:
-        with self._sessions_lock:
-            self._sessions.clear()
 
-    def to_gcf(self, value: Any, session_id: str | None = None) -> str:
-        """Convert arbitrary input into GCF text (graph when possible, else generic)."""
-        if isinstance(value, str) and self._is_gcf_text(value):
+    def to_compact_text(self, value: Any, session_id: str | None = None) -> str:
+        """Convert arbitrary input into a compact text format (graph when possible, else generic)."""
+        if isinstance(value, str) and self._is_compact_format_text(value):
             return value
         obj = self.from_any_to_object(value)
         payload = self._to_graph_payload(obj)
@@ -189,28 +188,28 @@ class AxonService:
             return encode(payload)
         return encode_generic(obj)
 
-    def from_gcf(self, gcf_text: str) -> Any:
-        """Decode GCF generic profile text back to object form."""
-        return decode_generic(gcf_text)
+    def from_compact_text(self, compact_text: str) -> Any:
+        """Decode compact generic profile text back to object form."""
+        return decode_generic(compact_text)
 
     def convert_output(self, value: Any, session_id: str | None = None) -> Dict[str, Any]:
-        """Convert output to a wire envelope with GCF and token stats."""
+        """Convert output to a wire envelope with compact format and token stats."""
         obj = self.from_any_to_object(value)
         json_text = json.dumps(obj, separators=(",", ":"), ensure_ascii=True)
-        gcf_text = self.to_gcf(obj, session_id=session_id)
+        compact_text = self.to_compact_text(obj, session_id=session_id)
 
-        profile = self._gcf_profile(gcf_text) or "generic"
+        profile = self._get_profile(compact_text) or "generic"
 
         json_tokens = self._estimate_tokens(json_text)
-        gcf_tokens = self._estimate_tokens(gcf_text)
-        savings_pct = round((1 - (gcf_tokens / json_tokens)) * 100, 2) if json_tokens else 0.0
+        compact_tokens = self._estimate_tokens(compact_text)
+        savings_pct = round((1 - (compact_tokens / json_tokens)) * 100, 2) if json_tokens else 0.0
 
         envelope: Dict[str, Any] = {
-            "gcf": gcf_text,
+            "compact_text": compact_text,
             "profile": profile,
             "metrics": {
                 "estimated_json_tokens": json_tokens,
-                "estimated_gcf_tokens": gcf_tokens,
+                "estimated_compact_tokens": compact_tokens,
                 "estimated_savings_percent": savings_pct,
             },
         }

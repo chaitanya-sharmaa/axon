@@ -16,7 +16,11 @@ class SessionMemoryStore:
         self.db_path = db_path
         self.lock = asyncio.Lock()
         # In a real app, you might run this as a startup event
-        asyncio.run(self._init_db())
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._init_db())
+        except RuntimeError:
+            asyncio.run(self._init_db())
 
     async def _init_db(self) -> None:
         async with self.lock:

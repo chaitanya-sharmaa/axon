@@ -5,13 +5,19 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from services.bridge_service import AxonService
+from services.token_optimizer import TokenOptimizer
 
 
 class AxonMCPAdapter:
     """Adapter helpers for wrapping tool results and decoding model inputs."""
 
     def __init__(self, axon_service: AxonService | None = None) -> None:
-        self.bridge = axon_service or AxonService(include_json_fallback=True)
+        if axon_service:
+            self.bridge = axon_service
+        else:
+            # If no service is provided, create a default one for standalone use.
+            # This requires creating a default TokenOptimizer as well.
+            self.bridge = AxonService(token_optimizer=TokenOptimizer(), include_json_fallback=True)
 
     def decode_model_input(self, inbound: Any) -> Any:
         """Decode inbound JSON/GCF/object to normalized Python object."""

@@ -6,14 +6,13 @@ Axon's core `TokenOptimizer` automatically benchmarks multiple encoding strategi
 
 - **`graph`**: A highly compact format for code-like structures (symbols and edges).
 - **`generic`**: A general-purpose compact format for any dictionary.
-- **`schema_values`**: A value-only format for flat, repetitive dictionaries.
 - **`json`**: The standard baseline.
 
 ## Multi-Turn Session Optimization (TOON & TRON)
 
 For multi-turn conversations, Axon uses session-based strategies to achieve even greater savings:
 
-- **TRON (Token-Reduced Object Notation)**: In a session, Axon remembers previously seen symbols or values and replaces them with short references (e.g., `@1`) on subsequent turns. Implemented via the `graph_session` and `generic_session` strategies.
+- **TRON (Token-Reduced Object Notation)**: In a session, Axon remembers previously seen symbols or values and replaces them with short references (e.g., `@1`) on subsequent turns. Implemented via the `gcf_session` and `gcf_generic_session` strategies.
 - **TOON (Token-Oriented Object Notation)**: Axon sends only the *changes* (a "delta") from the previous turn, rather than the full payload. Implemented via the `graph_delta` and `generic_delta` strategies.
 
 You can see this in action by running the session benchmark:

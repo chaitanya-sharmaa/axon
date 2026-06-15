@@ -98,18 +98,17 @@ def my_agent_function(payload: dict) -> dict:
 inbound_data = {"input": 123}
 envelope = axon.process(inbound_data, my_agent_function, session_id="agent-session-456")
 
-# `envelope["gcf"]` contains the compressed output for the LLM
-print(envelope["gcf"])
+# `envelope["compact_text"]` contains the compressed output for the LLM
+print(envelope["compact_text"])
 print(f"Saved {envelope['metrics']['estimated_savings_percent']}% tokens!")
 ```
 
 ## Files
 
 - `app.py`: primary FastAPI entrypoint
-- `gcf_fastapi.py`: backward-compatible entrypoint alias
 - `core/app_config.py`: app wiring and singleton services
 - `core/settings.py`: environment-driven configuration
-- `services/bridge_service.py`: reusable GCF bridge with graph + generic support
+- `services/bridge_service.py`: reusable token-saving bridge with graph + generic support
 - `services/sqlite_memory_store.py`: persistent SQLite-backed session storage
 - `services/security_policy.py`: domain allowlist + API key policy
 - `domain/api_models.py`: API request/response models
@@ -118,6 +117,7 @@ print(f"Saved {envelope['metrics']['estimated_savings_percent']}% tokens!")
 - `adapters/mcp_bridge_adapter.py`: MCP-style adapter helpers
 - `examples/demo_usage.py`: runnable demo
 - `examples/session_benchmark.py`: multi-turn benchmark
+- `examples/strategy_benchmark.py`: latency benchmark for each encoding strategy
 - `requirements.txt`: dependencies
 
 ## Install

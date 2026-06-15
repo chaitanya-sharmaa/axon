@@ -1,0 +1,124 @@
+"""Environment-driven settings for GCF Bridge."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import os
+
+
+_DEFAULT_ALLOWED_DOMAINS = [
+    "httpbin.org",
+    "api.github.com",
+    "api.example.com",
+    "localhost",
+    "127.0.0.1",
+]
+
+
+def _as_bool(raw: str | None, default: bool) -> bool:
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _as_float(raw: str | None, default: float) -> float:
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _as_list(raw: str | None, default: list[str]) -> list[str]:
+    if raw is None:
+        return list(default)
+    values = [x.strip() for x in raw.split(",") if x.strip()]
+    return values if values else list(default)
+
+
+@dataclass(frozen=True)
+class AppSettings:
+    app_title: str
+    app_version: str
+    app_description: str
+    openapi_description: str
+    openapi_logo_url: str
+
+    host: str
+    port: int
+
+    include_json_fallback: bool
+    memory_db_path: str
+
+    require_api_key: bool
+    allow_all_domains: bool
+    api_key: str | None
+    allowed_domains: list[str]
+
+    route_prefix_core: str
+    route_prefix_process: str
+    route_prefix_proxy: str
+    route_prefix_memory: str
+    route_prefix_security: str
+
+    enable_core_routes: bool
+    enable_process_routes: bool
+    enable_proxy_routes: bool
+    enable_memory_routes: bool
+    enable_security_routes: bool
+    enable_agent_routes: bool
+
+    # Token optimizer — comma-separated list of strategies to benchmark
+    # choices: gcf_graph, gcf_session, gcf_delta, gcf_generic, json
+    enabled_formats: list[str]
+
+
+
+def load_settings() -> AppSettings:
+    port_raw = os.getenv("GCF_PORT", "8080")
+    try:
+        port = int(port_raw)
+    except ValueError:
+        port = 8080
+
+    return AppSettings(
+        app_title=os.getenv("GCF_APP_TITLE", "GCF Bridge Middleware"),
+        app_version=os.getenv("GCF_APP_VERSION", "0.3.0"),
+        app_description=os.getenv(
+            "GCF_APP_DESCRIPTION",
+            "Token-efficient bridge layer with session deduplication, security, and persistence",
+        ),
+        openapi_description=os.getenv(
+            "GCF_OPENAPI_DESCRIPTION",
+            "Token-efficient bridge with 25-71% savings (up to 70%+ in multi-turn sessions)",
+        ),
+        openapi_logo_url=os.getenv("GCF_OPENAPI_LOGO_URL", ""),
+        host=os.getenv("GCF_HOST", "127.0.0.1"),
+        port=port,
+        include_json_fallback=_as_bool(os.getenv("GCF_INCLUDE_JSON_FALLBACK"), True),
+        memory_db_path=os.getenv("GCF_MEMORY_DB_PATH", "/tmp/gcf_sessions.db"),
+        require_api_key=_as_bool(os.getenv("GCF_REQUIRE_API_KEY"), False),
+        allow_all_domains=_as_bool(os.getenv("GCF_ALLOW_ALL_DOMAINS"), False),
+        api_key=os.getenv("GCF_API_KEY"),
+        allowed_domains=_as_list(os.getenv("GCF_ALLOWED_DOMAINS"), _DEFAULT_ALLOWED_DOMAINS),
+        route_prefix_core=os.getenv("GCF_ROUTE_PREFIX_CORE", ""),
+        route_prefix_process=os.getenv("GCF_ROUTE_PREFIX_PROCESS", ""),
+        route_prefix_proxy=os.getenv("GCF_ROUTE_PREFIX_PROXY", "/proxy"),
+        route_prefix_memory=os.getenv("GCF_ROUTE_PREFIX_MEMORY", "/memory"),
+        route_prefix_security=os.getenv("GCF_ROUTE_PREFIX_SECURITY", "/security"),
+        enable_core_routes=_as_bool(os.getenv("GCF_ENABLE_CORE_ROUTES"), True),
+        enable_process_routes=_as_bool(os.getenv("GCF_ENABLE_PROCESS_ROUTES"), True),
+        enable_proxy_routes=_as_bool(os.getenv("GCF_ENABLE_PROXY_ROUTES"), True),
+        enable_memory_routes=_as_bool(os.getenv("GCF_ENABLE_MEMORY_ROUTES"), True),
+        enable_security_routes=_as_bool(os.getenv("GCF_ENABLE_SECURITY_ROUTES"), True),
+        enable_agent_routes=_as_bool(os.getenv("GCF_ENABLE_AGENT_ROUTES"), True),
+        enabled_formats=_as_list(
+            os.getenv("GCF_ENABLED_FORMATS"),
+            ["gcf_graph", "gcf_session", "gcf_delta",
+             "gcf_generic", "gcf_generic_delta", "gcf_generic_session", "json"],
+        ),
+    )
+
+
+settings = load_settings()

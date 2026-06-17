@@ -10,10 +10,11 @@ In the brain, an **axon** is a nerve fiber that transmits information efficientl
 
 ## Key Benefits
 
-*   💰 **Drastic Cost Reduction**: Automatically finds the cheapest data format for every call, significantly cutting your LLM API bills.
-*   ⚡️ **Increased Speed & Performance**: Fewer tokens mean faster processing by the LLM, leading to quicker API responses and a snappier user experience.
-*   🧠 **Expanded Context Window**: Fit up to 4x more data into the same context window, enabling more capable and knowledgeable agents.
-*   🔌 **Effortless Integration**: Start saving tokens in minutes. Use it as a simple proxy for existing APIs with **zero code changes** or as a library in your Python code.
+*   💰 **Drastic Cost Reduction**: Automatically finds the cheapest data format for every call, including TOON (deltas) and TRON (sessions).
+*   🎯 **Model-Aware Optimization**: Uses specific tokenizers (OpenAI, Anthropic) to ensure the "cheapest" format is calculated correctly for your target LLM.
+*   ⚡️ **Increased Performance**: Fewer tokens mean faster time-to-first-token and lower latency.
+*   🌐 **Distributed Scaling**: Support for Redis allows multiple Axon instances to share session memory in clustered environments.
+*   🔌 **Effortless Integration**: Zero-code-change proxy mode or direct Python library usage.
 
 ## How It Works
 
@@ -136,6 +137,8 @@ All major behavior is configurable via environment variables in `core/settings.p
 - `AXON_PORT` (default: `8080`)
 - `AXON_INCLUDE_JSON_FALLBACK` (`true|false`)
 - `AXON_MEMORY_DB_PATH` (default: `/tmp/axon_sessions.db`)
+- `AXON_MEMORY_TYPE` (`sqlite|redis`)
+- `AXON_REDIS_URL` (default: `redis://localhost:6379/0`)
 - `AXON_REQUIRE_API_KEY` (`true|false`)
 - `AXON_ALLOW_ALL_DOMAINS` (`true|false`)
 - `AXON_API_KEY`
@@ -366,3 +369,4 @@ Keep JSON for:
 2. Chunk very large arrays before sending to the model.
 3. Reuse stable IDs in your app-level protocol for repeated objects.
 4. Always pass `session_id` on repeated, graph-heavy interactions.
+5. Use the `target_model` parameter in API calls for precise token estimation.

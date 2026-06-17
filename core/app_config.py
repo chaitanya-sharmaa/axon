@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from services.bridge_service import AxonService
 from services.sqlite_memory_store import SessionMemoryStore
+from services.redis_memory_store import RedisMemoryStore
 from services.security_policy import SecurityConfig
 from services.token_optimizer import TokenOptimizer
 from services.agent_orchestrator import AgentOrchestrator, AgentDefinition
@@ -33,7 +34,11 @@ axon_service = AxonService(
 )
 
 # ── Persistent event log (SQLite) ──────────────────────────────────────────────
-memory_store = SessionMemoryStore(db_path=settings.memory_db_path)
+if settings.memory_type == "redis":
+    memory_store = RedisMemoryStore(redis_url=settings.redis_url)
+else:
+    memory_store = SessionMemoryStore(db_path=settings.memory_db_path)
+
 
 # ── Agent orchestrator — multi-agent dispatch layer ───────────────────────────
 orchestrator = AgentOrchestrator(token_optimizer=token_optimizer)

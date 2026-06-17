@@ -5,23 +5,23 @@ from __future__ import annotations
 import asyncio
 import json
 import aiosqlite
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
+from services.memory_store import BaseMemoryStore
 
 
-class SessionMemoryStore:
+class SessionMemoryStore(BaseMemoryStore):
     """Persistent session memory backed by SQLite."""
 
     def __init__(self, db_path: str = ":memory:") -> None:
         self.db_path = db_path
         self.lock = asyncio.Lock()
-
-    async def initialize(self) -> None:
-        """
-        Explicitly initialize the database connection and schema.
-        This should be called during application startup.
-        """
-        await self._init_db()
+        # In a real app, you might run this as a startup event
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._init_db())
+        except RuntimeError:
+            asyncio.run(self._init_db())
 
     async def _init_db(self) -> None:
         async with self.lock:
@@ -76,7 +76,7 @@ class SessionMemoryStore:
             async with aiosqlite.connect(self.db_path) as conn:
                 await conn.execute(
                     "INSERT OR IGNORE INTO sessions (session_id, created_at, last_accessed, metadata) VALUES (?, ?, ?, ?)",
-                    (session_id, datetime.now(timezone.utc), datetime.now(timezone.utc), json.dumps(metadata or {})),
+                    (session_id, datetime.utcnow(), datetime.utcnow(), json.dumps(metadata or {})),
                 )
                 await conn.commit()
 
@@ -108,8 +108,8 @@ class SessionMemoryStore:
                     INSERT OR IGNORE INTO session_symbols 
                     (session_id, symbol_id, qualified_name, kind, score, provenance, distance, created_at) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, # This line is part of the diff, but the change is below
-                    (session_id, symbol_id, qualified_name, kind, score, provenance, distance, datetime.now(timezone.utc)),
+                    """,
+                    (session_id, symbol_id, qualified_name, kind, score, provenance, distance, datetime.utcnow()),
                 )
                 await conn.commit()
 
@@ -144,8 +144,8 @@ class SessionMemoryStore:
                         session_id,
                         schema_hash,
                         json.dumps(definition),
-                        json.dumps(field_names), # This line is part of the diff, but the change is below
-                        datetime.now(timezone.utc),
+                        json.dumps(field_names),
+                        datetime.utcnow(),
                     ),
                 )
                 await conn.commit()
@@ -155,7 +155,7 @@ class SessionMemoryStore:
             async with aiosqlite.connect(self.db_path) as conn:
                 await conn.execute(
                     "INSERT INTO memory_events (session_id, event_type, payload, created_at) VALUES (?, ?, ?, ?)",
-                    (session_id, event_type, json.dumps(payload), datetime.now(timezone.utc)),
+                    (session_id, event_type, json.dumps(payload), datetime.utcnow()),
                 )
                 await conn.commit()
 
@@ -171,7 +171,7 @@ class SessionMemoryStore:
                 return [dict(row) for row in rows]
 
     async def cleanup_old_sessions(self, days: int = 7) -> int:
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
         async with self.lock:
             async with aiosqlite.connect(self.db_path) as conn:
                 cursor = await conn.execute(

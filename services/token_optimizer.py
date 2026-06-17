@@ -109,9 +109,17 @@ class OptimizerResult:
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+from services.tokenizer_factory import get_tokenizer_for_model
+
 def _estimate_tokens(text: str, model: str | None = None) -> int:
-    """Fast provider-agnostic token estimate. In production, use model-specific tokenizers."""
-    # For now, keeping the fast heuristic, but identifying that model matters.
+    """Estimate tokens using the specified model's tokenizer, or a fast heuristic if model is unknown."""
+    if model:
+        try:
+            tokenizer = get_tokenizer_for_model(model)
+            return len(tokenizer.encode(text))
+        except Exception as e:
+            logging.warning(f"Failed to load tokenizer for model '{model}': {e}. Falling back to heuristic.")
+    # Fallback to heuristic if model is not provided or tokenizer loading fails
     return max(1, len(text) // 4)
 
 def _savings(json_tokens: int, candidate_tokens: int) -> float:
@@ -214,27 +222,6 @@ def _build_generic_session(current: Any, seen_values: dict[str, str]) -> Any:
     """Build a delta payload representing *added* symbols vs. previous set."""
 def _build_delta(payload: Payload | None, prev_symbols: list[str] | None) -> DeltaPayload | None:
     """Build a delta payload representing *added* symbols vs. previous set."""
-    if payload is None:
-        return None
-    if prev_symbols is None:
-        prev_symbols = []
-    prev_set = set(prev_symbols)
-    added = [s for s in payload.symbols if s.qualified_name not in prev_set]
-    removed = [Symbol(qualified_name=qn, kind="unknown", score=0, provenance="", distance=0)
-               for qn in prev_set - {s.qualified_name for s in payload.symbols}]
-    return DeltaPayload(
-        tool=payload.tool,
-        base_root="",
-        new_root="gcf_root",
-        added=added,
-        removed=removed,
-        added_edges=payload.edges,
-    )
-
-
-def _build_delta_misplaced(payload: Payload | None, prev_symbols: list[str] | None) -> DeltaPayload | None:
-    """This function was misplaced inside _build_generic_session and is now corrected as _build_delta."""
-    # The following block was here erroneously.
     if payload is None:
         return None
     if prev_symbols is None:

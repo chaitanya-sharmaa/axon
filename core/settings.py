@@ -50,6 +50,8 @@ class AppSettings:
 
     include_json_fallback: bool
     memory_db_path: str
+    memory_type: str  # "sqlite" | "redis"
+    redis_url: str
 
     require_api_key: bool
     allow_all_domains: bool
@@ -100,6 +102,8 @@ def load_settings() -> AppSettings:
         port=port,
         include_json_fallback=_as_bool(os.getenv("AXON_INCLUDE_JSON_FALLBACK"), True),
         memory_db_path=os.getenv("AXON_MEMORY_DB_PATH", "/tmp/axon_sessions.db"),
+        memory_type=os.getenv("AXON_MEMORY_TYPE", "sqlite").lower(),
+        redis_url=os.getenv("AXON_REDIS_URL", "redis://localhost:6379/0"),
         require_api_key=_as_bool(os.getenv("AXON_REQUIRE_API_KEY"), False),
         allow_all_domains=_as_bool(os.getenv("AXON_ALLOW_ALL_DOMAINS"), False),
         api_key=os.getenv("AXON_API_KEY"),

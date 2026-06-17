@@ -38,7 +38,7 @@ async def process(req: ProcessRequest) -> dict[str, Any]:
     opt = token_optimizer.optimize(
         normalized, 
         session_id=req.session_id,
-        model=getattr(req, 'target_model', 'gpt-4o') # Use model-specific tokenizer
+        model=req.target_model # Use model-specific tokenizer
     )
 
     # Also run the handler so callers get the processed result alongside encoding

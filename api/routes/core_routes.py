@@ -27,7 +27,4 @@ async def translate_in(payload: Any = Body(...)) -> dict[str, Any]:
 @router.post("/translate/out")
 async def translate_out(req: TranslateOutRequest) -> dict[str, Any]:
     """Convert output to GCF envelope with token metrics."""
-    # Assume target_model can be passed in the request (e.g., as a header or query param)
-    # or defaults to gpt-4o for token estimation consistency.
-    target_model = getattr(req, 'target_model', 'gpt-4o')
     return axon_service.convert_output(req.data, session_id=req.session_id, model=target_model)

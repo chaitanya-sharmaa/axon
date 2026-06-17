@@ -12,16 +12,13 @@ import json
 from typing import Any, Awaitable, Callable, Dict, Mapping
 import tiktoken
 
-from gcf import (
+from gcf import ( # These are used in from_any_to_object and to_compact_text
     Edge,
     Payload,
     Session,
     Symbol,
     decode_generic,
     decode,
-    encode,
-    encode_generic,
-    encode_with_session,
 )
 from core.settings import settings
 from services.token_optimizer import TokenOptimizer
@@ -36,12 +33,9 @@ class AxonService:
         self.include_json_fallback = include_json_fallback
         # Use the optimizer as the single source of truth for session state
         self._optimizer = token_optimizer
-        self._tokenizer = tiktoken.get_encoding(settings.tokenizer_model)
 
     def _estimate_tokens(self, text: str, model: str | None = None) -> int:
-        """Estimate tokens. Falls back to optimizer logic if no specific model requested."""
-        if model and "gpt" in model:
-            return len(self._tokenizer.encode(text))
+        """Estimate tokens using the TokenOptimizer's model-aware logic."""
         return self._optimizer.estimate_tokens_custom(text, model)
 
     @staticmethod
@@ -185,10 +179,10 @@ class AxonService:
         obj = self.from_any_to_object(value)
         payload = self._to_graph_payload(obj)
         if payload is not None:
-            if session_id:
-                return encode_with_session(payload, self._get_session(session_id))
-            return encode(payload)
-        return encode_generic(obj)
+            # Delegate to optimizer for actual encoding to ensure consistency with strategy selection
+            # This is a simplification; in a real scenario, you might want to call the specific
+            # GCF encode functions directly if you're not going through the optimizer's benchmarking.
+            return self._optimizer.encode_best_effort(obj, session_id=session_id)
 
     def from_compact_text(self, compact_text: str) -> Any:
         """Decode compact generic profile text back to object form."""

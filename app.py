@@ -13,7 +13,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
-from core.app_config import initialize_app
+from core.app_config import initialize_app, memory_store
 from core.settings import settings
 from api.routes import (
     core_router,
@@ -35,7 +35,15 @@ def create_app() -> FastAPI:
         title=settings.app_title,
         version=settings.app_version,
         description=settings.app_description,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
     )
+
+    @app.on_event("startup")
+    async def startup_event():
+        """Perform asynchronous startup tasks."""
+        await memory_store.initialize()
     
     # Register route modules using configurable prefixes and toggles
     if settings.enable_core_routes:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+import aiosqlite
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -23,16 +24,12 @@ async def delete_session(session_id: str) -> dict[str, str]:
 @router.get("/sessions")
 async def list_sessions() -> dict[str, Any]:
     """List all active sessions with metadata."""
-    # This direct query is for simplicity; in a larger app, this would be a dedicated method on the store.
-    # The previous implementation had a SQL injection vulnerability, which is now removed.
-    async with aiosqlite.connect(memory_store.db_path) as conn:
-        conn.row_factory = aiosqlite.Row
-        cursor = await conn.execute("SELECT session_id, created_at, last_accessed FROM sessions ORDER BY last_accessed DESC")
-        rows = await cursor.fetchall()
-        return {
-            "sessions": [dict(row) for row in rows],
-            "count": len(rows),
-        }
+    # Better to delegate this to the memory_store service
+    sessions = await memory_store.list_all_sessions()
+    return {
+        "sessions": sessions,
+        "count": len(sessions),
+    }
 
 
 @router.get("/session/{session_id}")

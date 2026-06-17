@@ -109,10 +109,10 @@ class OptimizerResult:
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _estimate_tokens(text: str) -> int:
-    """Fast provider-agnostic token estimate (chars / 4, min 1)."""
+def _estimate_tokens(text: str, model: str | None = None) -> int:
+    """Fast provider-agnostic token estimate. In production, use model-specific tokenizers."""
+    # For now, keeping the fast heuristic, but identifying that model matters.
     return max(1, len(text) // 4)
-
 
 def _savings(json_tokens: int, candidate_tokens: int) -> float:
     if json_tokens == 0:
@@ -285,6 +285,10 @@ class TokenOptimizer:
     def get_gcf_session(self, session_id: str) -> Session:
         return self._get_session(session_id)
 
+    def estimate_tokens_custom(self, text: str, model: str | None = None) -> int:
+        """Public access to the estimation logic."""
+        return _estimate_tokens(text, model)
+
     def _get_prev_symbols(self, session_id: str) -> list[str] | None:
         return self._prev_symbols.get(session_id)
 
@@ -302,6 +306,7 @@ class TokenOptimizer:
         self,
         obj: Any,
         session_id: str | None = None,
+        model: str | None = None,
         enabled_strategies: list[str] | None = None,
     ) -> OptimizerResult:
         """Benchmark all applicable strategies and return the cheapest result.
@@ -312,13 +317,14 @@ class TokenOptimizer:
             Already-normalized Python object (dict, list, etc.).
         session_id:
             If provided, enables session-aware (TRON) and delta (TOON) strategies.
+        model:
+            The target LLM model to use for token estimation.
         enabled_strategies:
             Override per-call; falls back to the instance-level ``enabled_strategies``.
         """
         active = set(enabled_strategies or []) or self._enabled
-
         json_text = json.dumps(obj, separators=(",", ":"), ensure_ascii=True)
-        json_tokens = _estimate_tokens(json_text)
+        json_tokens = _estimate_tokens(json_text, model=model)
 
         # Detect payload type
         payload: Payload | None = None
@@ -330,7 +336,7 @@ class TokenOptimizer:
         results: list[StrategyResult] = []
 
         def _add(strategy: str, text: str) -> None:
-            t = _estimate_tokens(text)
+            t = _estimate_tokens(text, model=model)
             results.append(StrategyResult(
                 strategy=strategy,
                 encoded=text,

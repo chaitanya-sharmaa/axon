@@ -38,9 +38,11 @@ class AxonService:
         self._optimizer = token_optimizer
         self._tokenizer = tiktoken.get_encoding(settings.tokenizer_model)
 
-    def _estimate_tokens(self, text: str) -> int:
-        """Estimate tokens using tiktoken."""
-        return len(self._tokenizer.encode(text))
+    def _estimate_tokens(self, text: str, model: str | None = None) -> int:
+        """Estimate tokens. Falls back to optimizer logic if no specific model requested."""
+        if model and "gpt" in model:
+            return len(self._tokenizer.encode(text))
+        return self._optimizer.estimate_tokens_custom(text, model)
 
     @staticmethod
     def _is_compact_format_text(value: str) -> bool:
@@ -192,7 +194,7 @@ class AxonService:
         """Decode compact generic profile text back to object form."""
         return decode_generic(compact_text)
 
-    def convert_output(self, value: Any, session_id: str | None = None) -> Dict[str, Any]:
+    def convert_output(self, value: Any, session_id: str | None = None, model: str | None = None) -> Dict[str, Any]:
         """Convert output to a wire envelope with compact format and token stats."""
         obj = self.from_any_to_object(value)
         json_text = json.dumps(obj, separators=(",", ":"), ensure_ascii=True)
@@ -200,8 +202,8 @@ class AxonService:
 
         profile = self._get_profile(compact_text) or "generic"
 
-        json_tokens = self._estimate_tokens(json_text)
-        compact_tokens = self._estimate_tokens(compact_text)
+        json_tokens = self._estimate_tokens(json_text, model=model)
+        compact_tokens = self._estimate_tokens(compact_text, model=model)
         savings_pct = round((1 - (compact_tokens / json_tokens)) * 100, 2) if json_tokens else 0.0
 
         envelope: Dict[str, Any] = {

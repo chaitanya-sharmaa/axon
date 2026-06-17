@@ -99,7 +99,7 @@ inbound_data = {"input": 123}
 envelope = axon.process(inbound_data, my_agent_function, session_id="agent-session-456")
 
 # `envelope["compact_text"]` contains the compressed output for the LLM
-print(envelope["compact_text"])
+print(f"Compressed output: {envelope['compact_text']}")
 print(f"Saved {envelope['metrics']['estimated_savings_percent']}% tokens!")
 ```
 

@@ -35,7 +35,11 @@ async def process(req: ProcessRequest) -> dict[str, Any]:
     # Auto-pick cheapest encoding of the INBOUND payload (the LLM context)
     # This is what saves tokens: the bridge compresses the prompt/context before
     # it reaches the LLM, regardless of what the handler does with it.
-    opt = token_optimizer.optimize(normalized, session_id=req.session_id)
+    opt = token_optimizer.optimize(
+        normalized, 
+        session_id=req.session_id,
+        model=getattr(req, 'target_model', 'gpt-4o') # Use model-specific tokenizer
+    )
 
     # Also run the handler so callers get the processed result alongside encoding
     result = handler(normalized)

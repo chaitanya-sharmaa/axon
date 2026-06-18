@@ -41,11 +41,13 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import asyncio
 
-from core.app_config import axon_service
+from core.app_config import axon_service, memory_store
 from services.pricing import estimate_savings_usd
 from services.semantic_cache import semantic_cache
 from services.smart_router import route_model, fallback_model
 from services.fact_extractor import extract_facts_async
+from services.vision_optimizer import downscale_base64_image
+from services.text_pruner import prune_text
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["openai-compatible"])
@@ -79,34 +81,79 @@ class EmbeddingRequest(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _compress_messages(messages: list[ChatMessage], session_id: str | None) -> tuple[list[dict], dict]:
+def _compress_messages(messages: list[ChatMessage], session_id: str | None, model_name: str | None = None) -> tuple[list[dict], dict]:
     """Compress each message's content and return (compressed_messages, savings_metrics)."""
     original_tokens = 0
     compressed_tokens = 0
     compressed: list[dict] = []
-    model = None
+    
+    prune_enabled = os.getenv("AXON_PRUNE_TEXT", "false").lower() == "true"
 
-    for msg in messages:
+    # Find the largest message for potential prompt caching (Anthropic)
+    largest_msg_idx = -1
+    largest_msg_len = 0
+
+    for idx, msg in enumerate(messages):
         d = msg.model_dump(exclude_none=True)
         content = msg.content
-        if isinstance(content, str) and len(content) > 50:
+        
+        # 1. Vision Downscaling
+        if isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "image_url":
+                    url_obj = item.get("image_url", {})
+                    url_val = url_obj.get("url", "")
+                    if url_val.startswith("data:image"):
+                        # Extract base64, downscale, and replace
+                        new_b64 = downscale_base64_image(url_val)
+                        if new_b64 != url_val:
+                            url_obj["url"] = new_b64
+                            # Assume ~1000 tokens saved heuristically for the metrics
+                            original_tokens += 1200
+                            compressed_tokens += 200
+
+        # 2. Text Pruning & Compression
+        elif isinstance(content, str) and len(content) > 50:
+            if len(content) > largest_msg_len:
+                largest_msg_len = len(content)
+                largest_msg_idx = idx
+
+            # Prune if enabled
+            if prune_enabled and len(content) > 2000:
+                content = prune_text(content)
+
             result = axon_service._optimizer.optimize(
                 {"role": msg.role, "content": content},
                 session_id=session_id,
             )
             original_tokens += result.json_baseline_tokens
             compressed_tokens += result.winner.token_estimate
+            
             # Only substitute if we actually saved tokens
             if result.winner.savings_vs_json_pct > 0:
                 d["content"] = result.winner.encoded
-                model = None  # model known from outer request
-            compressed.append(d)
-        else:
-            compressed.append(d)
+            elif prune_enabled:
+                d["content"] = content
+                
+        compressed.append(d)
+
+    # 3. Native Provider Prompt Caching (Anthropic)
+    if model_name and "claude-3" in model_name and largest_msg_idx != -1:
+        # Anthropic supports 'ephemeral' caching on specific blocks
+        target_msg = compressed[largest_msg_idx]
+        if isinstance(target_msg["content"], str):
+            target_msg["content"] = [
+                {
+                    "type": "text", 
+                    "text": target_msg["content"], 
+                    "cache_control": {"type": "ephemeral"}
+                }
+            ]
 
     savings_pct = round(
         (1 - compressed_tokens / max(1, original_tokens)) * 100, 2
-    )
+    ) if original_tokens > 0 else 0.0
+
     return compressed, {
         "original_tokens": original_tokens,
         "compressed_tokens": compressed_tokens,
@@ -118,12 +165,31 @@ async def _stream_openai(
     url: str,
     headers: dict,
     body: dict,
+    max_spend: float | None = None,
+    model: str = "gpt-4o"
 ) -> AsyncIterator[str]:
-    """Async generator that proxies an OpenAI SSE stream."""
+    """Async generator that proxies an OpenAI SSE stream with an optional budget circuit breaker."""
+    accumulated_tokens = 0
+    
     async with httpx.AsyncClient(timeout=120) as client:
         async with client.stream("POST", url, headers=headers, json=body) as resp:
             async for line in resp.aiter_lines():
                 if line:
+                    # 4. Streaming Circuit Breaker
+                    if max_spend is not None:
+                        # Very crude heuristic: 1 line delta ~ 1-5 tokens. We count characters as roughly 4 chars = 1 token.
+                        accumulated_tokens += len(line) / 4.0
+                        
+                        # Calculate cost (using estimate_savings_usd logic or basic tier rates)
+                        # Assume roughly $0.015 per 1k output tokens for gpt-4o
+                        cost = (accumulated_tokens / 1000.0) * 0.015 
+                        
+                        if cost > max_spend:
+                            log.warning(f"Circuit Breaker Triggered! Cost ${cost:.4f} exceeded budget ${max_spend}")
+                            yield f'data: {{"choices": [{{"delta": {{"content": "\\n\\n[AXON BUDGET EXCEEDED - STREAM TERMINATED]"}}}}]}}\n\n'
+                            yield "data: [DONE]\n\n"
+                            break
+
                     yield f"{line}\n\n"
 
 
@@ -162,8 +228,8 @@ async def chat_completions(
     session_id = request.headers.get("X-Session-ID")
 
     # Memory Injection
-    if session_id and axon_service.memory_store:
-        facts = await axon_service.memory_store.get_session_facts(session_id)
+    if session_id and memory_store:
+        facts = await memory_store.get_session_facts(session_id)
         if facts:
             # Inject facts into the system prompt securely
             fact_str = ",".join(facts)
@@ -174,7 +240,7 @@ async def chat_completions(
     user_text = " ".join([str(m.content) for m in req.messages if m.role == "user" and isinstance(m.content, str)])
 
     # Compress messages
-    compressed_messages, metrics = _compress_messages(req.messages, session_id)
+    compressed_messages, metrics = _compress_messages(req.messages, session_id, req.model)
 
     # Semantic Caching
     text_for_cache = ""
@@ -210,8 +276,11 @@ async def chat_completions(
     url = f"{_OPENAI_BASE}/chat/completions"
 
     if req.stream:
+        max_spend_str = request.headers.get("X-Axon-Max-Spend")
+        max_spend = float(max_spend_str) if max_spend_str else None
+        
         return StreamingResponse(
-            _stream_openai(url, upstream_headers, upstream_body),
+            _stream_openai(url, upstream_headers, upstream_body, max_spend, routed_model),
             media_type="text/event-stream",
             headers={"x-axon-metrics": savings_header},
         )
@@ -245,10 +314,10 @@ async def chat_completions(
         semantic_cache.store_response(text_for_cache, emb, resp_json)
 
     # Spawn background fact extraction if we have user text
-    if session_id and user_text and axon_service.memory_store:
+    if session_id and user_text and memory_store:
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(extract_facts_async(session_id, user_text, api_key, axon_service.memory_store))
+            loop.create_task(extract_facts_async(session_id, user_text, api_key, memory_store))
         except RuntimeError:
             pass
 

@@ -17,6 +17,9 @@ aiosqlite>=0.20.0      # async SQLite driver for sqlite_memory_store
 # ── Token counting ────────────────────────────────────────────────────────────
 tiktoken>=0.7.0        # tokenizer for OpenAI models
 
+# ── Image processing ──────────────────────────────────────────────────────────
+Pillow>=10.0.0         # vision payload downscaling
+
 # ── Env / config ──────────────────────────────────────────────────────────────
 python-dotenv>=1.0.0   # .env file support
 

@@ -23,6 +23,37 @@ axon serve
 | Integrating a new tool takes work | Drop-in OpenAI-compatible `/v1/chat/completions` proxy — change one URL |
 | Complex deployment | Single Docker image, SQLite default, Redis for horizontal scale |
 
+### Architecture Pipeline
+
+Axon acts as an intelligent firewall for your tokens. Every request goes through a rigorous gauntlet of caching, pruning, and structural compression before it ever hits the LLM.
+
+```mermaid
+graph TD
+    Client[AI App / Agent SDK]:::client -->|Raw JSON Payload| AxonProxy[Axon Proxy Layer]:::axon
+
+    subgraph Intelligence & Optimization
+        AxonProxy --> Cache{Semantic Cache}:::intel
+        Cache -->|Hit 100%| FastReturn[Instant $0 Return]:::axon
+        Cache -->|Miss| Prune[Vision & Text Pruner]:::intel
+        Prune --> Mem[Semantic Memory Injection]:::intel
+        Mem --> Optimize[Token Compression Engine]:::axon
+        Optimize --> Route{Smart LLM Routing}:::intel
+    end
+
+    Route -->|Tiny Payload| CheapLLM[gpt-4o-mini]:::llm
+    Route -->|Complex Payload| MainLLM[gpt-4o / claude-3]:::llm
+    
+    CheapLLM -->|LLM Response| AxonProxy
+    MainLLM -->|LLM Response| AxonProxy
+    
+    AxonProxy -->|Stream & Budget Enforcer| Client
+
+    classDef client fill:#1e1e1e,stroke:#333,color:#fff,stroke-width:2px
+    classDef axon fill:#2563eb,stroke:#1d4ed8,color:#fff,stroke-width:2px
+    classDef intel fill:#7c3aed,stroke:#5b21b6,color:#fff,stroke-width:2px
+    classDef llm fill:#059669,stroke:#047857,color:#fff,stroke-width:2px
+```
+
 ### Benchmarks
 
 Here is an live benchmark showing Axon's estimated token savings versus a raw JSON baseline for various payload types. Note how **multi-turn session deduplication** drastically increases token savings in large repeated payloads (e.g., *Large List (5 turns)*).
@@ -39,12 +70,22 @@ xychart-beta
 
 ## Intelligence Features
 
-Axon isn't just a static proxy—it's dynamically context-aware.
+Axon isn't just a static proxy—it's dynamically context-aware and deeply optimized for maximum token reduction.
 
 * **Strategy Auto-Tuning**: Axon tracks your session history. If a specific compression strategy wins 3 times in a row, Axon skips benchmarking the rest, saving significant CPU cycles.
 * **Semantic Response Caching**: If you send a prompt that is >95% semantically similar to a previous request, Axon intercepts it and instantly returns the cached response. Zero tokens used, <50ms latency.
 * **Smart LLM Routing & Fallback**: Short, simple payloads sent to expensive models (like `gpt-4o`) are automatically down-routed to cheaper models (like `gpt-4o-mini`). If the provider returns a `429 Rate Limit`, Axon automatically intercepts it and retries with a fallback model.
 * **Context Pruning (RAG-Aware)**: When sending massive graph payloads, Axon scores symbols against your query using BM25-lite logic. It intelligently prunes the bottom 25% of irrelevant symbols before compression, trimming fat without losing context.
+* **Intelligent Semantic Memory (Mem0-Style)**: Background workers automatically distill past conversations into core scalar facts (e.g. `user=alice, lang=python`) and seamlessly inject them as system prompts on your next turn, saving massive context window space without client-side changes.
+
+## Advanced Token Reduction
+
+Axon implements several rigorous structural heuristics to squeeze every token out of your payload:
+
+* **Vision Payload Downscaling**: Automatically intercepts `base64` images in your payload. If an image exceeds the optimal token tier limits (e.g., 4K resolution), Axon uses `Pillow` to silently downscale it to 768px/512px while preserving aspect ratio, slashing Vision token costs by up to 85%.
+* **LLMLingua Text Pruning**: (Opt-in via `AXON_PRUNE_TEXT=true`) For massive prompts over 2,000 characters, Axon heuristically condenses whitespace and removes structural English stop-words ("the", "is", "a"), shrinking raw text by up to 30% while preserving semantics.
+* **Streaming Circuit Breaker**: Prevent runaway LLM generations from burning your budget. Pass `X-Axon-Max-Spend: 0.05` to the `/v1/chat/completions` proxy, and Axon will forcefully terminate the TCP stream the millisecond your token cost exceeds $0.05.
+* **Native Provider Prompt Caching**: Automatically wraps your largest text blocks in Anthropic's specific `{"cache_control": {"type": "ephemeral"}}` schema when routing to `claude-3` models, letting you hit their 90% cheaper cache tier with zero code changes.
 
 ---
 

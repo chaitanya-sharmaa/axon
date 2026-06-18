@@ -60,6 +60,9 @@ async def extract_facts_async(session_id: str, message: str, api_key: str, memor
                 try:
                     result = json.loads(content)
                     facts = result.get("facts", [])
+                    if facts:
+                        # Ensure the session exists in the DB so foreign keys don't fail
+                        await memory_store.create_session(session_id)
                     for fact in facts:
                         if isinstance(fact, str):
                             await memory_store.add_session_fact(session_id, fact)

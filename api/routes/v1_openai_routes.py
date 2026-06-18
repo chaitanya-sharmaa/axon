@@ -39,11 +39,13 @@ import httpx
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
+import asyncio
 
 from core.app_config import axon_service
 from services.pricing import estimate_savings_usd
 from services.semantic_cache import semantic_cache
 from services.smart_router import route_model, fallback_model
+from services.fact_extractor import extract_facts_async
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["openai-compatible"])
@@ -159,6 +161,18 @@ async def chat_completions(
 
     session_id = request.headers.get("X-Session-ID")
 
+    # Memory Injection
+    if session_id and axon_service.memory_store:
+        facts = await axon_service.memory_store.get_session_facts(session_id)
+        if facts:
+            # Inject facts into the system prompt securely
+            fact_str = ",".join(facts)
+            mem_msg = ChatMessage(role="system", content=f"Memory: [{fact_str}]")
+            req.messages.insert(0, mem_msg)
+            
+    # Accumulate user messages for background extraction
+    user_text = " ".join([str(m.content) for m in req.messages if m.role == "user" and isinstance(m.content, str)])
+
     # Compress messages
     compressed_messages, metrics = _compress_messages(req.messages, session_id)
 
@@ -229,6 +243,14 @@ async def chat_completions(
     # Store successful response in Semantic Cache
     if not req.stream and emb is not None:
         semantic_cache.store_response(text_for_cache, emb, resp_json)
+
+    # Spawn background fact extraction if we have user text
+    if session_id and user_text and axon_service.memory_store:
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(extract_facts_async(session_id, user_text, api_key, axon_service.memory_store))
+        except RuntimeError:
+            pass
 
     response = JSONResponse(status_code=resp.status_code, content=resp_json)
     response.headers["x-axon-metrics"] = savings_header

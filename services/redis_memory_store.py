@@ -24,6 +24,9 @@ class RedisMemoryStore(BaseMemoryStore):
     def _events_key(self, session_id: str) -> str:
         return f"axon:events:{session_id}"
 
+    def _facts_key(self, session_id: str) -> str:
+        return f"axon:facts:{session_id}"
+
     async def create_session(self, session_id: str, metadata: dict[str, Any] | None = None) -> None:
         key = self._session_key(session_id)
         data = {
@@ -97,7 +100,8 @@ class RedisMemoryStore(BaseMemoryStore):
             self._session_key(session_id),
             self._symbols_key(session_id),
             self._schemas_key(session_id),
-            self._events_key(session_id)
+            self._events_key(session_id),
+            self._facts_key(session_id)
         ]
         await self.redis.delete(*keys)
 
@@ -110,3 +114,14 @@ class RedisMemoryStore(BaseMemoryStore):
             data = await self.redis.hgetall(k)
             sessions.append({"session_id": k.replace("axon:session:", ""), **data})
         return sessions
+
+    async def add_session_fact(self, session_id: str, fact: str) -> None:
+        key = self._facts_key(session_id)
+        # using sadd to automatically enforce uniqueness
+        await self.redis.sadd(key, fact)
+        await self.redis.expire(key, self.ttl)
+
+    async def get_session_facts(self, session_id: str) -> list[str]:
+        key = self._facts_key(session_id)
+        facts = await self.redis.smembers(key)
+        return list(facts)

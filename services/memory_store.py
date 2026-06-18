@@ -55,3 +55,11 @@ class BaseMemoryStore(ABC):
     @abstractmethod
     async def delete_session(self, session_id: str) -> None:
         pass
+
+    @abstractmethod
+    async def add_session_fact(self, session_id: str, fact: str) -> None:
+        pass
+
+    @abstractmethod
+    async def get_session_facts(self, session_id: str) -> list[str]:
+        pass

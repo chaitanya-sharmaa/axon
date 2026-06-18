@@ -108,6 +108,16 @@ class SessionMemoryStore(BaseMemoryStore):
                 FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
             )
         """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS session_facts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT,
+                fact TEXT,
+                created_at TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE,
+                UNIQUE (session_id, fact)
+            )
+        """)
         await conn.commit()
 
     # ── Public API ─────────────────────────────────────────────────────────────
@@ -267,3 +277,21 @@ class SessionMemoryStore(BaseMemoryStore):
         cursor = await conn.execute("SELECT session_id, created_at, last_accessed FROM sessions")
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
+
+    async def add_session_fact(self, session_id: str, fact: str) -> None:
+        conn = await self._ensure_conn()
+        async with self.lock:
+            await conn.execute(
+                "INSERT OR IGNORE INTO session_facts (session_id, fact, created_at) VALUES (?, ?, ?)",
+                (session_id, fact, datetime.now(timezone.utc)),
+            )
+            await conn.commit()
+
+    async def get_session_facts(self, session_id: str) -> list[str]:
+        conn = await self._ensure_conn()
+        cursor = await conn.execute(
+            "SELECT fact FROM session_facts WHERE session_id = ? ORDER BY id ASC",
+            (session_id,)
+        )
+        rows = await cursor.fetchall()
+        return [row["fact"] for row in rows]

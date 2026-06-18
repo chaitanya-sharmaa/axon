@@ -73,3 +73,32 @@ def test_context_pruning():
     # auth_user should survive because it matches query perfectly
     names = [s.qualified_name for s in built.symbols]
     assert "auth_user" in names
+
+@pytest.mark.asyncio
+async def test_fact_extraction():
+    from services.fact_extractor import extract_facts_async
+    
+    class DummyMemoryStore:
+        def __init__(self):
+            self.facts = []
+        async def add_session_fact(self, session_id, fact):
+            self.facts.append(fact)
+            
+    store = DummyMemoryStore()
+    
+    # Mock httpx.AsyncClient.post
+    from unittest.mock import MagicMock
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        # Mock successful fact extraction
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": '{"facts": ["user=alice", "lang=python"]}'}}]
+        }
+        mock_post.return_value = mock_response
+        
+        await extract_facts_async("test_session", "I am alice and I code in Python.", "api_key", store)
+        
+        assert len(store.facts) == 2
+        assert "user=alice" in store.facts
+        assert "lang=python" in store.facts

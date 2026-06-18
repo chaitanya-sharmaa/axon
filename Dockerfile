@@ -12,6 +12,8 @@ RUN pip install --upgrade pip \
 FROM python:3.12-slim AS runtime
 
 # Non-root user for security
+
+test
 RUN useradd --create-home --shell /bin/bash axon
 WORKDIR /app
 

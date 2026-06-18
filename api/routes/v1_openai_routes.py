@@ -42,6 +42,8 @@ from pydantic import BaseModel
 
 from core.app_config import axon_service
 from services.pricing import estimate_savings_usd
+from services.semantic_cache import semantic_cache
+from services.smart_router import route_model, fallback_model
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["openai-compatible"])
@@ -160,9 +162,30 @@ async def chat_completions(
     # Compress messages
     compressed_messages, metrics = _compress_messages(req.messages, session_id)
 
+    # Semantic Caching
+    text_for_cache = ""
+    emb = None
+    if not req.stream and os.getenv("AXON_SEMANTIC_CACHE", "true").lower() == "true":
+        text_for_cache = json.dumps([m.model_dump(exclude_none=True) for m in req.messages])
+        cached_resp, emb = await semantic_cache.check_cache(text_for_cache, api_key)
+        if cached_resp:
+            # Cache hit
+            metrics["savings_pct"] = 100.0  # 100% savings!
+            metrics["compressed_tokens"] = 0
+            savings_header = json.dumps(metrics)
+            return JSONResponse(
+                status_code=200, 
+                content=cached_resp,
+                headers={"x-axon-metrics": savings_header, "x-axon-cache": "HIT"}
+            )
+
+    # Smart Routing
+    routed_model = route_model(req.model, metrics["original_tokens"])
+    
     # Build the upstream payload
     upstream_body = req.model_dump(exclude_none=True)
     upstream_body["messages"] = compressed_messages
+    upstream_body["model"] = routed_model
 
     upstream_headers = {
         "Authorization": f"Bearer {api_key}",
@@ -182,10 +205,32 @@ async def chat_completions(
     async with httpx.AsyncClient(timeout=120, follow_redirects=False) as client:
         try:
             resp = await client.post(url, headers=upstream_headers, json=upstream_body)
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (429, 503):
+                # Smart Fallback
+                fb_model = fallback_model(routed_model)
+                if fb_model != routed_model:
+                    upstream_body["model"] = fb_model
+                    try:
+                        resp = await client.post(url, headers=upstream_headers, json=upstream_body)
+                        resp.raise_for_status()
+                    except httpx.RequestError as fb_exc:
+                        raise HTTPException(502, f"Fallback connection failed: {fb_exc}") from fb_exc
+                else:
+                    raise HTTPException(exc.response.status_code, f"Upstream error: {exc}") from exc
+            else:
+                raise HTTPException(exc.response.status_code, f"Upstream error: {exc}") from exc
         except httpx.RequestError as exc:
             raise HTTPException(502, f"Upstream connection failed: {exc}") from exc
 
-    response = JSONResponse(status_code=resp.status_code, content=resp.json())
+    resp_json = resp.json()
+    
+    # Store successful response in Semantic Cache
+    if not req.stream and emb is not None:
+        semantic_cache.store_response(text_for_cache, emb, resp_json)
+
+    response = JSONResponse(status_code=resp.status_code, content=resp_json)
     response.headers["x-axon-metrics"] = savings_header
 
     # Add dollar savings if model pricing is known

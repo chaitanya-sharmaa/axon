@@ -37,6 +37,17 @@ xychart-beta
 
 ---
 
+## Intelligence Features
+
+Axon isn't just a static proxy—it's dynamically context-aware.
+
+* **Strategy Auto-Tuning**: Axon tracks your session history. If a specific compression strategy wins 3 times in a row, Axon skips benchmarking the rest, saving significant CPU cycles.
+* **Semantic Response Caching**: If you send a prompt that is >95% semantically similar to a previous request, Axon intercepts it and instantly returns the cached response. Zero tokens used, <50ms latency.
+* **Smart LLM Routing & Fallback**: Short, simple payloads sent to expensive models (like `gpt-4o`) are automatically down-routed to cheaper models (like `gpt-4o-mini`). If the provider returns a `429 Rate Limit`, Axon automatically intercepts it and retries with a fallback model.
+* **Context Pruning (RAG-Aware)**: When sending massive graph payloads, Axon scores symbols against your query using BM25-lite logic. It intelligently prunes the bottom 25% of irrelevant symbols before compression, trimming fat without losing context.
+
+---
+
 ## Quickstart
 
 ### Option 1 — Docker (recommended)

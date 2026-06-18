@@ -167,6 +167,29 @@ def _savings(json_tokens: int, candidate_tokens: int) -> float:
     return round((1.0 - candidate_tokens / json_tokens) * 100, 2)
 
 
+def _prune_context(symbols: list[Symbol], query: str | None) -> list[Symbol]:
+    """Prune bottom 25% of irrelevant symbols if the payload is large and a query exists."""
+    if not query or len(symbols) < 50:
+        return symbols
+        
+    query_terms = set(query.lower().replace(".", " ").replace("_", " ").split())
+    if not query_terms:
+        return symbols
+        
+    scored = []
+    for s in symbols:
+        name_terms = set(s.qualified_name.lower().replace(".", " ").replace("_", " ").split())
+        overlap = len(query_terms.intersection(name_terms))
+        # Base relevance + overlap boost
+        final_score = s.score + (overlap * 2.0)
+        scored.append((final_score, s))
+        
+    # Sort highest score first
+    scored.sort(key=lambda x: x[0], reverse=True)
+    keep_count = max(10, int(len(symbols) * 0.75))
+    return [s for _, s in scored[:keep_count]]
+
+
 def _build_payload(obj: Mapping) -> Payload | None:
     """Try to build a Axon graph Payload from a dict.  Returns None if not graph-shaped."""
     symbols_raw = obj.get("symbols")
@@ -188,6 +211,10 @@ def _build_payload(obj: Mapping) -> Payload | None:
             provenance=str(item.get("provenance", "bridge")),
             distance=int(item.get("distance", 0)),
         ))
+        
+    query = str(obj.get("query", "")) or str(obj.get("prompt", ""))
+    symbols = _prune_context(symbols, query)
+    
     edges: list[Edge] = []
     edges_raw = obj.get("edges", [])
     if isinstance(edges_raw, list):
@@ -303,6 +330,8 @@ class TokenOptimizer:
         self._seen_values: _LRUDict = _LRUDict(maxsize=max_sessions)
         # Per-session schema keys (for generic schema_values dedup)
         self._schema_keys: _LRUDict = _LRUDict(maxsize=max_sessions)
+        # ML heuristic: track strategy win streaks per session to fast-path optimization
+        self._strategy_wins: _LRUDict = _LRUDict(maxsize=max_sessions)
 
     def _get_session(self, session_id: str) -> Session:
         if session_id not in self._sessions:
@@ -328,6 +357,7 @@ class TokenOptimizer:
         self._prev_generic.pop(session_id, None)
         self._seen_values.pop(session_id, None)
         self._schema_keys.pop(session_id, None)
+        self._strategy_wins.pop(session_id, None)
 
     def optimize(
         self,
@@ -359,6 +389,15 @@ class TokenOptimizer:
         payload_type = "graph" if is_graph else "generic"
         if is_graph:
             payload = _build_payload(obj)
+
+        # Strategy Auto-Tuning: Fast-path if we have a stable winner
+        if session_id:
+            history = self._strategy_wins.get(session_id, {})
+            strat, count = history.get(payload_type, (None, 0))
+            if count >= 3 and strat in active:
+                # We have a stable winner (won 3+ times in a row). 
+                # Skip benchmarking other strategies to save CPU, just compare to JSON baseline.
+                active = {strat, STRATEGY_JSON}
 
         results: list[StrategyResult] = []
 
@@ -453,6 +492,15 @@ class TokenOptimizer:
             self._update_prev_symbols(session_id, payload)
         if session_id and not is_graph:
             self._prev_generic[session_id] = obj
+
+        # Record strategy win for auto-tuning
+        if session_id:
+            history = self._strategy_wins.setdefault(session_id, {})
+            current_winner, count = history.get(payload_type, (None, 0))
+            if winner.strategy == current_winner:
+                history[payload_type] = (winner.strategy, count + 1)
+            else:
+                history[payload_type] = (winner.strategy, 1)
 
         return OptimizerResult(
             winner=winner,

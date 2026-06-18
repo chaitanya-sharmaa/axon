@@ -18,8 +18,8 @@ router = APIRouter(tags=["process"])
 async def process(req: ProcessRequest) -> dict[str, Any]:
     """Process payload through a handler.
 
-    The response is encoded with whichever format (GCF graph, GCF session/TRON,
-    GCF delta/TOON, GCF generic) produces the fewest tokens for this payload.
+    The response is encoded with whichever format (Axon graph, Axon session/TRON,
+    Axon delta/TOON, Axon generic) produces the fewest tokens for this payload.
     The ``metrics.strategy_used`` field in the response tells you which won.
     """
     handler = get_handler(req.handler)

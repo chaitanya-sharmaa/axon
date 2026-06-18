@@ -1,4 +1,4 @@
-"""Request/response models for GCF Bridge API."""
+"""Request/response models for Axon Bridge API."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class TranslateOutRequest(BaseModel):
-    """Request to convert output to GCF envelope."""
+    """Request to convert output to Axon envelope."""
     data: Any
     session_id: str | None = None
 

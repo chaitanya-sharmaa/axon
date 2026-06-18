@@ -1,7 +1,7 @@
 """Axon service: a token-efficient bridge that converts payloads to a compact format.
 
 Use this between clients and any API/agent to normalize incoming payloads,
-convert responses to GCF, and optionally keep JSON alongside for compatibility.
+convert responses to Axon, and optionally keep JSON alongside for compatibility.
 """
 
 from __future__ import annotations
@@ -41,12 +41,12 @@ class AxonService:
 
     @staticmethod
     def _is_compact_format_text(value: str) -> bool:
-        return value.lstrip().startswith("GCF profile=")
+        return value.lstrip().startswith("Axon profile=")
 
     @staticmethod
     def _get_profile(value: str) -> str | None:
         stripped = value.lstrip()
-        if not stripped.startswith("GCF profile="):
+        if not stripped.startswith("Axon profile="):
             return None
         first_line = stripped.splitlines()[0]
         parts = first_line.split()
@@ -80,7 +80,7 @@ class AxonService:
         return str(value)
 
     def from_any_to_object(self, value: Any) -> Any:
-        """Accept JSON/GCF/object input and return a Python object."""
+        """Accept JSON/Axon/object input and return a Python object."""
         if isinstance(value, bytes):
             value = value.decode("utf-8", errors="replace")
 
@@ -102,7 +102,7 @@ class AxonService:
         return self._normalize_object(value)
 
     def _to_graph_payload(self, obj: Any) -> Payload | None:
-        """Convert to GCF Payload, accepting both strict and flexible formats."""
+        """Convert to Axon Payload, accepting both strict and flexible formats."""
         if not isinstance(obj, Mapping):
             return None
         symbols_raw = obj.get("symbols")
@@ -165,7 +165,7 @@ class AxonService:
         )
 
     def _get_session(self, session_id: str) -> Session:
-        """Delegates to the TokenOptimizer to get the shared gcf.Session object."""
+        """Delegates to the TokenOptimizer to get the shared axon.Session object."""
         return self._optimizer.get_gcf_session(session_id)
 
     def clear_session(self, session_id: str) -> None:
@@ -222,7 +222,7 @@ class AxonService:
         handler: Callable[[Any], Any],
         session_id: str | None = None,
     ) -> Dict[str, Any]:
-        """Run a sync handler with normalized input and emit GCF-first output."""
+        """Run a sync handler with normalized input and emit Axon-first output."""
         normalized_input = self.from_any_to_object(inbound)
         result = handler(normalized_input)
         return self.convert_output(result, session_id=session_id)
@@ -233,7 +233,7 @@ class AxonService:
         handler: Callable[[Any], Any] | Callable[[Any], Awaitable[Any]],
         session_id: str | None = None,
     ) -> Dict[str, Any]:
-        """Run a sync/async handler with normalized input and emit GCF-first output."""
+        """Run a sync/async handler with normalized input and emit Axon-first output."""
         normalized_input = self.from_any_to_object(inbound)
         result = handler(normalized_input)
         if inspect.isawaitable(result):

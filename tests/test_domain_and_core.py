@@ -191,16 +191,20 @@ def test_initialize_app():
 def test_app_config_redis():
     import runpy
     import sys
+    import importlib
     with patch.dict(os.environ, {"AXON_MEMORY_TYPE": "redis"}):
-        # We must pop core.settings so runpy re-evaluates it and gets the new env var
-        old_settings = sys.modules.pop("core.settings", None)
+        old_settings = sys.modules.get("core.settings")
+        if "core.settings" in sys.modules:
+            del sys.modules["core.settings"]
         try:
             result = runpy.run_path("core/app_config.py")
             from services.redis_memory_store import RedisMemoryStore
             assert isinstance(result["memory_store"], RedisMemoryStore)
         finally:
-            if old_settings:
+            if old_settings is not None:
                 sys.modules["core.settings"] = old_settings
+            else:
+                import core.settings
 
 def test_settings_no_dotenv():
     import sys
@@ -208,9 +212,9 @@ def test_settings_no_dotenv():
     import core.settings
     # Hide dotenv
     with patch.dict(sys.modules, {"dotenv": None}):
-        importlib.reload(core.settings)
+        importlib.reload(sys.modules["core.settings"])
     # Restore
-    importlib.reload(core.settings)
+    importlib.reload(sys.modules["core.settings"])
 
 # --- Domain API Models Tests ---
 

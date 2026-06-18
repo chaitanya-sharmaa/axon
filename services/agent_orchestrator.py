@@ -27,7 +27,7 @@ Typical usage
     ))
 
     result = await orchestrator.dispatch(payload, capability="graph")
-    # result.encoded_output contains GCF-optimized text
+    # result.encoded_output contains Axon-optimized text
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ class AgentResult:
     result: Any
     success: bool
     error: str | None = None
-    encoded_output: str | None = None    # GCF/cheapest encoded version of result
+    encoded_output: str | None = None    # Axon/cheapest encoded version of result
     strategy_used: str | None = None
     token_savings_pct: float | None = None
     latency_ms: float | None = None

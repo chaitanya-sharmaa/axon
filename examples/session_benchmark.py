@@ -83,7 +83,7 @@ def run_benchmark() -> dict | None:
     print("=" * 80)
     print(f"Session ID: {SESSION_ID}\n")
 
-    results: dict = {"calls": [], "json_tokens": [], "gcf_tokens": [], "savings_pct": []}
+    results: dict = {"calls": [], "json_tokens": [], "axon_tokens": [], "savings_pct": []}
 
     for call_num in range(1, 11):
         payload = simulate_graph_payload(call_num)
@@ -95,18 +95,18 @@ def run_benchmark() -> dict | None:
             })
             metrics = resp_data.get("metrics", {})
             json_tokens = metrics.get("estimated_json_tokens", 0)
-            gcf_tokens = metrics.get("estimated_optimized_tokens", 0)
+            axon_tokens = metrics.get("estimated_optimized_tokens", 0)
             savings_pct = metrics.get("estimated_savings_percent", 0)
 
             results["calls"].append(call_num)
             results["json_tokens"].append(json_tokens)
-            results["gcf_tokens"].append(gcf_tokens)
+            results["axon_tokens"].append(axon_tokens)
             results["savings_pct"].append(savings_pct)
 
             print(
                 f"Call {call_num:2d}: "
                 f"Symbols={len(payload['symbols']):2d}, Edges={len(payload['edges']):2d} → "
-                f"JSON={json_tokens:5d} → Optimized={gcf_tokens:5d} | "
+                f"JSON={json_tokens:5d} → Optimized={axon_tokens:5d} | "
                 f"Savings: {savings_pct:5.1f}%"
             )
         except Exception as exc:
@@ -121,7 +121,7 @@ def run_benchmark() -> dict | None:
     avg_savings = statistics.mean(results["savings_pct"])
     peak_savings = max(results["savings_pct"])
     total_json = sum(results["json_tokens"])
-    total_gcf = sum(results["gcf_tokens"])
+    total_gcf = sum(results["axon_tokens"])
     overall_savings = ((total_json - total_gcf) / total_json * 100) if total_json else 0
 
     print(f"\n📊 Savings per call:")

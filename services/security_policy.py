@@ -1,4 +1,4 @@
-"""Security configuration for GCF Bridge middleware."""
+"""Security configuration for Axon Bridge middleware."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ class SecurityConfig:
         """Initialize security config.
         
         Args:
-            api_key: Expected API key for authentication. Reads from GCF_API_KEY env var if not set.
+            api_key: Expected API key for authentication. Reads from AXON_API_KEY env var if not set.
             allowed_domains: List of domains allowed for proxy requests (e.g., ["httpbin.org", "api.example.com"])
             require_api_key: If True, all requests to protected endpoints require valid API key
             allow_all_domains: If True, ignore domain allowlist (WARNING: use only in trusted environments)

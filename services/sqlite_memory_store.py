@@ -1,4 +1,4 @@
-"""Persistent session memory for GCF bridge with schema caching and symbol tracking."""
+"""Persistent session memory for Axon bridge with schema caching and symbol tracking."""
 
 from __future__ import annotations
 

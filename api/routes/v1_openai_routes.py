@@ -16,7 +16,7 @@ client at Axon and get automatic token compression with zero code changes::
 How it works
 ------------
 1. Receive the standard OpenAI ``/v1/chat/completions`` request.
-2. Compress the ``messages`` array using the cheapest GCF strategy.
+2. Compress the ``messages`` array using the cheapest Axon strategy.
 3. Forward the (compressed) request to the real OpenAI API.
 4. Return the standard OpenAI response unchanged.
 5. Report token savings in a custom ``x-axon-metrics`` response header.

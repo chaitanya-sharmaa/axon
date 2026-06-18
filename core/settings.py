@@ -1,4 +1,4 @@
-"""Environment-driven settings for GCF Bridge."""
+"""Environment-driven settings for Axon Bridge."""
 
 from __future__ import annotations
 

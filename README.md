@@ -17,7 +17,7 @@ axon serve
 
 | Problem | Axon's solution |
 |---|---|
-| LLM API bills are high | Auto-picks the cheapest encoding per call — GCF, TOON (delta), TRON (session), schema-values |
+| LLM API bills are high | Auto-picks the cheapest encoding per call — Axon, TOON (delta), TRON (session), schema-values |
 | Sessions re-send the same data | Multi-turn deduplication: only changed fields are transmitted after turn 1 |
 | Hard to observe token usage | Every response includes savings %, token counts, and optional dollar cost |
 | Integrating a new tool takes work | Drop-in OpenAI-compatible `/v1/chat/completions` proxy — change one URL |
@@ -186,7 +186,7 @@ Axon benchmarks all enabled strategies on every call and picks the winner:
 
 | Strategy | Best for | Mechanism |
 |---|---|---|
-| `graph` | Code context (symbols + edges) | GCF compact graph format |
+| `graph` | Code context (symbols + edges) | Axon compact graph format |
 | `graph_delta` | Repeated graph calls | Only sends added/removed symbols (TOON) |
 | `graph_session` | Long graph sessions | References previously sent symbols by index (TRON) |
 | `generic` | Flat key-value dicts | Compact `key=value` text |

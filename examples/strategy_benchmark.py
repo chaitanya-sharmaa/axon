@@ -137,13 +137,13 @@ def main():
     p1 = _build_payload(large_graph_payload)
     p2 = _build_payload(large_graph_payload_2)
     session_state_graph = _SessionState()
-    encode_with_session(p1, session_state_graph.gcf_session)  # Prime session
+    encode_with_session(p1, session_state_graph.axon_session)  # Prime session
 
     graph_strategies = {
         "json": lambda: json.dumps(large_graph_payload_2),
         "graph": lambda: encode(p2),
         "graph_delta": lambda: encode_delta(_build_delta(p2, [s.qualified_name for s in p1.symbols])),
-        "graph_session": lambda: encode_with_session(p2, Session(state=session_state_graph.gcf_session.state)),
+        "graph_session": lambda: encode_with_session(p2, Session(state=session_state_graph.axon_session.state)),
     }
     run_benchmark("Large Graph Payload (e.g., Code Context)", large_graph_payload_2, graph_strategies)
 

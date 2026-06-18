@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "axon-bridge"
 version = "0.3.0"
-description = "Token-efficient middleware for LLM APIs — automatically picks the cheapest encoding (GCF, TOON, TRON) to reduce API costs by up to 70%."
+description = "Token-efficient middleware for LLM APIs — automatically picks the cheapest encoding (Axon, TOON, TRON) to reduce API costs by up to 70%."
 authors = [
     { name = "Chaitanya Sharma", email = "chaitanyasharmaa@example.com" }
 ]

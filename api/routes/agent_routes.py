@@ -70,7 +70,7 @@ async def dispatch(req: DispatchRequest) -> dict[str, Any]:
 
     - If ``capability`` is given, picks the highest-priority agent that declares it.
     - If ``agent_name`` is given, routes directly to that agent.
-    - The response ``encoded`` field contains the cheapest GCF/TOON/TRON encoding.
+    - The response ``encoded`` field contains the cheapest Axon/TOON/TRON encoding.
     """
     result = await orchestrator.dispatch(
         req.payload,
@@ -131,7 +131,7 @@ async def swarm(req: SwarmRequest) -> dict[str, Any]:
     """Fan-out payload to all registered agents (Ruflo swarm_init equivalent).
 
     Optionally filter by ``filter_type`` (e.g. ``"analyzer"``).
-    All agents run in parallel; every result is GCF-encoded with the cheapest strategy.
+    All agents run in parallel; every result is Axon-encoded with the cheapest strategy.
     """
     parallel_result = await orchestrator.swarm(
         req.payload,

@@ -77,7 +77,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 - Initial release
-- `TokenOptimizer` with graph + generic GCF strategies
+- `TokenOptimizer` with graph + generic Axon strategies
 - `AxonService` wrapper with `process()` / `process_async()`
 - FastAPI server with `/process`, `/translate/in`, `/translate/out`
 - Proxy endpoint `/proxy/upstream`

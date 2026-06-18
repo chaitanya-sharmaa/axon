@@ -50,7 +50,7 @@ async def health_legacy() -> dict:
 
 @router.post("/translate/in", summary="Decode any format to Python object")
 async def translate_in(payload: Any = Body(...)) -> dict[str, Any]:
-    """Normalize any input (JSON string, GCF text, dict) to a Python object."""
+    """Normalize any input (JSON string, Axon text, dict) to a Python object."""
     return {"object": axon_service.from_any_to_object(payload)}
 
 

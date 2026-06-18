@@ -1,4 +1,4 @@
-"""Proxy endpoint: forward HTTP requests to upstream APIs with GCF response encoding."""
+"""Proxy endpoint: forward HTTP requests to upstream APIs with Axon response encoding."""
 
 from __future__ import annotations
 
@@ -21,14 +21,14 @@ async def proxy_upstream(
     req: UpstreamProxyRequest,
     x_api_key: str | None = Header(None),
 ) -> JSONResponse:
-    """Forward HTTP request to upstream URL with GCF response encoding.
+    """Forward HTTP request to upstream URL with Axon response encoding.
     
     Security checks:
     - Validates domain against allowlist
     - Optionally requires API key in X-API-Key header
     
     Returns:
-    - GCF compact format
+    - Axon compact format
     - JSON fallback
     - Upstream metadata (status, content-type)
     - Token savings metrics
@@ -90,7 +90,7 @@ async def proxy_upstream(
     else:
         upstream_payload = {"_raw_text": decoded_text}
 
-    # Convert to GCF envelope
+    # Convert to Axon envelope
     envelope = axon_service.convert_output(upstream_payload, session_id=req.session_id)
     envelope["upstream"] = {
         "url": req.upstream_url,

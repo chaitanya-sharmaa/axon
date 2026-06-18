@@ -24,7 +24,7 @@ security_config = SecurityConfig(
     allow_all_domains=settings.allow_all_domains,
 )
 
-# ── Token optimizer — auto-picks cheapest encoding (GCF/TOON/TRON) ────────────
+# ── Token optimizer — auto-picks cheapest encoding (Axon/TOON/TRON) ────────────
 token_optimizer = TokenOptimizer(
     enabled_strategies=settings.enabled_formats,
     max_sessions=settings.max_sessions,

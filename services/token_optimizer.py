@@ -7,19 +7,19 @@ Supported strategies:
 
   Graph payloads  (payload contains a ``symbols`` list)
   ─────────────────────────────────────────────────────
-  gcf_graph         — GCF graph profile (symbol/edge dedup). Best for code-context.
-  gcf_session       — TRON for graphs: session-aware dedup, elides previously-seen
+  axon_graph         — Axon graph profile (symbol/edge dedup). Best for code-context.
+  axon_session       — TRON for graphs: session-aware dedup, elides previously-seen
                       symbols each turn.  Cumulative savings grow over multi-turn.
-  gcf_delta         — TOON for graphs: only changed/added symbols+edges are sent.
+  axon_delta         — TOON for graphs: only changed/added symbols+edges are sent.
                       Ideal when consecutive turns share most of the graph.
 
   Generic payloads  (any dict / list)
   ────────────────────────────────────
-  gcf_generic       — GCF generic profile: compact key=value encoding of any dict.
-  gcf_generic_delta — TOON for generics: only the *changed* top-level keys are sent.
+  axon_generic       — Axon generic profile: compact key=value encoding of any dict.
+  axon_generic_delta — TOON for generics: only the *changed* top-level keys are sent.
                       First turn: full payload.  Subsequent turns in same session:
                       only keys whose values changed vs the previous turn.
-  gcf_generic_session — TRON for generics: tracks scalar values seen in previous
+  axon_generic_session — TRON for generics: tracks scalar values seen in previous
                       turns and replaces repeated ones with a short reference token.
 
   Baseline
@@ -48,22 +48,22 @@ from gcf import (
 )
 
 # ── Strategy names ─────────────────────────────────────────────────────────────
-STRATEGY_GCF_GRAPH = "graph"
-STRATEGY_GCF_SESSION = "graph_session"
-STRATEGY_GCF_DELTA = "graph_delta"
-STRATEGY_GCF_GENERIC = "generic"
-STRATEGY_GCF_GENERIC_DELTA = "generic_delta"      # TOON for non-graph
-STRATEGY_GCF_GENERIC_SESSION = "generic_session"  # TRON for non-graph
+STRATEGY_AXON_GRAPH = "graph"
+STRATEGY_AXON_SESSION = "graph_session"
+STRATEGY_AXON_DELTA = "graph_delta"
+STRATEGY_AXON_GENERIC = "generic"
+STRATEGY_AXON_GENERIC_DELTA = "generic_delta"      # TOON for non-graph
+STRATEGY_AXON_GENERIC_SESSION = "generic_session"  # TRON for non-graph
 STRATEGY_SCHEMA_VALUES = "schema_values"
 STRATEGY_JSON = "json"
 
 ALL_STRATEGIES = [
-    STRATEGY_GCF_GRAPH,
-    STRATEGY_GCF_SESSION,
-    STRATEGY_GCF_DELTA,
-    STRATEGY_GCF_GENERIC,
-    STRATEGY_GCF_GENERIC_DELTA,
-    STRATEGY_GCF_GENERIC_SESSION,
+    STRATEGY_AXON_GRAPH,
+    STRATEGY_AXON_SESSION,
+    STRATEGY_AXON_DELTA,
+    STRATEGY_AXON_GENERIC,
+    STRATEGY_AXON_GENERIC_DELTA,
+    STRATEGY_AXON_GENERIC_SESSION,
     STRATEGY_SCHEMA_VALUES,
     STRATEGY_JSON,
 ]
@@ -168,7 +168,7 @@ def _savings(json_tokens: int, candidate_tokens: int) -> float:
 
 
 def _build_payload(obj: Mapping) -> Payload | None:
-    """Try to build a GCF graph Payload from a dict.  Returns None if not graph-shaped."""
+    """Try to build a Axon graph Payload from a dict.  Returns None if not graph-shaped."""
     symbols_raw = obj.get("symbols")
     if not isinstance(symbols_raw, list) or not symbols_raw:
         return None
@@ -272,7 +272,7 @@ def _build_delta(payload: Payload | None, prev_symbols: list[str] | None) -> Del
     return DeltaPayload(
         tool=payload.tool,
         base_root="",
-        new_root="gcf_root",
+        new_root="axon_root",
         added=added,
         removed=removed,
         added_edges=payload.edges,
@@ -293,7 +293,7 @@ class TokenOptimizer:
     def __init__(self, enabled_strategies: list[str] | None = None, max_sessions: int = 1000) -> None:
         self._enabled = set(enabled_strategies or ALL_STRATEGIES)
         self._max_sessions = max_sessions
-        # Per-session GCF Session objects for session-aware dedup
+        # Per-session Axon Session objects for session-aware dedup
         self._sessions: _LRUDict = _LRUDict(maxsize=max_sessions)
         # Per-session previous symbol sets (for graph delta encoding)
         self._prev_symbols: _LRUDict = _LRUDict(maxsize=max_sessions)
@@ -371,55 +371,55 @@ class TokenOptimizer:
                 savings_vs_json_pct=_savings(json_tokens, t),
             ))
 
-        # ── GCF graph ──────────────────────────────────────────────────────────
-        if STRATEGY_GCF_GRAPH in active and payload is not None:
+        # ── Axon graph ──────────────────────────────────────────────────────────
+        if STRATEGY_AXON_GRAPH in active and payload is not None:
             try:
-                _add(STRATEGY_GCF_GRAPH, encode(payload))
+                _add(STRATEGY_AXON_GRAPH, encode(payload))
             except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_GCF_GRAPH} failed: {e}", exc_info=False)
+                logging.warning(f"Strategy {STRATEGY_AXON_GRAPH} failed: {e}", exc_info=False)
 
-        # ── GCF session (TRON-style multi-turn dedup) ──────────────────────────
-        if STRATEGY_GCF_SESSION in active and payload is not None and session_id:
+        # ── Axon session (TRON-style multi-turn dedup) ──────────────────────────
+        if STRATEGY_AXON_SESSION in active and payload is not None and session_id:
             try:
                 sess = self._get_session(session_id)
-                _add(STRATEGY_GCF_SESSION, encode_with_session(payload, sess))
+                _add(STRATEGY_AXON_SESSION, encode_with_session(payload, sess))
             except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_GCF_SESSION} failed: {e}", exc_info=False)
+                logging.warning(f"Strategy {STRATEGY_AXON_SESSION} failed: {e}", exc_info=False)
 
-        # ── GCF delta (TOON-style change-only encoding) ───────────────────────
-        if STRATEGY_GCF_DELTA in active and payload is not None and session_id:
+        # ── Axon delta (TOON-style change-only encoding) ───────────────────────
+        if STRATEGY_AXON_DELTA in active and payload is not None and session_id:
             try:
                 prev = self._get_prev_symbols(session_id)
                 delta = _build_delta(payload, prev)
                 if delta is not None:
-                    _add(STRATEGY_GCF_DELTA, encode_delta(delta))
+                    _add(STRATEGY_AXON_DELTA, encode_delta(delta))
             except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_GCF_DELTA} failed: {e}", exc_info=False)
+                logging.warning(f"Strategy {STRATEGY_AXON_DELTA} failed: {e}", exc_info=False)
 
-        # ── GCF generic (universal fallback) ──────────────────────────────────
-        if STRATEGY_GCF_GENERIC in active:
+        # ── Axon generic (universal fallback) ──────────────────────────────────
+        if STRATEGY_AXON_GENERIC in active:
             try:
-                _add(STRATEGY_GCF_GENERIC, encode_generic(obj))
+                _add(STRATEGY_AXON_GENERIC, encode_generic(obj))
             except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_GCF_GENERIC} failed: {e}", exc_info=False)
+                logging.warning(f"Strategy {STRATEGY_AXON_GENERIC} failed: {e}", exc_info=False)
 
-        # ── GCF generic delta / TOON for non-graph ────────────────────────────
-        if STRATEGY_GCF_GENERIC_DELTA in active and session_id and not is_graph:
+        # ── Axon generic delta / TOON for non-graph ────────────────────────────
+        if STRATEGY_AXON_GENERIC_DELTA in active and session_id and not is_graph:
             try:
                 prev = self._prev_generic.get(session_id)
                 delta_obj = _build_generic_delta(obj, prev)
-                _add(STRATEGY_GCF_GENERIC_DELTA, encode_generic(delta_obj))
+                _add(STRATEGY_AXON_GENERIC_DELTA, encode_generic(delta_obj))
             except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_GCF_GENERIC_DELTA} failed: {e}", exc_info=False)
+                logging.warning(f"Strategy {STRATEGY_AXON_GENERIC_DELTA} failed: {e}", exc_info=False)
 
-        # ── GCF generic session / TRON for non-graph ──────────────────────────
-        if STRATEGY_GCF_GENERIC_SESSION in active and session_id and not is_graph:
+        # ── Axon generic session / TRON for non-graph ──────────────────────────
+        if STRATEGY_AXON_GENERIC_SESSION in active and session_id and not is_graph:
             try:
                 seen = self._seen_values.setdefault(session_id, {})
                 session_obj = _build_generic_session(obj, seen)
-                _add(STRATEGY_GCF_GENERIC_SESSION, encode_generic(session_obj))
+                _add(STRATEGY_AXON_GENERIC_SESSION, encode_generic(session_obj))
             except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_GCF_GENERIC_SESSION} failed: {e}", exc_info=False)
+                logging.warning(f"Strategy {STRATEGY_AXON_GENERIC_SESSION} failed: {e}", exc_info=False)
 
         # ── Schema values ───────────────────────────────────────────────────────
         if STRATEGY_SCHEMA_VALUES in active and session_id and not is_graph and isinstance(obj, dict):

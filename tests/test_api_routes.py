@@ -185,17 +185,15 @@ def test_openapi_schema(client):
     assert res2.status_code == 200
 
 def test_openapi_schema_with_logo(client):
-    import importlib
-    import core.settings
+    from app import settings as app_settings
     from app import app
-    with patch.dict("os.environ", {"AXON_OPENAPI_LOGO_URL": "http://logo.png"}):
-        importlib.reload(core.settings)
-        app.openapi_schema = None # clear cache
-        res = client.get("/openapi.json")
-        assert res.status_code == 200
-        assert "x-logo" in res.json()["info"]
-    # Restore
-    importlib.reload(core.settings)
+    old_logo = app_settings.openapi_logo_url
+    object.__setattr__(app_settings, "openapi_logo_url", "http://logo.png")
+    app.openapi_schema = None # clear cache
+    res = client.get("/openapi.json")
+    assert res.status_code == 200
+    assert "x-logo" in res.json()["info"]
+    object.__setattr__(app_settings, "openapi_logo_url", old_logo)
 
 @pytest.mark.asyncio
 async def test_app_lifecycle():

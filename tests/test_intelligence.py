@@ -81,6 +81,8 @@ async def test_fact_extraction():
     class DummyMemoryStore:
         def __init__(self):
             self.facts = []
+        async def create_session(self, session_id):
+            pass
         async def add_session_fact(self, session_id, fact):
             self.facts.append(fact)
             

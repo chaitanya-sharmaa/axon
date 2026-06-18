@@ -26,8 +26,7 @@ def test_proxy_upstream_invalid_method(client):
 
 def test_proxy_upstream_success(client, mock_httpx_request):
     mock_httpx_request.return_value = httpx.Response(
-        200, 
-        headers={"content-type": "application/json"},
+        200, request=httpx.Request("POST", "http://testserver"), headers={"content-type": "application/json"},
         content=b'{"mock": "response"}'
     )
     
@@ -56,7 +55,7 @@ def test_proxy_upstream_httpx_error(client, mock_httpx_request):
 
 @patch("httpx.AsyncClient.get", new_callable=AsyncMock)
 def test_list_models(mock_get, client):
-    mock_get.return_value = httpx.Response(200, json={"data": [{"id": "gpt-4"}]})
+    mock_get.return_value = httpx.Response(200, request=httpx.Request("POST", "http://testserver"), json={"data": [{"id": "gpt-4"}]})
     res = client.get("/v1/models")
     assert res.status_code == 200
     assert res.json()["data"][0]["id"] == "gpt-4"
@@ -69,8 +68,7 @@ def test_list_models_error(mock_get, client):
 
 def test_chat_completions(client, mock_httpx_post):
     mock_httpx_post.return_value = httpx.Response(
-        200, 
-        json={"id": "chatcmpl-123", "choices": []}
+        200, request=httpx.Request("POST", "http://testserver"), json={"id": "chatcmpl-123", "choices": []}
     )
     
     req = {
@@ -103,7 +101,7 @@ def test_chat_completions_stream(client):
         assert "x-axon-metrics" in res.headers
 
 def test_embeddings(client, mock_httpx_post):
-    mock_httpx_post.return_value = httpx.Response(200, json={"data": [{"embedding": []}]})
+    mock_httpx_post.return_value = httpx.Response(200, request=httpx.Request("POST", "http://testserver"), json={"data": [{"embedding": []}]})
     req = {
         "model": "text-embedding-3-small",
         "input": "test"
@@ -140,26 +138,26 @@ def test_proxy_upstream_invalid_api_key(client):
         assert res.status_code == 401
 
 def test_proxy_upstream_string_data(client, mock_httpx_request):
-    mock_httpx_request.return_value = httpx.Response(200, content=b'{"mock": "response"}')
+    mock_httpx_request.return_value = httpx.Response(200, request=httpx.Request("POST", "http://testserver"), content=b'{"mock": "response"}')
     req = {"upstream_url": "https://api.github.com/test", "method": "POST", "data": "stringdata"}
     res = client.post("/proxy/upstream", json=req)
     assert res.status_code == 200
 
 def test_proxy_upstream_none_data(client, mock_httpx_request):
-    mock_httpx_request.return_value = httpx.Response(200, content=b'{"mock": "response"}')
+    mock_httpx_request.return_value = httpx.Response(200, request=httpx.Request("POST", "http://testserver"), content=b'{"mock": "response"}')
     req = {"upstream_url": "https://api.github.com/test", "method": "POST", "data": None}
     res = client.post("/proxy/upstream", json=req)
     assert res.status_code == 200
 
 def test_proxy_upstream_int_data(client, mock_httpx_request):
-    mock_httpx_request.return_value = httpx.Response(200, content=b'{"mock": "response"}')
+    mock_httpx_request.return_value = httpx.Response(200, request=httpx.Request("POST", "http://testserver"), content=b'{"mock": "response"}')
     req = {"upstream_url": "https://api.github.com/test", "method": "POST", "data": 42}
     res = client.post("/proxy/upstream", json=req)
     assert res.status_code == 200
 
 def test_proxy_upstream_json_decode_error(client, mock_httpx_request):
     mock_httpx_request.return_value = httpx.Response(
-        200, headers={"content-type": "application/json"}, content=b'invalid json'
+        200, request=httpx.Request("POST", "http://testserver"), headers={"content-type": "application/json"}, content=b'invalid json'
     )
     req = {"upstream_url": "https://api.github.com/test", "method": "GET"}
     res = client.post("/proxy/upstream", json=req)
@@ -173,7 +171,7 @@ def test_chat_completions_error(client, mock_httpx_post):
     assert res.status_code == 502
 
 def test_chat_completions_compression_savings(client, mock_httpx_post):
-    mock_httpx_post.return_value = httpx.Response(200, json={"id": "cmpl", "choices": []})
+    mock_httpx_post.return_value = httpx.Response(200, request=httpx.Request("POST", "http://testserver"), json={"id": "cmpl", "choices": []})
     
     # Mock token optimizer to force savings > 0
     with patch("core.app_config.axon_service._optimizer.optimize") as mock_opt:

@@ -17,6 +17,7 @@ class ProcessRequest(BaseModel):
     inbound: Any
     handler: str = Field(default="echo", description="One of: echo, active_items, graph_processor")
     session_id: str | None = None
+    target_model: str | None = Field(default=None, description="Optional target LLM (e.g. gpt-4o)")
 
 
 class UpstreamProxyRequest(BaseModel):

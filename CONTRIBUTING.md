@@ -20,8 +20,8 @@ Thank you for taking the time to contribute! 🎉
 
 1. Fork the repository and clone your fork:
    ```bash
-   git clone https://github.com/your-username/axon-bridge.git
-   cd axon-bridge/bridge
+   git clone https://github.com/chaitanya-sharmaa/axon.git
+   cd axon/bridge
    ```
 
 2. Create a virtual environment and install all dev dependencies:

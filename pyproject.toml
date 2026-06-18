@@ -6,6 +6,9 @@ build-backend = "hatchling.build"
 name = "axon-bridge"
 version = "0.3.0"
 description = "Token-efficient middleware for LLM APIs — automatically picks the cheapest encoding (GCF, TOON, TRON) to reduce API costs by up to 70%."
+authors = [
+    { name = "Chaitanya Sharma", email = "chaitanyasharmaa@example.com" }
+]
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -52,10 +55,10 @@ dev = [
 axon = "cli:app"
 
 [project.urls]
-Homepage = "https://github.com/your-org/axon-bridge"
+Homepage = "https://github.com/chaitanya-sharmaa/axon"
 Documentation = "https://axon-bridge.readthedocs.io"
-Repository = "https://github.com/your-org/axon-bridge"
-"Bug Tracker" = "https://github.com/your-org/axon-bridge/issues"
+Repository = "https://github.com/chaitanya-sharmaa/axon"
+"Bug Tracker" = "https://github.com/chaitanya-sharmaa/axon/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]

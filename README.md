@@ -42,8 +42,8 @@ axon serve --port 8080
 ### Option 3 — local dev
 
 ```bash
-git clone https://github.com/your-org/axon-bridge.git
-cd axon-bridge/bridge
+git clone https://github.com/chaitanya-sharmaa/axon.git
+cd axon/bridge
 pip install -r requirements.txt
 cp .env.example .env
 uvicorn app:app --reload

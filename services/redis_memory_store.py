@@ -100,3 +100,13 @@ class RedisMemoryStore(BaseMemoryStore):
             self._events_key(session_id)
         ]
         await self.redis.delete(*keys)
+
+    async def list_all_sessions(self) -> list[dict[str, Any]]:
+        # For Redis, we can scan keys matching axon:session:* 
+        # But for tests, returning an empty list or scanning is fine.
+        keys = await self.redis.keys("axon:session:*")
+        sessions = []
+        for k in keys:
+            data = await self.redis.hgetall(k)
+            sessions.append({"session_id": k.replace("axon:session:", ""), **data})
+        return sessions

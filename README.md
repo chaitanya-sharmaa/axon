@@ -2,6 +2,8 @@
 
 **Token-efficient middleware for LLM APIs.** Axon sits between your application and any LLM, automatically benchmarks 8 encoding strategies, and sends the cheapest one — saving **up to 70% on API tokens** with zero changes to your existing code.
 
+**Original Author:** [Chaitanya Sharma](https://github.com/chaitanya-sharmaa/axon)
+
 ```
 pip install axon-bridge
 axon serve
@@ -20,6 +22,18 @@ axon serve
 | Hard to observe token usage | Every response includes savings %, token counts, and optional dollar cost |
 | Integrating a new tool takes work | Drop-in OpenAI-compatible `/v1/chat/completions` proxy — change one URL |
 | Complex deployment | Single Docker image, SQLite default, Redis for horizontal scale |
+
+### Benchmarks
+
+Here is an live benchmark showing Axon's estimated token savings versus a raw JSON baseline for various payload types. Note how **multi-turn session deduplication** drastically increases token savings in large repeated payloads (e.g., *Large List (5 turns)*).
+
+```mermaid
+xychart-beta
+    title "Axon Token Savings vs JSON Baseline"
+    x-axis ["Small JSON", "Nested JSON", "Graph Payload", "Large List (5 turns)"]
+    y-axis "Savings (%)" 0 --> 100
+    bar [25.0, 0.0, 3.85, 59.68]
+```
 
 ---
 

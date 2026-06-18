@@ -261,3 +261,9 @@ class SessionMemoryStore(BaseMemoryStore):
                 "DELETE FROM sessions WHERE session_id = ?", (session_id,)
             )
             await conn.commit()
+
+    async def list_all_sessions(self) -> list[dict[str, Any]]:
+        conn = await self._ensure_conn()
+        cursor = await conn.execute("SELECT session_id, created_at, last_accessed FROM sessions")
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]

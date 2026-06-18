@@ -1,19 +1,25 @@
-"""Token Bridge FastAPI application entry point.
-
-The main app is now modular with routes organized by concern:
-- Core: health, translate_in, translate_out
-- Process: handler routing with session tracking
-- Proxy: upstream HTTP forwarding with security
-- Memory: session persistence and queries
-- Security: domain allowlist and API key management
-"""
+"""Axon Bridge — FastAPI application entry point."""
 
 from __future__ import annotations
 
-from fastapi import FastAPI
-from fastapi.openapi.utils import get_openapi
+import logging
+import os
 
+from dotenv import load_dotenv
+
+# Load .env before any other import reads os.getenv()
+load_dotenv()
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+
+from api.middleware.request_id import RequestIDMiddleware
 from core.app_config import initialize_app, memory_store
+from core.logging_config import configure_logging
 from core.settings import settings
 from api.routes import (
     core_router,
@@ -22,15 +28,29 @@ from api.routes import (
     memory_router,
     security_router,
     agent_router,
+    openai_router,
+    batch_router,
 )
+
+log = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
-    """Create and configure FastAPI application."""
-    # Initialize app components
+    """Create and configure the Axon FastAPI application."""
+
+    # ── Logging ──────────────────────────────────────────────────────────────
+    configure_logging(
+        log_format=os.getenv("AXON_LOG_FORMAT", "text"),
+        log_level=os.getenv("AXON_LOG_LEVEL", "INFO"),
+    )
+
+    # ── App components ────────────────────────────────────────────────────────
     initialize_app()
-    
-    # Create FastAPI app
+
+    # ── Rate limiter ──────────────────────────────────────────────────────────
+    limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+
+    # ── FastAPI ───────────────────────────────────────────────────────────────
     app = FastAPI(
         title=settings.app_title,
         version=settings.app_version,
@@ -40,12 +60,33 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
 
+    # Attach limiter to app state (required by slowapi)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    # ── Middleware ────────────────────────────────────────────────────────────
+    app.add_middleware(RequestIDMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=os.getenv("AXON_CORS_ORIGINS", "*").split(","),
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # ── Lifecycle ─────────────────────────────────────────────────────────────
     @app.on_event("startup")
-    async def startup_event():
-        """Perform asynchronous startup tasks."""
-        await memory_store.initialize()
-    
-    # Register route modules using configurable prefixes and toggles
+    async def _startup() -> None:
+        log.info("Axon Bridge %s starting up", settings.app_version)
+        if hasattr(memory_store, "initialize"):
+            await memory_store.initialize()
+
+    @app.on_event("shutdown")
+    async def _shutdown() -> None:
+        log.info("Axon Bridge shutting down — closing connections")
+        if hasattr(memory_store, "close"):
+            await memory_store.close()
+
+    # ── Routers ───────────────────────────────────────────────────────────────
     if settings.enable_core_routes:
         app.include_router(core_router, prefix=settings.route_prefix_core)
     if settings.enable_process_routes:
@@ -58,30 +99,35 @@ def create_app() -> FastAPI:
         app.include_router(security_router, prefix=settings.route_prefix_security)
     if settings.enable_agent_routes:
         app.include_router(agent_router)
-    
-    # Custom OpenAPI schema
-    def custom_openapi():
+
+    # OpenAI-compatible routes (always at /v1)
+    if settings.enable_openai_routes:
+        app.include_router(openai_router)
+
+    # Batch processing
+    app.include_router(batch_router)
+
+    # ── Custom OpenAPI schema ─────────────────────────────────────────────────
+    def custom_openapi() -> dict:
         if app.openapi_schema:
             return app.openapi_schema
-        openapi_schema = get_openapi(
+        schema = get_openapi(
             title=settings.app_title,
             version=settings.app_version,
             description=settings.openapi_description,
             routes=app.routes,
         )
         if settings.openapi_logo_url:
-            openapi_schema["info"]["x-logo"] = {"url": settings.openapi_logo_url}
-        app.openapi_schema = openapi_schema
-        return app.openapi_schema
-    
-    app.openapi = custom_openapi
-    
+            schema["info"]["x-logo"] = {"url": settings.openapi_logo_url}
+        app.openapi_schema = schema
+        return schema
+
+    app.openapi = custom_openapi  # type: ignore[method-assign]
+
     return app
 
 
-# Create global app instance for Uvicorn
 app = create_app()
-
 
 if __name__ == "__main__":
     import uvicorn

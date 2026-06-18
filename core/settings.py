@@ -5,6 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load .env file before reading any os.getenv() calls
+except ImportError:
+    pass  # python-dotenv is optional during testing
+
 
 _DEFAULT_ALLOWED_DOMAINS = [
     "httpbin.org",
@@ -70,12 +76,17 @@ class AppSettings:
     enable_memory_routes: bool
     enable_security_routes: bool
     enable_agent_routes: bool
+    enable_openai_routes: bool
+
+    # Logging
+    log_format: str   # "text" | "json"
+    log_level: str
 
     # Token optimizer — comma-separated list of strategies to benchmark
     tokenizer_model: str
-    # choices: gcf_graph, gcf_session, gcf_delta, gcf_generic, json
     # choices: graph, graph_session, graph_delta, generic, generic_delta, generic_session, schema_values, json
     enabled_formats: list[str]
+    max_sessions: int
 
 
 
@@ -119,7 +130,10 @@ def load_settings() -> AppSettings:
         enable_memory_routes=_as_bool(os.getenv("AXON_ENABLE_MEMORY_ROUTES"), True),
         enable_security_routes=_as_bool(os.getenv("AXON_ENABLE_SECURITY_ROUTES"), True),
         enable_agent_routes=_as_bool(os.getenv("AXON_ENABLE_AGENT_ROUTES"), True),
-        tokenizer_model=os.getenv("AXON_TOKENIZER_MODEL", "cl100k_base"), # Default for GPT-4, GPT-3.5-turbo
+        enable_openai_routes=_as_bool(os.getenv("AXON_ENABLE_OPENAI_ROUTES"), True),
+        log_format=os.getenv("AXON_LOG_FORMAT", "text"),
+        log_level=os.getenv("AXON_LOG_LEVEL", "INFO"),
+        tokenizer_model=os.getenv("AXON_TOKENIZER_MODEL", "cl100k_base"),
         enabled_formats=_as_list(
             os.getenv("AXON_ENABLED_FORMATS"),
             [
@@ -133,6 +147,7 @@ def load_settings() -> AppSettings:
                 "json",
             ]
         ),
+        max_sessions=int(os.getenv("AXON_MAX_SESSIONS", "1000")),
     )
 
 

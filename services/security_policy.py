@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -38,12 +39,12 @@ class SecurityConfig:
         ]
 
     def validate_api_key(self, provided_key: Optional[str]) -> bool:
-        """Validate provided API key against configured key."""
+        """Validate provided API key against configured key (constant-time comparison)."""
         if not self.require_api_key:
             return True
         if not self.api_key:
             return False
-        return provided_key == self.api_key
+        return hmac.compare_digest(provided_key or "", self.api_key)
 
     def is_domain_allowed(self, url: str) -> bool:
         """Check if URL domain is in allowlist."""

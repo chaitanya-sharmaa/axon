@@ -25,7 +25,10 @@ security_config = SecurityConfig(
 )
 
 # ── Token optimizer — auto-picks cheapest encoding (GCF/TOON/TRON) ────────────
-token_optimizer = TokenOptimizer(enabled_strategies=settings.enabled_formats)
+token_optimizer = TokenOptimizer(
+    enabled_strategies=settings.enabled_formats,
+    max_sessions=settings.max_sessions,
+)
 
 # ── Core bridge service (delegates session management to the optimizer) ─────────
 axon_service = AxonService(

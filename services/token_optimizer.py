@@ -29,6 +29,7 @@ Supported strategies:
 
 from __future__ import annotations
 
+import collections
 import json
 import logging
 from dataclasses import dataclass, field
@@ -66,6 +67,44 @@ ALL_STRATEGIES = [
     STRATEGY_SCHEMA_VALUES,
     STRATEGY_JSON,
 ]
+
+
+# ── LRU session cache ──────────────────────────────────────────────────────────
+
+class _LRUDict(collections.OrderedDict):
+    """OrderedDict that silently evicts the least-recently-used entry
+    once it grows beyond *maxsize*.
+
+    All five per-session dicts in ``TokenOptimizer`` use this so that
+    a long-running server cannot accumulate unbounded session state.
+    """
+
+    def __init__(self, maxsize: int = 1024, *args, **kwargs) -> None:
+        self._maxsize = maxsize
+        super().__init__(*args, **kwargs)
+
+    def __setitem__(self, key, value):  # type: ignore[override]
+        if key in self:
+            self.move_to_end(key)
+        super().__setitem__(key, value)
+        if len(self) > self._maxsize:
+            self.popitem(last=False)  # evict the oldest (LRU) entry
+
+    def __getitem__(self, key):  # type: ignore[override]
+        value = super().__getitem__(key)
+        self.move_to_end(key)  # mark as recently used
+        return value
+
+    def get(self, key, default=None):  # type: ignore[override]
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def setdefault(self, key, default=None):  # type: ignore[override]
+        if key not in self:
+            self[key] = default
+        return self[key]
 
 
 # ── Result containers ──────────────────────────────────────────────────────────
@@ -208,7 +247,7 @@ def _build_generic_session(current: Any, seen_values: dict[str, str]) -> Any:
 
     compressed: dict[str, Any] = {}
     for k, v in current.items():
-        if isinstance(v, (str, int, float, bool)) and v is not None:
+        if isinstance(v, (str, int, float, bool)):
             vstr = str(v)
             if vstr in seen_values and seen_values[vstr] != k:
                 compressed[k] = f"@ref:{seen_values[vstr]}"
@@ -219,7 +258,7 @@ def _build_generic_session(current: Any, seen_values: dict[str, str]) -> Any:
             compressed[k] = v
     return compressed
 
-    """Build a delta payload representing *added* symbols vs. previous set."""
+
 def _build_delta(payload: Payload | None, prev_symbols: list[str] | None) -> DeltaPayload | None:
     """Build a delta payload representing *added* symbols vs. previous set."""
     if payload is None:
@@ -251,18 +290,19 @@ class TokenOptimizer:
         Subset of ALL_STRATEGIES to benchmark.  Defaults to all.
     """
 
-    def __init__(self, enabled_strategies: list[str] | None = None) -> None:
+    def __init__(self, enabled_strategies: list[str] | None = None, max_sessions: int = 1000) -> None:
         self._enabled = set(enabled_strategies or ALL_STRATEGIES)
+        self._max_sessions = max_sessions
         # Per-session GCF Session objects for session-aware dedup
-        self._sessions: dict[str, Session] = {}
+        self._sessions: _LRUDict = _LRUDict(maxsize=max_sessions)
         # Per-session previous symbol sets (for graph delta encoding)
-        self._prev_symbols: dict[str, list[str]] = {}
+        self._prev_symbols: _LRUDict = _LRUDict(maxsize=max_sessions)
         # Per-session previous generic payloads (for generic TOON delta)
-        self._prev_generic: dict[str, Any] = {}
+        self._prev_generic: _LRUDict = _LRUDict(maxsize=max_sessions)
         # Per-session seen scalar values (for generic TRON session dedup)
-        self._seen_values: dict[str, dict[str, str]] = {}
+        self._seen_values: _LRUDict = _LRUDict(maxsize=max_sessions)
         # Per-session schema keys (for generic schema_values dedup)
-        self._schema_keys: dict[str, tuple[str, ...]] = {}
+        self._schema_keys: _LRUDict = _LRUDict(maxsize=max_sessions)
 
     def _get_session(self, session_id: str) -> Session:
         if session_id not in self._sessions:

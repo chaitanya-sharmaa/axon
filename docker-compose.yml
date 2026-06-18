@@ -1,0 +1,30 @@
+services:
+  # ── Axon Bridge (SQLite mode — default for local dev) ──────────────────────
+  axon:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      AXON_HOST: "0.0.0.0"
+      AXON_LOG_FORMAT: "text"
+      AXON_MEMORY_TYPE: "sqlite"
+      AXON_MEMORY_DB_PATH: "/data/axon_sessions.db"
+    volumes:
+      - axon_data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8080/health/ready')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  axon_data:
+
+# ── Redis profile: docker compose --profile redis up ──────────────────────────
+# Adds a Redis container and switches Axon to Redis-backed session storage.
+# Useful for multi-instance (horizontally scaled) deployments.
+---
+# docker-compose.redis.yml (override file)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.redis.yml up

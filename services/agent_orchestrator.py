@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
@@ -139,7 +140,8 @@ class AgentOrchestrator:
         try:
             opt = self._optimizer.optimize(payload, session_id=session_id)
             return opt.winner.encoded, opt.winner.strategy, opt.winner.savings_vs_json_pct
-        except Exception:
+        except Exception as e:
+            logging.error(f"Encoding failed in orchestrator: {e}", exc_info=True)
             return None, None, None
 
     async def _run_agent_handler(

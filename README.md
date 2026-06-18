@@ -1,372 +1,405 @@
-# Axon: The AI Token-Saving Bridge
+# Axon Bridge
 
-**Axon** is a smart middleware layer that sits between your application and Large Language Models (LLMs) to dramatically reduce API costs and improve response speed.
+**Token-efficient middleware for LLM APIs.** Axon sits between your application and any LLM, automatically benchmarks 8 encoding strategies, and sends the cheapest one — saving **up to 70% on API tokens** with zero changes to your existing code.
 
-It automatically intercepts your data payloads, benchmarks multiple advanced compression formats (like TOON and TRON), and sends the most token-efficient version to the LLM—**saving you up to 70% on tokens**.
+```
+pip install axon-bridge
+axon serve
+```
+
+> **Drop-in OpenAI proxy.** Point any OpenAI SDK client at Axon instead of `api.openai.com` and get instant token savings with one line changed.
+
+---
 
 ## Why Axon?
 
-In the brain, an **axon** is a nerve fiber that transmits information efficiently. This library acts as a digital axon for your AI systems, connecting your services and optimizing the data that flows between them. It ensures every payload is transmitted in the most compact and efficient form possible.
+| Problem | Axon's solution |
+|---|---|
+| LLM API bills are high | Auto-picks the cheapest encoding per call — GCF, TOON (delta), TRON (session), schema-values |
+| Sessions re-send the same data | Multi-turn deduplication: only changed fields are transmitted after turn 1 |
+| Hard to observe token usage | Every response includes savings %, token counts, and optional dollar cost |
+| Integrating a new tool takes work | Drop-in OpenAI-compatible `/v1/chat/completions` proxy — change one URL |
+| Complex deployment | Single Docker image, SQLite default, Redis for horizontal scale |
 
-## Key Benefits
+---
 
-*   💰 **Drastic Cost Reduction**: Automatically finds the cheapest data format for every call, including TOON (deltas) and TRON (sessions).
-*   🎯 **Model-Aware Optimization**: Uses specific tokenizers (OpenAI, Anthropic) to ensure the "cheapest" format is calculated correctly for your target LLM.
-*   ⚡️ **Increased Performance**: Fewer tokens mean faster time-to-first-token and lower latency.
-*   🌐 **Distributed Scaling**: Support for Redis allows multiple Axon instances to share session memory in clustered environments.
-*   🔌 **Effortless Integration**: Zero-code-change proxy mode or direct Python library usage.
+## Quickstart
 
-## How It Works
-
-Axon acts as a "last-mile" translation layer right before the LLM. It intelligently compresses outgoing data and decompresses incoming data, keeping your internal systems clean.
-
-```
-[ Your Application / Agent ]
-             |
-    (Sends standard JSON)
-             |
-             ▼
-    ┌────────────────────┐
-    │     Axon Bridge    │
-    │ (Middleware Layer) │
-    ├────────────────────┤
-    │ 1. Intercepts JSON │
-    │ 2. Benchmarks TOON,│
-    │    TRON, GCF, etc. │
-    │ 3. Selects cheapest│
-    │    format.         │
-    └────────────────────┘
-             |
-    (Sends compressed text)
-             |
-             ▼
-       [ LLM API ]
- (e.g., OpenAI, Anthropic)
-```
-
-## Getting Started in 3 Steps
-
-### Step 1: Install Dependencies
+### Option 1 — Docker (recommended)
 
 ```bash
-python -m pip install -r requirements.txt
+docker compose up
+# Server is live at http://localhost:8080
 ```
 
-### Step 2: Run the Axon Server
-
-From the project root directory, start the FastAPI server.
+### Option 2 — pip install
 
 ```bash
-python -m uvicorn app:app --host 127.0.0.1 --port 8080 --reload
+pip install axon-bridge
+axon serve --port 8080
 ```
 
-### Step 3: Integrate with Your Application
-
-You have two primary options for integration:
-
-#### Option A: Proxy an Existing API (Easiest)
-
-This method requires **no code changes** to your existing services. Simply tell Axon to call your API, and it will handle the compression of the response.
-
-Send a `POST` request to Axon's `/proxy/upstream` endpoint:
+### Option 3 — local dev
 
 ```bash
-curl -X POST http://127.0.0.1:8080/proxy/upstream \
-  -H "Content-Type: application/json" \
-  -d '{
-    "upstream_url": "https://api.your-service.com/get-data",
-    "method": "GET",
-    "session_id": "user-session-123"
-  }'
+git clone https://github.com/your-org/axon-bridge.git
+cd axon-bridge/bridge
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn app:app --reload
 ```
 
-Axon returns a token-optimized payload, ready for the LLM.
+---
 
-#### Option B: Use as a Python Library
+## Zero-Code Integration — OpenAI Proxy
 
-For more control, import `AxonService` directly into your Python code to wrap agent functions.
+The fastest way to start saving tokens. Change **one line** in your existing code:
+
+```python
+import openai
+
+client = openai.OpenAI(
+    base_url="http://localhost:8080/v1",   # ← only change
+    api_key="any-value",
+)
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Summarise the latest earnings report..."}],
+)
+
+# Token savings are in the response header:
+# x-axon-metrics: {"savings_pct": 38.2, "original_tokens": 812, "compressed_tokens": 501}
+# x-axon-cost-saved-usd: 0.00156
+```
+
+Axon compresses your `messages[]`, forwards to the real OpenAI API, and returns the standard response. Streaming (`stream=True`) is fully supported.
+
+---
+
+## Python Library Usage
 
 ```python
 from services.bridge_service import AxonService
+from services.token_optimizer import TokenOptimizer
 
-axon = AxonService()
+axon = AxonService(token_optimizer=TokenOptimizer())
 
-def my_agent_function(payload: dict) -> dict:
-    # Your agent's logic here...
-    return {"status": "complete", "result": payload["input"] * 2}
+# Compress any payload
+envelope = axon.convert_output(
+    {"user": "alice", "role": "admin", "org": "acme", "plan": "enterprise"},
+    session_id="session-42",
+)
 
-# Wrap the function call with Axon
-inbound_data = {"input": 123}
-envelope = axon.process(inbound_data, my_agent_function, session_id="agent-session-456")
+print(envelope["compact_text"])
+# → user=alice,role=admin,org=acme,plan=enterprise
 
-# `envelope["compact_text"]` contains the compressed output for the LLM
-print(f"Compressed output: {envelope['compact_text']}")
-print(f"Saved {envelope['metrics']['estimated_savings_percent']}% tokens!")
+print(envelope["metrics"]["estimated_savings_percent"])
+# → 31.4
+
+# Turn 2 — same session, same values → TRON deduplication kicks in
+envelope2 = axon.convert_output(
+    {"user": "alice", "role": "admin", "org": "acme", "plan": "enterprise", "region": "eu-west-2"},
+    session_id="session-42",
+)
+print(envelope2["compact_text"])
+# → region=eu-west-2  (only the new field!)
 ```
 
-## Files
+---
 
-- `app.py`: primary FastAPI entrypoint
-- `core/app_config.py`: app wiring and singleton services
-- `core/settings.py`: environment-driven configuration
-- `services/bridge_service.py`: reusable token-saving bridge with graph + generic support
-- `services/sqlite_memory_store.py`: persistent SQLite-backed session storage
-- `services/security_policy.py`: domain allowlist + API key policy
-- `domain/api_models.py`: API request/response models
-- `domain/process_handlers.py`: payload processing handlers
-- `api/routes/*_routes.py`: route modules grouped by concern
-- `adapters/mcp_bridge_adapter.py`: MCP-style adapter helpers
-- `examples/demo_usage.py`: runnable demo
-- `examples/session_benchmark.py`: multi-turn benchmark
-- `examples/strategy_benchmark.py`: latency benchmark for each encoding strategy
-- `requirements.txt`: dependencies
+## LangChain Integration
 
-## Install
-*(See "Getting Started" above for installation and run commands)*
+```python
+from langchain_openai import ChatOpenAI
+from integrations.langchain import AxonCallbackHandler
+from services.token_optimizer import TokenOptimizer
 
-## Configuration (Env Vars)
+handler = AxonCallbackHandler(optimizer=TokenOptimizer(), session_id="my-session")
+llm = ChatOpenAI(model="gpt-4o", callbacks=[handler])
 
-All major behavior is configurable via environment variables in `core/settings.py`.
+llm.invoke("Explain the transformer architecture...")
 
-- `AXON_APP_TITLE` (default: `Axon Token Bridge`)
-- `AXON_APP_VERSION` (default: `0.3.0`)
-- `AXON_APP_DESCRIPTION`
-- `AXON_OPENAPI_DESCRIPTION`
-- `AXON_OPENAPI_LOGO_URL`
-- `AXON_HOST` (default: `127.0.0.1`)
-- `AXON_PORT` (default: `8080`)
-- `AXON_INCLUDE_JSON_FALLBACK` (`true|false`)
-- `AXON_MEMORY_DB_PATH` (default: `/tmp/axon_sessions.db`)
-- `AXON_MEMORY_TYPE` (`sqlite|redis`)
-- `AXON_REDIS_URL` (default: `redis://localhost:6379/0`)
-- `AXON_REQUIRE_API_KEY` (`true|false`)
-- `AXON_ALLOW_ALL_DOMAINS` (`true|false`)
-- `AXON_API_KEY`
-- `AXON_ALLOWED_DOMAINS` (comma-separated list)
-- `AXON_ROUTE_PREFIX_CORE` (default: empty)
-- `AXON_ROUTE_PREFIX_PROCESS` (default: empty)
-- `AXON_ROUTE_PREFIX_PROXY` (default: `/proxy`)
-- `AXON_ROUTE_PREFIX_MEMORY` (default: `/memory`)
-- `AXON_ROUTE_PREFIX_SECURITY` (default: `/security`)
-- `AXON_ENABLE_CORE_ROUTES` (`true|false`)
-- `AXON_ENABLE_PROCESS_ROUTES` (`true|false`)
-- `AXON_ENABLE_PROXY_ROUTES` (`true|false`)
-- `AXON_ENABLE_MEMORY_ROUTES` (`true|false`)
-- `AXON_ENABLE_SECURITY_ROUTES` (`true|false`)
-
-Example:
-
-```bash
-export AXON_API_KEY="prod-key-12345"
-export AXON_REQUIRE_API_KEY=true
-export AXON_ALLOWED_DOMAINS="api.github.com,httpbin.org"
-export AXON_ROUTE_PREFIX_PROXY="/api/proxy"
+print(handler.last_savings)
+# {'savings_pct': 42.1, 'original_tokens': 620, 'compressed_tokens': 359}
 ```
 
-## Upstream Proxy Example
+---
 
-Use the middleware as a pass-through to any external API, then return GCF output to your model layer:
+## CLI
 
 ```bash
-curl -sS http://127.0.0.1:8080/proxy/upstream \
-  -H 'content-type: application/json' \
+# Start the server
+axon serve --port 8080 --reload
+
+# Benchmark all strategies against a JSON file
+axon benchmark my_payload.json --model gpt-4o
+
+# One-shot compress a JSON string
+axon encode '{"symbols": [{"qualified_name": "pkg.Auth", "kind": "class"}]}'
+
+# Show model pricing table
+axon pricing
+
+# Inspect / delete a session
+axon session show my-session-id
+axon session clear my-session-id --yes
+```
+
+---
+
+## Batch Processing
+
+Compress multiple payloads in a single HTTP call:
+
+```bash
+curl -X POST http://localhost:8080/batch \
+  -H "Content-Type: application/json" \
   -d '{
-    "upstream_url": "https://httpbin.org/post",
-    "method": "POST",
-    "session_id": "chat-42",
-    "data": {
-      "tenant": "acme",
-      "query": "show active services"
-    }
+    "model": "gpt-4o",
+    "requests": [
+      {"payload": {"user": "alice", "action": "login"}, "session_id": "s1"},
+      {"payload": {"user": "bob",   "action": "view"},  "session_id": "s2"}
+    ]
   }'
 ```
 
-Response contains:
-- `gcf`: compact wire payload for model hops
-- `json`: optional fallback object
-- `metrics`: estimated token savings
-- `upstream`: status and content-type metadata
+---
 
-## Session Memory & Persistence
+## Encoding Strategies
 
-Persistent SQLite-backed memory tracks sessions, cached symbols, and event history:
+Axon benchmarks all enabled strategies on every call and picks the winner:
 
-```bash
-# List all active sessions
-curl http://127.0.0.1:8080/memory/sessions
+| Strategy | Best for | Mechanism |
+|---|---|---|
+| `graph` | Code context (symbols + edges) | GCF compact graph format |
+| `graph_delta` | Repeated graph calls | Only sends added/removed symbols (TOON) |
+| `graph_session` | Long graph sessions | References previously sent symbols by index (TRON) |
+| `generic` | Flat key-value dicts | Compact `key=value` text |
+| `generic_delta` | Repeated generic calls | Only sends changed fields (TOON) |
+| `generic_session` | Long generic sessions | References repeated values by key (TRON) |
+| `schema_values` | Tabular data, same keys | Sends schema once, then values only |
+| `json` | Baseline / compatibility | Raw JSON (always available as fallback) |
 
-# Get session details and event history
-curl http://127.0.0.1:8080/memory/session/chat-42?limit=50
+**Performance benchmarks:**
 
-# Clean up sessions older than 7 days
-curl -X DELETE http://127.0.0.1:8080/memory/cleanup?days=7
-```
+| Payload size | Savings (first turn) | Savings (session, turn 5+) |
+|---|---|---|
+| Small (<10 fields) | 10–25% | 40–60% |
+| Medium (10–50 fields) | 25–40% | 55–70% |
+| Large graph (100+ symbols) | 40–55% | 65–75% |
 
-Memory automatically logs:
-- Process calls and handlers invoked
-- Upstream proxy calls and response status
+---
 
-## Reference: Security & Configuration
+## API Reference
 
-### Domain Allowlist
+### OpenAI-Compatible
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/models` | List available models |
+| `POST` | `/v1/chat/completions` | Chat completions with compression (streaming supported) |
+| `POST` | `/v1/embeddings` | Embeddings proxy |
 
-The `/proxy/upstream` endpoint enforces a domain allowlist by default:
+### Core
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health/live` | Liveness probe (always 200 if process running) |
+| `GET` | `/health/ready` | Readiness probe (503 if DB unavailable) |
+| `POST` | `/translate/in` | Decode any format to Python object |
+| `POST` | `/translate/out` | Encode object to Axon envelope |
 
-```bash
-# Current config shows allowed domains
-curl http://127.0.0.1:8080/security/config
-
-# Add domain to allowlist
-curl -X POST "http://127.0.0.1:8080/security/domain/allow?domain=api.stripe.com"
-
-# Remove domain
-curl -X DELETE "http://127.0.0.1:8080/security/domain?domain=api.stripe.com"
-```
-
-Default allowlist:
-- `httpbin.org`, `api.github.com`, `api.example.com`, `localhost`, `127.0.0.1`
-
-### API Key Authentication
-
-Enable optional API key validation on proxy requests:
-
-```bash
-# Enable API key requirement
-curl -X POST "http://127.0.0.1:8080/security/require-api-key?required=true"
-
-# Then all proxy requests MUST include X-API-Key header
-curl -X POST "http://127.0.0.1:8080/proxy/upstream" \
-  -H "X-API-Key: your-secret-key" \
-  -H "content-type: application/json" \
-  -d '{"upstream_url": "https://httpbin.org/post", "method": "POST"}'
-```
-
-To set a specific API key in code:
-
-```python
-from core.app_config import security_config
-
-security_config.api_key = "prod-key-12345"
-security_config.require_api_key = True
-```
-
-Or via environment variable:
-
-```bash
-export AXON_API_KEY="prod-key-12345"
-```
-
-### Unrestricted Mode (Dev Only)
-
-For development/testing without domain restrictions:
-
-```bash
-curl -X POST "http://127.0.0.1:8080/security/allow-all-domains?allow=true"
-```
-
-**WARNING:** Only use in trusted, isolated environments.
-
-## Graph Profile Auto-Detection
-
-If your payload contains a `symbols` key, the bridge automatically uses the **graph profile** instead of generic encoding:
-
-```json
-{
-  "symbols": [
-    {"name": "ServiceA", "module": "api", "type": "class"},
-    {"name": "ServiceB", "module": "api", "type": "class"}
-  ],
-  "edges": [
-    {"from": "ServiceA", "to": "ServiceB", "type": "calls"}
-  ]
-}
-```
-
-## API Endpoint Reference
-
-### Agent Orchestration
-
-- `GET /agent/list`: Lists all registered agents and their capabilities.
-- `POST /agent/dispatch`: Routes a payload to the single best agent based on a requested `capability` or `agent_name`.
-- `POST /agent/parallel`: Dispatches a payload to multiple agents concurrently, one for each specified `capability`.
-- `POST /agent/swarm`: Fans out a payload to all registered agents in parallel.
+### Processing
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/process` | Run payload through a handler and compress result |
+| `POST` | `/batch` | Compress multiple payloads concurrently |
 
 ### Proxy
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/proxy/upstream` | Forward request to any external API and compress response |
 
-- `POST /proxy/upstream`: Forwards a request to any external API and compresses its response. This is the easiest way to integrate Axon.
+### Agents
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/agent/list` | List registered agents |
+| `POST` | `/agent/dispatch` | Route to best agent by capability |
+| `POST` | `/agent/parallel` | Dispatch to multiple agents concurrently |
+| `POST` | `/agent/swarm` | Fan-out to all agents |
 
-### Processing & Translation
-
-- `POST /process`: Runs a payload through a built-in handler function (e.g., `echo`) and returns the compressed *input* payload. Useful for testing compression strategies.
-- `POST /translate/in`: A utility to decode any format (JSON, GCF) into a standard Python object.
-- `POST /translate/out`: A utility to encode a Python object into the Axon envelope with compression metrics.
-
-### Session Memory
-
-- `GET /memory/sessions`: Lists all active sessions being tracked.
-- `GET /memory/session/{session_id}`: Retrieves the event history and cached data for a specific session.
-- `DELETE /memory/session/{session_id}`: Deletes all data for a specific session.
-- `DELETE /memory/cleanup`: A maintenance endpoint to purge old sessions.
+### Memory
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/memory/sessions` | List active sessions |
+| `GET` | `/memory/session/{id}` | Get session history |
+| `DELETE` | `/memory/session/{id}` | Delete session |
+| `DELETE` | `/memory/cleanup` | Purge sessions older than N days |
 
 ### Security
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/security/config` | Current security settings |
+| `POST` | `/security/domain/allow` | Add domain to allowlist |
+| `DELETE` | `/security/domain` | Remove domain from allowlist |
+| `POST` | `/security/require-api-key` | Toggle API key enforcement |
 
-- `GET /security/config`: Shows the current security settings (e.g., domain allowlist).
-- `POST /security/domain/allow`: Adds a new domain to the proxy's allowlist.
-- `DELETE /security/domain`: Removes a domain from the proxy's allowlist.
-- `POST /security/require-api-key`: Toggles whether the proxy endpoint requires an API key.
+---
+
+## Configuration
+
+Copy `.env.example` to `.env` and set what you need. Every value has a sensible default.
+
+```bash
+cp .env.example .env
+```
+
+Key variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `AXON_PORT` | `8080` | Server port |
+| `AXON_LOG_FORMAT` | `text` | `text` or `json` (for Datadog/Splunk) |
+| `AXON_MEMORY_TYPE` | `sqlite` | `sqlite` or `redis` |
+| `AXON_MAX_SESSIONS` | `1000` | LRU cap for in-memory session state |
+| `AXON_REQUIRE_API_KEY` | `false` | Enforce `X-API-Key` on proxy requests |
+| `AXON_ALLOWED_DOMAINS` | *(see .env.example)* | Comma-separated proxy allowlist |
+| `OPENAI_API_KEY` | — | Forwarded to OpenAI when using `/v1/` routes |
+| `AXON_ENABLE_OPENAI_ROUTES` | `true` | Toggle `/v1/` endpoints |
+| `AXON_RATE_LIMIT_PROXY` | `60/minute` | Rate limit for proxy endpoint |
+
+---
+
+## Deployment
+
+### Docker
+
+```bash
+# SQLite (single instance)
+docker compose up
+
+# Redis (multi-instance / horizontal scale)
+docker compose -f docker-compose.yml -f docker-compose.redis.yml up
+```
+
+### Kubernetes
+
+The `/health/live` and `/health/ready` endpoints map directly to liveness and readiness probes:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: 8080
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 8080
+```
+
+---
+
+## Project Structure
+
+```
+bridge/
+├── app.py                      # FastAPI entrypoint
+├── cli.py                      # axon CLI (typer)
+├── pyproject.toml              # Package metadata & build config
+├── requirements.txt            # Runtime dependencies
+├── Dockerfile
+├── docker-compose.yml          # SQLite mode
+├── docker-compose.redis.yml    # Redis override
+├── .env.example                # All AXON_* variables documented
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+│
+├── api/
+│   ├── middleware/
+│   │   └── request_id.py       # X-Request-ID propagation
+│   └── routes/
+│       ├── core_routes.py      # /health/live, /health/ready, /translate/*
+│       ├── v1_openai_routes.py # /v1/chat/completions, /v1/models
+│       ├── batch_routes.py     # /batch
+│       ├── proxy_routes.py     # /proxy/upstream
+│       ├── agent_routes.py     # /agent/*
+│       ├── memory_routes.py    # /memory/*
+│       ├── process_routes.py   # /process
+│       └── security_routes.py  # /security/*
+│
+├── core/
+│   ├── app_config.py           # Singleton service wiring
+│   ├── logging_config.py       # Structured JSON logging
+│   └── settings.py             # Env-driven config (dotenv)
+│
+├── services/
+│   ├── token_optimizer.py      # Core: benchmarks all 8 strategies
+│   ├── bridge_service.py       # AxonService public API
+│   ├── payload_cache.py        # LRU cache (skip re-encoding identical payloads)
+│   ├── pricing.py              # Model pricing → dollar savings
+│   ├── plugin_registry.py      # @register_strategy plugin system
+│   ├── sqlite_memory_store.py  # Persistent SQLite session store (WAL mode)
+│   ├── redis_memory_store.py   # Redis session store
+│   ├── memory_store.py         # BaseMemoryStore ABC
+│   ├── security_policy.py      # API key + domain allowlist
+│   ├── agent_orchestrator.py   # Multi-agent dispatch/swarm
+│   └── tokenizer_factory.py    # tiktoken / Anthropic tokenizer
+│
+├── integrations/
+│   └── langchain.py            # AxonCallbackHandler for LangChain
+│
+├── adapters/
+│   └── mcp_bridge_adapter.py   # MCP-style tool I/O adapter
+│
+├── domain/
+│   ├── api_models.py           # Pydantic request/response models
+│   └── process_handlers.py     # Built-in payload handlers
+│
+├── examples/
+│   ├── demo_usage.py           # Live end-to-end demo
+│   ├── session_benchmark.py    # Multi-turn savings benchmark
+│   └── strategy_benchmark.py  # Per-strategy latency benchmark
+│
+├── docs/
+│   ├── 01-use-cases.md
+│   └── 03-core-concepts.md
+│
+└── tests/
+    ├── conftest.py
+    └── test_token_optimizer.py
+```
+
+---
+
+## Custom Encoding Strategies (Plugin System)
+
+```python
+from services.plugin_registry import register_strategy
+from typing import Any
+
+@register_strategy("my_strategy")
+def encode_my_way(obj: Any, session_id: str | None = None) -> str:
+    # your compression logic
+    return compressed_text
+
+# Now use it:
+from services.token_optimizer import TokenOptimizer
+optimizer = TokenOptimizer(enabled_strategies=["generic", "my_strategy", "json"])
+```
+
+---
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a pull request.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, test commands, and how to add a strategy.
+
+```bash
+pip install -e ".[dev]"
+pytest tests/ -v
+ruff check .
+```
+
+---
 
 ## License
 
-This is an Open Source Project
-
-## Architecture
-
-```
-Client API/Agent
-        ↓
-┌───────────────────────┐
-│  Axon Bridge          │
-│  (FastAPI Service)    │
-├───────────────────────┤
-│ • Normalize input     │
-│ • Route to handler    │
-│ • Graph auto-detect   │
-│ • Session dedup cache │
-├───────────────────────┤_
-│ SecurityConfig        │
-│ SessionMemoryStore    │
-│ AxonService           │
-└───────────────────────┘
-        ↓
-    GCF Output
-  (25-71% savings)
-```
-
-## Performance Notes
-
-- **Small payloads** (<10 items): JSON often smaller (overhead not amortized)
-- **Medium payloads** (10-100 items): GCF ~25-30% savings
-- **Large payloads** (100+ items): GCF ~45-50% savings
-- **Multi-turn sessions**: 70%+ cumulative savings by call 5 (graph dedup)
-
-Use GCF for:
-- Agent-to-agent communication
-- Long-running stateful sessions
-- Context-heavy workflows
-
-Keep JSON for:
-- One-off API calls
-- Public APIs (compatibility)
-- Client-side consumption
-
-## Notes on Saving More Tokens
-
-1. Keep field names short in upstream payloads.
-2. Chunk very large arrays before sending to the model.
-3. Reuse stable IDs in your app-level protocol for repeated objects.
-4. Always pass `session_id` on repeated, graph-heavy interactions.
-5. Use the `target_model` parameter in API calls for precise token estimation.
+Apache 2.0 — see `LICENSE`.

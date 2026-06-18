@@ -37,7 +37,7 @@ async def proxy_upstream(
     if not security_config.is_domain_allowed(req.upstream_url):
         raise HTTPException(
             status_code=403,
-            detail=f"Domain not in allowlist. Allowed: {security_config.allowed_domains}",
+            detail="Domain not permitted. Contact your administrator to add it to the allowlist.",
         )
     
     # Security: Check API key if required
@@ -52,7 +52,7 @@ async def proxy_upstream(
         raise HTTPException(status_code=400, detail=f"Unsupported method: {method}")
 
     # Execute upstream request
-    async with httpx.AsyncClient(timeout=req.timeout_seconds) as client:
+    async with httpx.AsyncClient(timeout=req.timeout_seconds, follow_redirects=False) as client:
         try:
             # Prepare data/json for httpx
             json_payload, content_payload = None, None

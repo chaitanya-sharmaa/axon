@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import json
 import sys
+import urllib.error
+import urllib.request
 from typing import Any
-
-import requests
 
 BASE_URL = "http://127.0.0.1:8080"
 DIVIDER = "\n" + "─" * 60
@@ -27,15 +27,17 @@ DIVIDER = "\n" + "─" * 60
 # ── HTTP helpers ───────────────────────────────────────────────────────────────
 
 def post(path: str, body: Any) -> dict:
-    response = requests.post(f"{BASE_URL}{path}", json=body, timeout=10)
-    response.raise_for_status()
-    return response.json()
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"{BASE_URL}{path}", data=data, headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read())
 
 
 def get(path: str) -> dict:
-    response = requests.get(f"{BASE_URL}{path}", timeout=10)
-    response.raise_for_status()
-    return response.json()
+    with urllib.request.urlopen(f"{BASE_URL}{path}", timeout=10) as resp:
+        return json.loads(resp.read())
 
 
 # ── Formatting helpers ─────────────────────────────────────────────────────────
@@ -58,7 +60,7 @@ def print_metrics(metrics: dict) -> None:
 
 def demo_health() -> None:
     section("1. Health check")
-    r = get("/health")
+    r = get("/health/live")
     print(f"  Status: {r['status']}")
 
 
@@ -201,10 +203,10 @@ def main() -> None:
     print("  Auto-format selection  |  TOON (delta)  |  TRON (session)  |  Multi-agent")
 
     try:
-        get("/health")
-    except requests.exceptions.RequestException:
+        get("/health/live")
+    except urllib.error.URLError:
         print(f"\n  ERROR: Server not reachable at {BASE_URL}")
-        print("  Start it first from the project root:\n    python3 -m uvicorn app:app --host 127.0.0.1 --port 8080")
+        print("  Start it first from the project root:\n    axon serve  (or: uvicorn app:app --host 127.0.0.1 --port 8080)")
         sys.exit(1)
 
     demo_health()

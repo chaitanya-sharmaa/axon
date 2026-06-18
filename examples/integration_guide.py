@@ -19,23 +19,25 @@ from __future__ import annotations
 
 import json
 import sys
+import urllib.error
+import urllib.request
 from typing import Any
-
-import requests
 
 BASE = "http://127.0.0.1:8080"
 
 
 def post(path: str, body: Any) -> dict:
-    response = requests.post(f"{BASE}{path}", json=body, timeout=10)
-    response.raise_for_status()
-    return response.json()
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"{BASE}{path}", data=data, headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read())
 
 
 def get(path: str) -> dict:
-    response = requests.get(f"{BASE}{path}", timeout=10)
-    response.raise_for_status()
-    return response.json()
+    with urllib.request.urlopen(f"{BASE}{path}", timeout=10) as resp:
+        return json.loads(resp.read())
 
 
 def pp(label: str, d: Any) -> None:
@@ -54,7 +56,7 @@ def section_health():
     print("║  SECTION 1: Health & discovery                       ║")
     print("╚══════════════════════════════════════════════════════╝")
 
-    pp("GET /health", get("/health"))
+    pp("GET /health/live", get("/health/live"))
     pp("GET /agent/list", get("/agent/list"))
 
 
@@ -273,10 +275,10 @@ def main():
     print("============================================")
 
     try:
-        get("/health")
-    except requests.exceptions.RequestException:
+        get("/health/live")
+    except urllib.error.URLError:
         print(f"\nERROR: Server not reachable at {BASE}")
-        print("Start it first from the project root:\n  python3 -m uvicorn app:app --host 127.0.0.1 --port 8080")
+        print("Start it first from the project root:\n  axon serve  (or: uvicorn app:app --host 127.0.0.1 --port 8080)")
         sys.exit(1)
 
     section_health()

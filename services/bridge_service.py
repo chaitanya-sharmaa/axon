@@ -9,8 +9,8 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 import inspect
 import json
+import logging
 from typing import Any, Awaitable, Callable, Dict, Mapping
-import tiktoken
 
 from gcf import ( # These are used in from_any_to_object and to_compact_text
     Edge,
@@ -30,6 +30,7 @@ class AxonService:
     def __init__(
         self, token_optimizer: TokenOptimizer, include_json_fallback: bool = True
     ) -> None:
+        
         self.include_json_fallback = include_json_fallback
         # Use the optimizer as the single source of truth for session state
         self._optimizer = token_optimizer
@@ -174,15 +175,15 @@ class AxonService:
 
     def to_compact_text(self, value: Any, session_id: str | None = None) -> str:
         """Convert arbitrary input into a compact text format (graph when possible, else generic)."""
-        if isinstance(value, str) and self._is_compact_format_text(value):
-            return value
-        obj = self.from_any_to_object(value)
-        payload = self._to_graph_payload(obj)
-        if payload is not None:
-            # Delegate to optimizer for actual encoding to ensure consistency with strategy selection
-            # This is a simplification; in a real scenario, you might want to call the specific
-            # GCF encode functions directly if you're not going through the optimizer's benchmarking.
-            return self._optimizer.encode_best_effort(obj, session_id=session_id)
+        try:
+            if isinstance(value, str) and self._is_compact_format_text(value):
+                return value
+            obj = self.from_any_to_object(value)
+            result = self._optimizer.optimize(obj, session_id=session_id)
+            return result.winner.encoded
+        except Exception as e:
+            logging.error(f"to_compact_text failed: {e}", exc_info=True)
+            return json.dumps(value)
 
     def from_compact_text(self, compact_text: str) -> Any:
         """Decode compact generic profile text back to object form."""

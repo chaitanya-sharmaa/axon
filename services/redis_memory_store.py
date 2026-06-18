@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
 import redis.asyncio as redis
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from services.memory_store import BaseMemoryStore
 
@@ -27,8 +27,8 @@ class RedisMemoryStore(BaseMemoryStore):
     async def create_session(self, session_id: str, metadata: dict[str, Any] | None = None) -> None:
         key = self._session_key(session_id)
         data = {
-            "created_at": datetime.utcnow().isoformat(),
-            "last_accessed": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "last_accessed": datetime.now(timezone.utc).isoformat(),
             "metadata": json.dumps(metadata or {})
         }
         await self.redis.hset(key, mapping=data)
@@ -75,7 +75,7 @@ class RedisMemoryStore(BaseMemoryStore):
         event = {
             "event_type": event_type,
             "payload": payload,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         }
         await self.redis.lpush(key, json.dumps(event))
         await self.redis.ltrim(key, 0, 99) # Keep last 100 events

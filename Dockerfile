@@ -23,6 +23,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application source
 COPY --chown=axon:axon . .
 
+# Ensure data directory exists and is owned by axon for SQLite
+RUN mkdir -p /data && chown -R axon:axon /data
+
 USER axon
 
 # Expose port

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
@@ -11,11 +12,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, Request
+from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+
+# OpenTelemetry imports
+from opentelemetry import trace, metrics
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from api.middleware.request_id import RequestIDMiddleware
 from core.app_config import initialize_app, memory_store
@@ -30,6 +40,7 @@ from api.routes import (
     agent_router,
     openai_router,
     batch_router,
+    admin_router,
 )
 
 log = logging.getLogger(__name__)
@@ -50,6 +61,15 @@ def create_app() -> FastAPI:
     # ── Rate limiter ──────────────────────────────────────────────────────────
     limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
+    # ── OpenTelemetry Setup ──────────────────────────────────────────────────
+    # Tracing
+    trace.set_tracer_provider(TracerProvider())
+
+    # Metrics via Prometheus
+    metric_reader = PrometheusMetricReader()
+    meter_provider = MeterProvider(metric_readers=[metric_reader])
+    metrics.set_meter_provider(meter_provider)
+
     # ── FastAPI ───────────────────────────────────────────────────────────────
     app = FastAPI(
         title=settings.app_title,
@@ -59,6 +79,9 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         openapi_url="/openapi.json",
     )
+
+    # Instrument the FastAPI app
+    FastAPIInstrumentor.instrument_app(app)
 
     # Attach limiter to app state (required by slowapi)
     app.state.limiter = limiter
@@ -106,6 +129,16 @@ def create_app() -> FastAPI:
 
     # Batch processing
     app.include_router(batch_router)
+
+    # Admin Quotas
+    if settings.admin_api_key:
+        app.include_router(admin_router)
+
+    # Metrics
+    @app.get("/metrics", tags=["Ops"])
+    def get_metrics():
+        """Expose Prometheus metrics."""
+        return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     # ── Custom OpenAPI schema ─────────────────────────────────────────────────
     def custom_openapi() -> dict:

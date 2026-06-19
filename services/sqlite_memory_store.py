@@ -118,6 +118,15 @@ class SessionMemoryStore(BaseMemoryStore):
                 UNIQUE (session_id, fact)
             )
         """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS tenant_quotas (
+                tenant_id TEXT PRIMARY KEY,
+                quota_usd REAL NOT NULL DEFAULT 0.0,
+                spend_usd REAL NOT NULL DEFAULT 0.0,
+                created_at TIMESTAMP,
+                updated_at TIMESTAMP
+            )
+        """)
         await conn.commit()
 
     # ── Public API ─────────────────────────────────────────────────────────────
@@ -295,3 +304,46 @@ class SessionMemoryStore(BaseMemoryStore):
         )
         rows = await cursor.fetchall()
         return [row["fact"] for row in rows]
+
+    # ── Tenant Quotas ─────────────────────────────────────────────────────────
+
+    async def get_tenant_quota(self, tenant_id: str) -> tuple[float, float]:
+        conn = await self._ensure_conn()
+        cursor = await conn.execute(
+            "SELECT quota_usd, spend_usd FROM tenant_quotas WHERE tenant_id = ?",
+            (tenant_id,)
+        )
+        row = await cursor.fetchone()
+        if row:
+            return float(row["quota_usd"]), float(row["spend_usd"])
+        return 0.0, 0.0
+
+    async def set_tenant_quota(self, tenant_id: str, quota_usd: float) -> None:
+        conn = await self._ensure_conn()
+        async with self.lock:
+            now = datetime.now(timezone.utc)
+            await conn.execute(
+                """
+                INSERT INTO tenant_quotas (tenant_id, quota_usd, spend_usd, created_at, updated_at)
+                VALUES (?, ?, 0.0, ?, ?)
+                ON CONFLICT(tenant_id) DO UPDATE SET
+                    quota_usd=excluded.quota_usd,
+                    updated_at=excluded.updated_at
+                """,
+                (tenant_id, quota_usd, now, now)
+            )
+            await conn.commit()
+
+    async def increment_tenant_spend(self, tenant_id: str, cost_usd: float) -> None:
+        conn = await self._ensure_conn()
+        async with self.lock:
+            now = datetime.now(timezone.utc)
+            await conn.execute(
+                """
+                UPDATE tenant_quotas
+                SET spend_usd = spend_usd + ?, updated_at = ?
+                WHERE tenant_id = ?
+                """,
+                (cost_usd, now, tenant_id)
+            )
+            await conn.commit()

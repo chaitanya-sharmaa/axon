@@ -337,6 +337,8 @@ class TokenOptimizer:
         self._schema_keys: _LRUDict = _LRUDict(maxsize=max_sessions)
         # ML heuristic: track strategy win streaks per session to fast-path optimization
         self._strategy_wins: _LRUDict = _LRUDict(maxsize=max_sessions)
+        # Payload cache to skip redundant optimizations
+        self._payload_cache: _LRUDict = _LRUDict(maxsize=4096)
 
     def _get_session(self, session_id: str) -> Session:
         if session_id not in self._sessions:
@@ -386,6 +388,15 @@ class TokenOptimizer:
         """
         active = set(enabled_strategies or []) or self._enabled
         json_text = json.dumps(obj, separators=(",", ":"), ensure_ascii=True)
+        
+        # ── Payload Caching ────────────────────────────────────────────────────
+        # Hash the payload to quickly return cached optimizations for exact matches
+        cache_key = None
+        if not session_id:
+            cache_key = hash((json_text, model, tuple(sorted(active))))
+            if cache_key in self._payload_cache:
+                return self._payload_cache[cache_key]
+            
         json_tokens = _estimate_tokens(json_text, model=model)
 
         # Detect payload type
@@ -507,9 +518,13 @@ class TokenOptimizer:
             else:
                 history[payload_type] = (winner.strategy, 1)
 
-        return OptimizerResult(
+        result = OptimizerResult(
             winner=winner,
             all_results=results,
             json_baseline_tokens=json_tokens,
             payload_type=payload_type,
         )
+        
+        if cache_key is not None:
+            self._payload_cache[cache_key] = result
+        return result

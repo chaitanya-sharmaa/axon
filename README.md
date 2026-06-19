@@ -83,11 +83,33 @@ xychart-beta
 
 Axon isn't just a static proxy—it's dynamically context-aware and deeply optimized for maximum token reduction.
 
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Axon
+    participant State as Session State (SQLite/Redis)
+    participant LLM
+
+    Note over Client,LLM: Turn 1 (Full Payload)
+    Client->>Axon: POST /chat/completions (Session="s1", Payload: 10KB)
+    Axon->>State: Store Full Payload
+    Axon->>LLM: Send Compressed JSON (6KB)
+    LLM-->>Client: Stream Response
+
+    Note over Client,LLM: Turn 2 (Delta Deduplication)
+    Client->>Axon: POST /chat/completions (Session="s1", Payload: 10.1KB)
+    Axon->>State: Compare against Turn 1
+    Axon->>LLM: Send ONLY Delta "diff" (0.1KB)
+    LLM-->>Client: Stream Response
+    Note over Client,LLM: 99% Tokens Saved on Turn 2!
+```
+
 * **Strategy Auto-Tuning**: Axon tracks your session history. If a specific compression strategy wins 3 times in a row, Axon skips benchmarking the rest, saving significant CPU cycles.
 * **Semantic Response Caching**: If you send a prompt that is >95% semantically similar to a previous request, Axon intercepts it and instantly returns the cached response. Zero tokens used, <50ms latency.
 * **Smart LLM Routing & Fallback**: Short, simple payloads sent to expensive models (like `gpt-4o`) are automatically down-routed to cheaper models (like `gpt-4o-mini`). If the provider returns a `429 Rate Limit`, Axon automatically intercepts it and retries with a fallback model.
 * **Context Pruning (RAG-Aware)**: When sending massive graph payloads, Axon scores symbols against your query using BM25-lite logic. It intelligently prunes the bottom 25% of irrelevant symbols before compression, trimming fat without losing context.
 * **Intelligent Semantic Memory (Mem0-Style)**: Background workers automatically distill past conversations into core scalar facts (e.g. `user=alice, lang=python`) and seamlessly inject them as system prompts on your next turn, saving massive context window space without client-side changes.
+* **Payload Caching**: Axon implements an ultra-fast LRU hash cache to instantly return optimizations for completely identical payloads, bypassing the CPU-heavy encoding loop entirely to drop latency to near-zero.
 
 ## Advanced Token Reduction
 
@@ -99,6 +121,32 @@ Axon implements several rigorous structural heuristics to squeeze every token ou
 * **Native Provider Prompt Caching**: Automatically wraps your largest text blocks in Anthropic's specific `{"cache_control": {"type": "ephemeral"}}` schema when routing to `claude-3` models, letting you hit their 90% cheaper cache tier with zero code changes.
 
 ---
+
+## Enterprise & Ops Features
+
+Axon is designed for production DevOps environments and B2B SaaS applications:
+
+```mermaid
+graph LR
+    Req["Incoming Request<br/>X-API-Key: tenant-A"]:::client --> Gateway["Axon Proxy API"]:::axon
+    Gateway --> Check{"Check Quota"}:::axon
+    Check -->|"Limit Exceeded"| Rej["429 Too Many Requests"]:::error
+    Check -->|"Has Budget"| Route["Route to LLM"]:::axon
+    
+    Route --> LLM["OpenAI / Anthropic"]:::llm
+    LLM --> Calc["Calculate Exact Tokens Used"]:::axon
+    Calc --> Cost["Convert Tokens to USD"]:::axon
+    Cost --> Redis[("Redis / SQLite<br/>Atomic Hash Increment")]:::db
+
+    classDef client fill:#1e1e1e,stroke:#333,color:#fff,stroke-width:2px
+    classDef axon fill:#2563eb,stroke:#1d4ed8,color:#fff,stroke-width:2px
+    classDef error fill:#ef4444,stroke:#b91c1c,color:#fff,stroke-width:2px
+    classDef llm fill:#059669,stroke:#047857,color:#fff,stroke-width:2px
+    classDef db fill:#f59e0b,stroke:#d97706,color:#fff,stroke-width:2px
+```
+
+* **Tenant Isolation & Quotas**: Enable `AXON_ENABLE_TENANT_QUOTAS` to enforce strict dollar-spend budgets per API key. It uses a high-performance Redis/SQLite backend to atomically track spending across all models and automatically returns `429 Too Many Requests` when a tenant hits their limit.
+* **OpenTelemetry Observability**: Axon natively exports Prometheus metrics via a `/metrics` endpoint. SRE teams can track `axon.tokens.saved`, `axon.optimization.latency`, and `axon.strategy.wins` to monitor exact savings and overhead in real-time.
 
 ## Quickstart
 
@@ -282,6 +330,7 @@ Axon benchmarks all enabled strategies on every call and picks the winner:
 |---|---|---|
 | `GET` | `/health/live` | Liveness probe (always 200 if process running) |
 | `GET` | `/health/ready` | Readiness probe (503 if DB unavailable) |
+| `GET` | `/metrics` | Prometheus OpenTelemetry metrics |
 | `POST` | `/translate/in` | Decode any format to Python object |
 | `POST` | `/translate/out` | Encode object to Axon envelope |
 
@@ -312,13 +361,15 @@ Axon benchmarks all enabled strategies on every call and picks the winner:
 | `DELETE` | `/memory/session/{id}` | Delete session |
 | `DELETE` | `/memory/cleanup` | Purge sessions older than N days |
 
-### Security
+### Security & Admin
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/security/config` | Current security settings |
 | `POST` | `/security/domain/allow` | Add domain to allowlist |
 | `DELETE` | `/security/domain` | Remove domain from allowlist |
 | `POST` | `/security/require-api-key` | Toggle API key enforcement |
+| `POST` | `/v1/admin/tenants` | Create or update tenant quotas (requires Admin API Key) |
+| `GET` | `/v1/admin/tenants/{api_key}` | Retrieve current tenant quota and spend |
 
 ---
 
@@ -339,6 +390,8 @@ Key variables:
 | `AXON_MEMORY_TYPE` | `sqlite` | `sqlite` or `redis` |
 | `AXON_MAX_SESSIONS` | `1000` | LRU cap for in-memory session state |
 | `AXON_REQUIRE_API_KEY` | `false` | Enforce `X-API-Key` on proxy requests |
+| `AXON_ADMIN_API_KEY` | — | Secret key required to access `/v1/admin/*` endpoints |
+| `AXON_ENABLE_TENANT_QUOTAS` | `false` | Enable strict dollar-based quotas per API key |
 | `AXON_ALLOWED_DOMAINS` | *(see .env.example)* | Comma-separated proxy allowlist |
 | `OPENAI_API_KEY` | — | Forwarded to OpenAI when using `/v1/` routes |
 | `AXON_ENABLE_OPENAI_ROUTES` | `true` | Toggle `/v1/` endpoints |

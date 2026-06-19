@@ -54,6 +54,27 @@ class BaseMemoryStore(ABC):
 
     @abstractmethod
     async def delete_session(self, session_id: str) -> None:
+        """Delete a session entirely."""
+        pass
+
+    @abstractmethod
+    async def get_tenant_quota(self, tenant_id: str) -> tuple[float, float]:
+        """Get the (monthly_quota_usd, current_spend_usd) for a tenant.
+        
+        Returns:
+            Tuple of (quota_usd, spend_usd). If tenant does not exist,
+            returns (0.0, 0.0) or a default.
+        """
+        pass
+
+    @abstractmethod
+    async def set_tenant_quota(self, tenant_id: str, quota_usd: float) -> None:
+        """Set the monthly quota in USD for a tenant."""
+        pass
+
+    @abstractmethod
+    async def increment_tenant_spend(self, tenant_id: str, cost_usd: float) -> None:
+        """Increment a tenant's current spend by the specified cost in USD."""
         pass
 
     @abstractmethod

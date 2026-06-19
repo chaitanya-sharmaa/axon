@@ -78,6 +78,10 @@ class AppSettings:
     enable_agent_routes: bool
     enable_openai_routes: bool
 
+    # Admin & Quotas
+    enable_tenant_quotas: bool
+    admin_api_key: str | None
+
     # Logging
     log_format: str   # "text" | "json"
     log_level: str
@@ -131,6 +135,8 @@ def load_settings() -> AppSettings:
         enable_security_routes=_as_bool(os.getenv("AXON_ENABLE_SECURITY_ROUTES"), True),
         enable_agent_routes=_as_bool(os.getenv("AXON_ENABLE_AGENT_ROUTES"), True),
         enable_openai_routes=_as_bool(os.getenv("AXON_ENABLE_OPENAI_ROUTES"), True),
+        enable_tenant_quotas=_as_bool(os.getenv("AXON_ENABLE_TENANT_QUOTAS"), False),
+        admin_api_key=os.getenv("AXON_ADMIN_API_KEY"),
         log_format=os.getenv("AXON_LOG_FORMAT", "text"),
         log_level=os.getenv("AXON_LOG_LEVEL", "INFO"),
         tokenizer_model=os.getenv("AXON_TOKENIZER_MODEL", "cl100k_base"),

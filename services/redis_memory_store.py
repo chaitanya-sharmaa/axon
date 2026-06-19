@@ -125,3 +125,23 @@ class RedisMemoryStore(BaseMemoryStore):
         key = self._facts_key(session_id)
         facts = await self.redis.smembers(key)
         return list(facts)
+
+    # ── Tenant Quotas ─────────────────────────────────────────────────────────
+
+    async def get_tenant_quota(self, tenant_id: str) -> tuple[float, float]:
+        key = f"axon:tenant:{tenant_id}"
+        result = await self.redis.hmget(key, "quota_usd", "spend_usd")
+        quota = float(result[0]) if result[0] is not None else 0.0
+        spend = float(result[1]) if result[1] is not None else 0.0
+        return quota, spend
+
+    async def set_tenant_quota(self, tenant_id: str, quota_usd: float) -> None:
+        key = f"axon:tenant:{tenant_id}"
+        # Set quota, and initialize spend to 0.0 only if it doesn't exist
+        await self.redis.hset(key, "quota_usd", str(quota_usd))
+        await self.redis.hsetnx(key, "spend_usd", "0.0")
+
+    async def increment_tenant_spend(self, tenant_id: str, cost_usd: float) -> None:
+        if cost_usd > 0:
+            key = f"axon:tenant:{tenant_id}"
+            await self.redis.hincrbyfloat(key, "spend_usd", cost_usd)

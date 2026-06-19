@@ -582,8 +582,8 @@ ruff check .
 
 ## License
 
-**Proprietary**
+**MIT License**
 
-Copyright (c) 2026 Chaitanya Sharma. All rights reserved.
+Copyright (c) 2026 Chaitanya Sharma
 
-This software is proprietary and confidential. No license is granted to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software without explicit written consent from the author.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

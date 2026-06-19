@@ -1,16 +1,19 @@
-# Use Cases & Examples
+# Use Cases & Feature Examples
 
-Axon Bridge is designed to fit into your existing stack with as little friction as possible. Here are the primary ways to integrate it, ordered from easiest to most advanced.
+Axon Bridge is an agentic middleware that seamlessly intercepts LLM requests, optimizes them mathematically, and adds enterprise-grade resilience. Here are the primary ways to integrate and benefit from it.
 
 ---
 
-## 1. The Drop-in OpenAI Proxy (Zero Code Changes)
+## 1. The Universal Proxy Engine (LiteLLM Integration)
 
-**Goal:** You have an existing application using the official `openai` SDK (or any compatible client like LiteLLM) and want to cut costs immediately without rewriting your logic.
+**Axon vs No Axon:**
+| Without Axon | With Axon |
+|---|---|
+| You must rewrite your SDK code to support `openai`, `anthropic`, and `google-genai`. | **One SDK rules them all.** Send OpenAI-formatted payloads to Axon, and it translates them to 100+ providers automatically. |
+| You pay full price for raw, bloated JSON token payloads. | Axon dynamically compresses your payload before it hits the provider, saving up to 70%. |
 
-**How it works:** Axon provides a fully compatible `/v1/chat/completions` endpoint. It intercepts your messages, compresses them using the cheapest strategy, forwards them to the real OpenAI API, and returns the standard response.
-
-**Example:**
+**How it works:**
+Axon intercepts standard `/v1/chat/completions` requests. It compresses the `messages` array, and then uses its embedded LiteLLM engine to translate the payload and route it to the target LLM.
 
 ```python
 import openai
@@ -18,14 +21,14 @@ import openai
 # 1. Point the client to your local Axon Bridge
 client = openai.OpenAI(
     base_url="http://localhost:8080/v1",
-    api_key="your-openai-api-key", # Axon securely forwards this
+    api_key="your-anthropic-api-key", # Pass ANY provider's API key
 )
 
-# 2. Use the SDK exactly as normal
+# 2. Seamlessly route to Claude using OpenAI's SDK!
 response = client.chat.completions.create(
-    model="gpt-4o",
+    model="claude-3-5-sonnet", # Axon translates the payload for Anthropic automatically
     messages=[{"role": "user", "content": "Summarise the latest earnings report..."}],
-    stream=True, # Streaming is fully supported!
+    stream=True, 
 )
 
 # Axon injects savings metrics into the HTTP response headers:
@@ -35,123 +38,100 @@ response = client.chat.completions.create(
 
 ---
 
-## 2. LangChain Integration
+## 2. Autonomous JSON Healing (Agentic Resilience)
 
-**Goal:** You use LangChain to orchestrate your LLM calls and want automatic token compression across your entire chain.
+**Axon vs No Axon:**
+| Without Axon | With Axon |
+|---|---|
+| If the LLM generates a trailing comma or missing quote, your `json.loads()` crashes and your Agent dies. | Axon intercepts the `JSONDecodeError`, automatically appends the error to the message history, and asks the LLM to fix it *before* returning it to your Agent. |
 
-**How it works:** Install the `langchain` extra (`pip install "axon-bridge[langchain]"`). Add the `AxonCallbackHandler` to your LLM instantiation. The handler hooks into the LLM lifecycle to compress prompts right before they hit the network.
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant Axon
+    participant LLM
 
-**Example:**
+    Agent->>Axon: Give me JSON data
+    Axon->>LLM: Give me JSON data
+    LLM-->>Axon: { "bad": "json", } (trailing comma)
+    Note over Axon: JSONDecodeError Triggered!
+    Axon->>LLM: The JSON was invalid. Fix this syntax error: trailing comma.
+    LLM-->>Axon: { "bad": "json" } (fixed)
+    Axon-->>Agent: { "bad": "json" } (Clean, valid response)
+```
 
-```python
-from langchain_openai import ChatOpenAI
-from integrations.langchain import AxonCallbackHandler
-from services.token_optimizer import TokenOptimizer
+By adding `response_format={"type": "json_object"}`, Axon natively protects your pipelines from syntax crashes.
 
-# Initialize the callback handler
-handler = AxonCallbackHandler(optimizer=TokenOptimizer(), session_id="my-session")
+---
 
-# Attach it to your LLM
-llm = ChatOpenAI(model="gpt-4o", callbacks=[handler])
+## 3. Streaming Circuit Breaker
 
-# Run your chain
-llm.invoke("Explain the transformer architecture...")
+**Axon vs No Axon:**
+| Without Axon | With Axon |
+|---|---|
+| A rogue agent gets stuck in an infinite loop, streaming 100,000 tokens of gibberish and draining your API budget. | Pass `X-Axon-Max-Spend: 0.10` in the header. Axon counts tokens mid-stream. If the cost exceeds 10 cents, Axon gracefully terminates the TCP connection. |
 
-print(handler.last_savings)
-# {'savings_pct': 42.1, 'original_tokens': 620, 'compressed_tokens': 359}
+```mermaid
+graph LR
+    LLM[Provider]:::llm -->|Streaming Data| Axon[Axon Proxy]:::axon
+    Axon -->|Count Tokens| Calc{Check Budget}
+    Calc -->|Under Budget| App[Client Agent]:::app
+    Calc -->|Over Budget| Kill((Kill Connection!)):::error
+    
+    classDef llm fill:#059669,color:#fff
+    classDef axon fill:#2563eb,color:#fff
+    classDef app fill:#4f46e5,color:#fff
+    classDef error fill:#ef4444,color:#fff
 ```
 
 ---
 
-## 3. Compress an Existing API (`/proxy/upstream`)
+## 4. Native Python SDK Wrapper (`axon.patch`)
 
-**Goal:** You have an existing internal API or microservice that returns large JSON payloads. You want to pass that data to an LLM, but want it compressed first.
+**Goal:** You want JSON Healing and token compression inside a local Python script without standing up a Docker container.
 
-**How it works:** Instead of your agent calling the API directly, it calls Axon's `/proxy/upstream` endpoint. Axon fetches the JSON from your API, compresses it, and returns the compact string ready for your LLM.
+```python
+import openai
+from axon import patch
 
-**Example:**
+# Create a standard AsyncOpenAI client
+client = openai.AsyncOpenAI(api_key="sk-your-real-key")
 
-```bash
-curl -X POST http://127.0.0.1:8080/proxy/upstream \
-  -H "Content-Type: application/json" \
-  -d '{
-    "upstream_url": "https://api.your-company.com/customer/123/history",
-    "method": "GET",
-    "session_id": "chat-session-42"
-  }'
+# Patch it with Axon
+client = patch(client)
+
+# Use it exactly as before. Axon intercepts the call locally!
+response = await client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Huge payload..."}],
+    response_format={"type": "json_object"} # JSON Healing activated!
+)
 ```
-
-Response includes the compressed text in `compact_text` and the full token savings in `metrics`.
 
 ---
 
-## 4. Python Library (Direct Usage)
+## 5. RAG and Vector DB Integration (LlamaIndex)
 
-**Goal:** You are building a custom Python agent framework and want granular control over when and how data is compressed.
-
-**How it works:** Import `AxonService` and `TokenOptimizer` directly into your code.
-
-**Example:**
+**Axon vs No Axon:**
+| Without Axon | With Axon |
+|---|---|
+| You retrieve 10 large documents from a Vector DB. All 10 are sent to the LLM, burning 15k tokens. | Axon uses a fast, local BM25 `TokenOptimizer` post-processor. It scores the documents against the query, drops the irrelevant bottom 25%, and compresses the remaining 75%. You send 4k tokens instead of 15k. |
 
 ```python
-from services.bridge_service import AxonService
+from integrations.llamaindex import AxonNodePostprocessor
 from services.token_optimizer import TokenOptimizer
 
-axon = AxonService(token_optimizer=TokenOptimizer())
-
-def my_agent_tool(user_id: str) -> dict:
-    # ... complex logic returning a large dict ...
-    return {"user_id": user_id, "history": [...]}
-
-# Compress the output before returning it to the LLM
-envelope = axon.convert_output(
-    my_agent_tool("u123"), 
-    session_id="session-42"
+# Configure the postprocessor
+axon_postprocessor = AxonNodePostprocessor(
+    optimizer=TokenOptimizer(), 
+    model="gpt-4o",
+    enable_pruning=True
 )
 
-print(f"Send this to LLM: {envelope['compact_text']}")
-```
+# Apply it in your query engine
+query_engine = index.as_query_engine(
+    node_postprocessors=[axon_postprocessor]
+)
 
----
-
-## 5. Batch Processing
-
-**Goal:** You need to pre-process or compress a large dataset of JSON payloads offline (e.g., preparing data for fine-tuning or bulk analysis).
-
-**How it works:** Send an array of requests to the `POST /batch` endpoint. Axon processes them concurrently and returns all compressed strings in one round-trip.
-
-**Example:**
-
-```bash
-curl -X POST http://localhost:8080/batch \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4o",
-    "requests": [
-      {"payload": {"user": "alice", "action": "login"}, "session_id": "s1"},
-      {"payload": {"user": "bob",   "action": "view"},  "session_id": "s2"}
-    ]
-  }'
-```
-
----
-
-## 6. Multi-Agent Orchestration
-
-**Goal:** You have a "swarm" of specific tool-agents (e.g., a "code-analyzer" and a "text-summarizer") and want a central router to dispatch payloads to the right agent and compress the result.
-
-**How it works:** Register your agents with Axon's orchestrator, then use `/agent/dispatch` (route to best match), `/agent/parallel` (run specific agents concurrently), or `/agent/swarm` (fan-out to all).
-
-**Example (Dispatch):**
-
-```bash
-# Send a payload and ask for an agent with the "graph" capability.
-curl -X POST http://127.0.0.1:8080/agent/dispatch \
-  -H "Content-Type: application/json" \
-  -d '{
-    "payload": {
-      "symbols": [{"qualified_name": "api.Service", "kind": "class"}]
-    },
-    "capability": "graph"
-  }'
+response = query_engine.query("What is the Q3 revenue?")
 ```

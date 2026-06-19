@@ -1,344 +1,188 @@
 # Axon Bridge
 
-**Token-efficient middleware for LLM APIs.** Axon sits between your application and any LLM, automatically benchmarks 8 encoding strategies, and sends the cheapest one — saving **up to 70% on API tokens** with zero changes to your existing code.
+**Token-efficient agentic middleware for LLM APIs.** Axon sits between your application and any LLM, automatically benchmarking 8 encoding strategies, healing JSON crashes, and mathematically reducing API token costs by **up to 70%** with zero changes to your existing code.
 
 **Original Author:** [Chaitanya Sharma](https://github.com/chaitanya-sharmaa/axon)
 
-```
+```bash
 pip install axon-bridge
 axon serve
 ```
 
-> **Drop-in OpenAI proxy.** Point any OpenAI SDK client at Axon instead of `api.openai.com` and get instant token savings with one line changed.
+> **Drop-in OpenAI proxy.** Point any OpenAI SDK client at Axon instead of `api.openai.com` and get instant token savings and multi-provider support with one line changed.
 
 ---
 
-## How It Was Made (Technology Stack)
+## 🚀 Core Value: Axon vs No Axon
 
-Axon is built from the ground up for high-concurrency, low-latency, and exact precision. The core proxy is written in modern asynchronous Python, utilizing the following technologies:
+Axon is an intelligent firewall for your tokens. Every request goes through a rigorous gauntlet of caching, pruning, and structural compression before it ever hits the LLM.
 
-* **FastAPI & Uvicorn**: Powers the high-throughput asynchronous `/v1` proxy layer, ensuring the middleware adds less than 50ms of latency per request.
-* **LiteLLM**: Core routing engine seamlessly translating compressed payloads to 100+ LLM providers (Anthropic, Gemini, Ollama, Bedrock) transparently.
-* **HTTPX (Async)**: Handles the streaming Server-Sent Events (SSE) connections to OpenAI/Anthropic, allowing real-time proxying without buffering.
-* **Tiktoken (Rust)**: Used natively to count exact token lengths in real-time during stream generation, completely avoiding inaccurate heuristics.
-* **aiosqlite & Redis**: Provides unified `X-Session-ID` state management. SQLite provides zero-setup local persistence (WAL mode), while Redis allows horizontal scaling across multiple nodes.
-* **Pillow**: Silently intercepts and downscales massive `base64` vision payloads before they reach the LLM, slashing vision costs.
-* **Strategy Plugin System**: The core `TokenOptimizer` dynamically benchmarks 8 different custom encoding algorithms (Generic, TOON, TRON, Graph) in parallel to find the mathematical cheapest payload.
+### 1. The Universal Proxy Engine (LiteLLM Integration)
 
-## Core Benefits
-
-| Problem | Axon's Solution |
+| Without Axon | With Axon |
 |---|---|
-| **LLM API bills are out of control** | Auto-picks the cheapest structural encoding per call — reducing raw token counts by up to 70%. |
-| **Streaming token budget blowouts** | The Streaming Circuit Breaker exactly counts tokens mid-stream and forcefully terminates the TCP connection if the budget is hit. |
-| **Sessions re-send the same data** | Multi-turn deduplication (TOON/TRON): Axon remembers your session state and only transmits the *deltas* (changed fields) after Turn 1. |
-| **Hard to observe token usage** | Every response includes savings %, precise token counts, and estimated dollar cost saved injected as `x-axon-metrics` headers. |
-| **Integrating a new tool takes work** | Drop-in OpenAI-compatible proxy and native Python SDK wrapper. Just change `base_url` or use `axon.patch()`. |
-| **Vendor lock-in** | Powered by LiteLLM — switch from `gpt-4o` to `claude-3-5-sonnet` just by changing the string, Axon translates it. |
+| You must rewrite your SDK code to support `openai`, `anthropic`, and `google-genai`. | **One SDK rules them all.** Send OpenAI-formatted payloads to Axon, and it translates them to 100+ providers automatically. |
+| You pay full price for raw, bloated JSON token payloads. | Axon dynamically compresses your payload before it hits the provider, saving up to 70%. |
 
-### System Architecture Pipeline
+### 2. Autonomous JSON Healing (Agentic Resilience)
 
-Axon acts as an intelligent firewall for your tokens. Every request goes through a rigorous gauntlet of caching, pruning, and structural compression before it ever hits the LLM.
-
-```mermaid
-graph TD
-    Client[AI App / Agent SDK]:::client -->|Raw JSON Payload| AxonProxy[Axon Proxy Layer]:::axon
-
-    subgraph Intelligence & Optimization
-        AxonProxy --> Cache{Semantic Cache}:::intel
-        Cache -->|Hit 100%| FastReturn[Instant $0 Return]:::axon
-        Cache -->|Miss| Prune[Vision & Text Pruner]:::intel
-        Prune --> Mem[Semantic Memory Injection]:::intel
-        Mem --> Optimize[Token Compression Engine]:::axon
-        Optimize --> Route{Smart LLM Routing}:::intel
-    end
-
-    Route -->|Tiny Payload| CheapLLM[gpt-4o-mini]:::llm
-    Route -->|Complex Payload| MainLLM[gpt-4o / claude-3]:::llm
-    
-    CheapLLM -->|LLM Response| AxonProxy
-    MainLLM -->|LLM Response| AxonProxy
-    
-    AxonProxy -->|Stream & Budget Enforcer| Client
-
-    classDef client fill:#1e1e1e,stroke:#333,color:#fff,stroke-width:2px
-    classDef axon fill:#2563eb,stroke:#1d4ed8,color:#fff,stroke-width:2px
-    classDef intel fill:#7c3aed,stroke:#5b21b6,color:#fff,stroke-width:2px
-    classDef llm fill:#059669,stroke:#047857,color:#fff,stroke-width:2px
-```
-
-### Benchmarks
-
-Here is an live benchmark showing Axon's estimated token savings versus a raw JSON baseline for various payload types. Note how **multi-turn session deduplication** drastically increases token savings in large repeated payloads (e.g., *Large List (5 turns)*).
-
-```mermaid
-xychart-beta
-    title "Axon Token Savings vs JSON Baseline"
-    x-axis ["Small JSON", "Nested JSON", "Graph Payload", "Large List (5 turns)"]
-    y-axis "Savings (%)" 0 --> 100
-    bar [25.0, 0.0, 3.85, 59.68]
-```
-
----
-
-## Intelligence Features
-
-Axon isn't just a static proxy—it's dynamically context-aware and deeply optimized for maximum token reduction.
+| Without Axon | With Axon |
+|---|---|
+| If the LLM generates a trailing comma or missing quote, your `json.loads()` crashes and your Agent dies. | Axon intercepts the `JSONDecodeError`, appends the error to the message history, and asks the LLM to fix it *before* returning it to your Agent. |
 
 ```mermaid
 sequenceDiagram
-    participant Client
+    participant Agent
     participant Axon
-    participant State as Session State (SQLite/Redis)
     participant LLM
 
-    Note over Client,LLM: Turn 1 (Full Payload)
-    Client->>Axon: POST /chat/completions (Session="s1", Payload: 10KB)
-    Axon->>State: Store Full Payload
-    Axon->>LLM: Send Compressed JSON (6KB)
-    LLM-->>Client: Stream Response
-
-    Note over Client,LLM: Turn 2 (Delta Deduplication)
-    Client->>Axon: POST /chat/completions (Session="s1", Payload: 10.1KB)
-    Axon->>State: Compare against Turn 1
-    Axon->>LLM: Send ONLY Delta "diff" (0.1KB)
-    LLM-->>Client: Stream Response
-    Note over Client,LLM: 99% Tokens Saved on Turn 2!
+    Agent->>Axon: Give me JSON data
+    Axon->>LLM: Give me JSON data
+    LLM-->>Axon: { "bad": "json", } (trailing comma)
+    Note over Axon: JSONDecodeError Triggered!
+    Axon->>LLM: The JSON was invalid. Fix this syntax error: trailing comma.
+    LLM-->>Axon: { "bad": "json" } (fixed)
+    Axon-->>Agent: { "bad": "json" } (Clean, valid response)
 ```
 
-* **Strategy Auto-Tuning**: Axon tracks your session history. If a specific compression strategy wins 3 times in a row, Axon skips benchmarking the rest, saving significant CPU cycles.
-* **Semantic Response Caching**: If you send a prompt that is >95% semantically similar to a previous request, Axon intercepts it and instantly returns the cached response. Zero tokens used, <50ms latency.
-* **Smart LLM Routing & Fallback**: Short, simple payloads sent to expensive models (like `gpt-4o`) are automatically down-routed to cheaper models (like `gpt-4o-mini`). If the provider returns a `429 Rate Limit`, Axon automatically intercepts it and retries with a fallback model.
-* **Context Pruning (RAG-Aware)**: When sending massive graph payloads, Axon scores symbols against your query using BM25-lite logic. It intelligently prunes the bottom 25% of irrelevant symbols before compression, trimming fat without losing context.
-* **Intelligent Semantic Memory (Mem0-Style)**: Background workers automatically distill past conversations into core scalar facts (e.g. `user=alice, lang=python`) and seamlessly inject them as system prompts on your next turn, saving massive context window space without client-side changes.
-* **Payload Caching**: Axon implements an ultra-fast LRU hash cache to instantly return optimizations for completely identical payloads, bypassing the CPU-heavy encoding loop entirely to drop latency to near-zero.
+### 3. Streaming Circuit Breaker
 
-## Advanced Token Reduction
-
-Axon implements several rigorous structural heuristics to squeeze every token out of your payload:
-
-* **Vision Payload Downscaling**: Automatically intercepts `base64` images in your payload. If an image exceeds the optimal token tier limits (e.g., 4K resolution), Axon uses `Pillow` to silently downscale it to 768px/512px while preserving aspect ratio, slashing Vision token costs by up to 85%.
-* **LLMLingua Text Pruning**: (Opt-in via `AXON_PRUNE_TEXT=true`) For massive prompts over 2,000 characters, Axon heuristically condenses whitespace and removes structural English stop-words ("the", "is", "a"), shrinking raw text by up to 30% while preserving semantics.
-* **Streaming Circuit Breaker**: Prevent runaway LLM generations from burning your budget. By passing `X-Axon-Max-Spend: 0.05` to the `/v1/chat/completions` proxy, Axon will safely halt the stream if the cost threshold is reached, protecting you from infinite loops or prompt-injection attacks.
-* **Native Provider Prompt Caching**: Automatically wraps your largest text blocks in Anthropic's specific `{"cache_control": {"type": "ephemeral"}}` schema when routing to `claude-3` models, letting you hit their 90% cheaper cache tier with zero code changes.
-
----
-
-## Enterprise & Ops Features
-
-Axon is designed for production DevOps environments and B2B SaaS applications:
+| Without Axon | With Axon |
+|---|---|
+| A rogue agent gets stuck in an infinite loop, streaming 100,000 tokens of gibberish and draining your API budget. | Pass `X-Axon-Max-Spend: 0.10` in the header. Axon counts tokens mid-stream. If the cost exceeds 10 cents, Axon cleanly terminates the TCP connection. |
 
 ```mermaid
 graph LR
-    Req["Incoming Request<br/>X-API-Key: tenant-A"]:::client --> Gateway["Axon Proxy API"]:::axon
-    Gateway --> Check{"Check Quota"}:::axon
-    Check -->|"Limit Exceeded"| Rej["429 Too Many Requests"]:::error
-    Check -->|"Has Budget"| Route["Route to LLM"]:::axon
+    LLM[Provider]:::llm -->|Streaming Data| Axon[Axon Proxy]:::axon
+    Axon -->|Count Tokens| Calc{Check Budget}
+    Calc -->|Under Budget| App[Client Agent]:::app
+    Calc -->|Over Budget| Kill((Kill Connection!)):::error
     
-    Route --> LLM["OpenAI / Anthropic"]:::llm
-    LLM --> Calc["Calculate Exact Tokens Used"]:::axon
-    Calc --> Cost["Convert Tokens to USD"]:::axon
-    Cost --> Redis[("Redis / SQLite<br/>Atomic Hash Increment")]:::db
-
-    classDef client fill:#1e1e1e,stroke:#333,color:#fff,stroke-width:2px
-    classDef axon fill:#2563eb,stroke:#1d4ed8,color:#fff,stroke-width:2px
-    classDef error fill:#ef4444,stroke:#b91c1c,color:#fff,stroke-width:2px
-    classDef llm fill:#059669,stroke:#047857,color:#fff,stroke-width:2px
-    classDef db fill:#f59e0b,stroke:#d97706,color:#fff,stroke-width:2px
+    classDef llm fill:#059669,color:#fff
+    classDef axon fill:#2563eb,color:#fff
+    classDef app fill:#4f46e5,color:#fff
+    classDef error fill:#ef4444,color:#fff
 ```
 
-* **Tenant Isolation & Quotas**: Enable `AXON_ENABLE_TENANT_QUOTAS` to enforce strict dollar-spend budgets per API key. It uses a high-performance Redis/SQLite backend to atomically track spending across all models and automatically returns `429 Too Many Requests` when a tenant hits their limit.
-* **OpenTelemetry Observability**: Axon natively exports Prometheus metrics via a `/metrics` endpoint. SRE teams can track `axon.tokens.saved`, `axon.optimization.latency`, and `axon.strategy.wins` to monitor exact savings and overhead in real-time.
+### 4. Dynamic Encoding & Compression
 
-## Quickstart
-
-### Option 1 — Native Python Library (Zero Infrastructure)
-
-If you don't want to run a separate proxy server, you can use Axon as a native Python library! Just wrap your existing OpenAI client, and Axon will seamlessly intercept, compress, and forward requests using your existing API keys.
-
-```python
-import openai
-from axon import patch
-
-# 1. Create your normal sync or async client
-client = openai.AsyncOpenAI(api_key="sk-your-real-key")
-
-# 2. Patch it with Axon
-client = patch(client)
-
-# 3. Use it exactly as before! Your agent's payloads are now automatically compressed.
-response = await client.chat.completions.create(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": "Huge payload..."}],
-    stream=True # Streaming is fully supported!
-)
-
-# Axon's patched SDK automatically handles JSON Healing retries if response_format="json_object" is used!
-async for chunk in response:
-    print(chunk.choices[0].delta.content)
-```
-
-### Option 2 — Proxy Server (Docker)
-
-If you want to proxy multiple applications centrally:
-
-```bash
-docker compose up
-```
-
-### Option 3 — Proxy Server (pip install)
-
-1. Install the bridge:
-   ```bash
-   pip install axon-bridge
-   ```
-
-2. Start the Axon proxy:
-   ```bash
-   axon serve --port 8080
-   ```
-
-3. Update your application's `OPENAI_BASE_URL` to point to `http://localhost:8080/v1`
-
----
-
-## The Agentic Feature Suite 🤖
-
-AI Agents consume massive amounts of tokens through tool schemas, thought monologues, and raw HTML scraping. Axon provides a purpose-built feature suite to compress and protect Agentic workflows.
+| Without Axon | With Axon |
+|---|---|
+| Sending 1,000 JSON items costs 30,000 tokens due to the repeated keys on every single row. | Axon mathematically detects the schema, strips all keys, sends the schema once at the top, and sends raw comma-separated values below it. 30,000 tokens drops to 8,000 tokens. |
+| Turn 1 sends 10KB. Turn 2 changes one variable and sends 10.1KB. The LLM re-reads the entire 10KB context again. | **Session Deduplication (TOON):** Axon maintains state. Turn 1 sends 10KB. Turn 2 sends ONLY the 0.1KB delta. The LLM processes 99% fewer tokens. |
 
 ```mermaid
 graph TD
-    A[AI Agent / LangChain / AutoGPT] -->|1. ChatRequest| B(Axon API Gateway)
+    Input[Raw JSON Payload] --> Benchmark{TokenOptimizer Benchmarks}
     
-    subgraph Axon Proxy Layer
-        B --> C{Agentic Optimizers}
-        
-        C --> D[🛠️ Dynamic Tool Pruning]
-        C --> E[🧠 Scratchpad Minification]
-        C --> F[🌐 DOM to Markdown]
-        C --> G[🛡️ JSON Healing & Circuit Breaker]
-        
-        D -.-> |Drops irrelevant tools via BM25| H
-        E -.-> |Strips past <thought> chains| H
-        F -.-> |Compresses raw HTML| H
-        G -.-> |Catches 500s, Fixes JSON syntax| H
-    end
+    Benchmark --> S1[Generic Key-Value]
+    Benchmark --> S2[Schema Extractor]
+    Benchmark --> S3[Graph Deduplicator]
+    Benchmark --> S4[JSON Baseline]
     
-    H((Compressed Payload)) -->|2. Tiny Token Footprint| I[OpenAI / Claude]
+    S1 --> Pick{Select Lowest Token Count}
+    S2 --> Pick
+    S3 --> Pick
+    S4 --> Pick
     
-    I -->|3. Upstream Response| B
-    B -->|4. Response + Metrics| A
-    
-    style A fill:#2D3748,stroke:#4A5568,stroke-width:2px,color:#fff
-    style B fill:#3182CE,stroke:#2B6CB0,stroke-width:2px,color:#fff
-    style H fill:#48BB78,stroke:#2F855A,stroke-width:2px,color:#fff
-    style I fill:#805AD5,stroke:#553C9A,stroke-width:2px,color:#fff
+    Pick --> Output[Compressed Payload Sent to 100+ LLMs]
 ```
 
-### 1. Dynamic Tool Pruning (MCP Support)
-Agents often pass 50+ tool schemas on every single request. Axon uses a fast, local **BM25 semantic filter** to dynamically drop irrelevant tools from the context window based on the user's immediate query, saving thousands of tokens per turn without breaking the agent.
+### 5. Real Dollar Cost Tracking & Tenant Quotas
 
-### 2. Scratchpad / Chain-of-Thought Minification
-Axon intercepts the `messages` array and automatically strips out long `<thought>...</thought>` blocks and internal monologues from *older* assistant messages, leaving only the final action.
-
-### 3. DOM to Markdown Pruner
-For Browser-automation agents, Axon intercepts raw HTML payloads, aggressively strips `<script>`, `<style>`, and hidden elements, and condenses the structure into pure Markdown.
-
-### 4. Autonomous JSON Healing & Retry Gateway
-Agents crash when LLMs output malformed JSON or hit `429 Rate Limits`. Axon acts as a resilient shield:
-* **JSON Healing:** If the LLM returns invalid JSON when the agent expected a strict schema, Axon automatically re-prompts the LLM ("Fix this JSON syntax error") *before* passing the final response back to the agent.
-* **Auto-Retries:** Wraps upstream calls in exponential backoff to handle rate limits transparently.
-* **Streaming Circuit Breaker:** Terminate rogue infinite loops if spend exceeds `X-Axon-Max-Spend`.
+| Without Axon | With Axon |
+|---|---|
+| You find out you overspent your OpenAI budget at the end of the month when you get the invoice. | Pass `X-Axon-Tenant-ID`. Axon atomically tracks exact dollar spend per user/tenant in Redis. If they hit their budget, Axon blocks them instantly with a `429 Too Many Requests`. |
 
 ---
 
-### Option 3 — local dev
+## 💻 Zero-Code Integration — OpenAI Proxy
 
-```bash
-git clone https://github.com/chaitanya-sharmaa/axon.git
-cd axon/bridge
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn app:app --reload
-```
-
----
-
-## Zero-Code Integration — OpenAI Proxy
-
-The fastest way to start saving tokens. Change **one line** in your existing code:
-
-```mermaid
-graph LR
-    subgraph "Before Axon"
-        App1["Your Application"]:::app -->|"POST api.openai.com"| OpenAI1["OpenAI"]:::provider
-    end
-
-    subgraph "After Axon (1 Line Changed)"
-        App2["Your Application"]:::app -->|"POST localhost:8080"| AxonProxy["Axon Proxy"]:::axon
-        AxonProxy -->|"Compressed POST"| OpenAI2["OpenAI / Claude / Azure"]:::provider
-    end
-    
-    classDef app fill:#4f46e5,stroke:#4338ca,color:#fff,stroke-width:2px
-    classDef axon fill:#2563eb,stroke:#1d4ed8,color:#fff,stroke-width:2px
-    classDef provider fill:#059669,stroke:#047857,color:#fff,stroke-width:2px
-```
+The fastest way to start saving tokens. Change **one line** in your existing code. You can route to ANY of the 100+ providers just by changing the model string!
 
 ```python
 import openai
 
 client = openai.OpenAI(
     base_url="http://localhost:8080/v1",   # ← only change
-    api_key="your-anthropic-key",          # ← Automatically translates!
+    api_key="your-anthropic-key",          # ← Automatically translated!
 )
 
-# You can route to ANY of the 100+ providers just by changing the model string!
+# Axon translates the OpenAI schema to Anthropic seamlessly
 response = client.chat.completions.create(
-    model="claude-3-5-sonnet", # Axon translates the OpenAI schema to Anthropic seamlessly
+    model="claude-3-5-sonnet", 
     messages=[{"role": "user", "content": "Summarise the latest earnings report..."}],
+    stream=True
 )
 
-# Token savings are in the response header:
+# Token savings are injected into HTTP response headers!
 # x-axon-metrics: {"savings_pct": 38.2, "original_tokens": 812, "compressed_tokens": 501}
 # x-axon-cost-saved-usd: 0.00156
 ```
 
-Axon compresses your `messages[]`, forwards them via LiteLLM to the target provider, and returns the standard response. Streaming (`stream=True`) is fully supported and protected by the circuit breaker.
-
 ---
 
-## Python Library Usage
+## 🐍 Native Python SDK Wrapper (`axon.patch`)
+
+If you don't want to run a separate proxy server, you can use Axon as a native Python library! Just wrap your existing OpenAI client, and Axon will seamlessly intercept, compress, and add JSON Healing locally.
 
 ```python
-from services.bridge_service import AxonService
-from services.token_optimizer import TokenOptimizer
+import openai
+from axon import patch
 
-axon = AxonService(token_optimizer=TokenOptimizer())
+# 1. Create a standard AsyncOpenAI client
+client = openai.AsyncOpenAI(api_key="sk-your-real-key")
 
-# Compress any payload
-envelope = axon.convert_output(
-    {"user": "alice", "role": "admin", "org": "acme", "plan": "enterprise"},
-    session_id="session-42",
+# 2. Patch it with Axon
+client = patch(client)
+
+# 3. Use it exactly as before. Your agent's payloads are now automatically compressed!
+response = await client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Huge payload..."}],
+    response_format={"type": "json_object"}, # JSON Healing automatically activated!
+    stream=True 
 )
 
-print(envelope["compact_text"])
-# → user=alice,role=admin,org=acme,plan=enterprise
-
-print(envelope["metrics"]["estimated_savings_percent"])
-# → 31.4
-
-# Turn 2 — same session, same values → TRON deduplication kicks in
-envelope2 = axon.convert_output(
-    {"user": "alice", "role": "admin", "org": "acme", "plan": "enterprise", "region": "eu-west-2"},
-    session_id="session-42",
-)
-print(envelope2["compact_text"])
-# → region=eu-west-2  (only the new field!)
+async for chunk in response:
+    print(chunk.choices[0].delta.content)
 ```
 
 ---
 
-## LangChain Integration
+## 🤖 The Agentic Feature Suite
+
+AI Agents consume massive amounts of tokens through tool schemas, thought monologues, and raw HTML scraping. Axon provides a purpose-built feature suite to compress and protect Agentic workflows.
+
+1. **Vision Payload Downscaling**: Automatically intercepts `base64` images. Axon uses `Pillow` to silently downscale massive 4K images to 768px/512px while preserving aspect ratio, slashing Vision API costs by up to 85%.
+2. **Semantic Cache**: If you send a prompt that is >95% semantically similar to a previous request, Axon intercepts it and instantly returns the cached response. Zero API tokens used, <50ms latency.
+3. **Smart LLM Routing**: Short, simple payloads sent to expensive models (like `gpt-4o`) are automatically down-routed to cheaper models (like `gpt-4o-mini`).
+4. **Dynamic Tool Schema Pruning (MCP)**: Axon uses a fast, local **BM25 semantic filter** to dynamically drop irrelevant tools from the context window based on the user's immediate query, saving thousands of tokens per turn without breaking the agent.
+5. **DOM to Markdown Pruner**: For Browser-automation agents, Axon intercepts raw HTML payloads, aggressively strips `<script>`, `<style>`, and hidden elements, and condenses the structure into pure Markdown.
+
+---
+
+## 📚 Framework Integrations
+
+### LlamaIndex (RAG Pruning)
+
+Use the Axon `NodePostprocessor` to dynamically compress retrieved context chunks from your vector database *before* they are sent to the LLM. Drops the bottom 25% of irrelevant nodes automatically!
+
+```python
+from integrations.llamaindex import AxonNodePostprocessor
+from services.token_optimizer import TokenOptimizer
+
+axon_postprocessor = AxonNodePostprocessor(
+    optimizer=TokenOptimizer(), 
+    model="gpt-4o",
+    enable_pruning=True
+)
+
+query_engine = index.as_query_engine(node_postprocessors=[axon_postprocessor])
+response = query_engine.query("What is the Q3 revenue?")
+```
+
+### LangChain
 
 ```python
 from langchain_openai import ChatOpenAI
@@ -349,317 +193,78 @@ handler = AxonCallbackHandler(optimizer=TokenOptimizer(), session_id="my-session
 llm = ChatOpenAI(model="gpt-4o", callbacks=[handler])
 
 llm.invoke("Explain the transformer architecture...")
-
 print(handler.last_savings)
-# {'savings_pct': 42.1, 'original_tokens': 620, 'compressed_tokens': 359}
 ```
 
 ---
 
-## LlamaIndex Integration (RAG Pruning)
-
-Use the Axon `NodePostprocessor` to dynamically compress retrieved context chunks from your vector database *before* they are sent to the LLM.
-
-```python
-from integrations.llamaindex import AxonNodePostprocessor
-from services.token_optimizer import TokenOptimizer
-
-# Configure the postprocessor
-axon_postprocessor = AxonNodePostprocessor(
-    optimizer=TokenOptimizer(), 
-    model="gpt-4o",
-    enable_pruning=True
-)
-
-# Apply it in your query engine
-query_engine = index.as_query_engine(
-    node_postprocessors=[axon_postprocessor]
-)
-
-response = query_engine.query("What is the Q3 revenue?")
-
-# Check savings on retrieved nodes
-for node in response.source_nodes:
-    print(node.node.metadata["axon_tokens_saved"])
-```
-
----
-
-## CLI
+## 🛠️ CLI & Server Ops
 
 ```bash
-# Start the server
+# Start the server locally
 axon serve --port 8080 --reload
 
-# Benchmark all strategies against a JSON file
 axon benchmark my_payload.json --model gpt-4o
 
-# One-shot compress a JSON string
+# One-shot compress a JSON string manually
 axon encode '{"symbols": [{"qualified_name": "pkg.Auth", "kind": "class"}]}'
 
-# Show model pricing table
-axon pricing
-
-# Inspect / delete a session
+# Inspect / delete a session to reset stateful deduplication
 axon session show my-session-id
-axon session clear my-session-id --yes
+```
+
+## 📊 Performance Benchmarks
+
+Axon Bridge rigorously benchmarks every payload in real-time. Here are the observed token savings and proxy latency (measured across cold vs multi-turn sessions):
+
+| Use Case | Original Tokens | Axon Cold Tokens | Cold Savings % | Axon Multi-Turn Tokens | Multi-Turn Savings % | Latency | Winning Strategy |
+|---|---|---|---|---|---|---|---|
+| Telemetry Event (Flat JSON) | 19 | 19 | 0.0% | 19 | 0.0% | 0.15ms | `json` |
+| API Response (Nested JSON) | 47 | 47 | 0.0% | 47 | 0.0% | 0.08ms | `json` |
+| Code Context (Graph/Nodes) | 597 | 304 | 49.08% | 304 | 49.08% | 0.68ms | `generic` |
+| RAG Chunk (Highest Complexity)* | 21926 | 21926 | 0.0% | 21926 | 0.0% | 33.91ms | `json` |
+
+*\*Highest Complexity Payload involves arrays of 100 heavily nested items. Axon safely falls back to standard JSON encoding to prevent inefficient compression, securely handling massive 21k+ token payloads.*
+
+axon encode '{"symbols": [{"qualified_name": "pkg.Auth", "kind": "class"}]}'
+
+# Inspect / delete a session to reset stateful deduplication
+axon session show my-session-id
 ```
 
 ---
 
-## Batch Processing
+## ⚙️ Deployment & Configuration
 
-Compress multiple payloads in a single HTTP call:
-
-```bash
-curl -X POST http://localhost:8080/batch \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4o",
-    "requests": [
-      {"payload": {"user": "alice", "action": "login"}, "session_id": "s1"},
-      {"payload": {"user": "bob",   "action": "view"},  "session_id": "s2"}
-    ]
-  }'
-```
-
----
-
-## Encoding Strategies
-
-Axon benchmarks all enabled strategies on every call and picks the winner:
-
-| Strategy | Best for | Mechanism |
-|---|---|---|
-| `graph` | Code context (symbols + edges) | Axon compact graph format |
-| `graph_delta` | Repeated graph calls | Only sends added/removed symbols (TOON) |
-| `graph_session` | Long graph sessions | References previously sent symbols by index (TRON) |
-| `generic` | Flat key-value dicts | Compact `key=value` text |
-| `generic_delta` | Repeated generic calls | Only sends changed fields (TOON) |
-| `generic_session` | Long generic sessions | References repeated values by key (TRON) |
-| `schema_values` | Tabular data, same keys | Sends schema once, then values only |
-| `json` | Baseline / compatibility | Raw JSON (always available as fallback) |
-
-**Performance benchmarks:**
-
-| Payload size | Savings (first turn) | Savings (session, turn 5+) |
-|---|---|---|
-| Small (<10 fields) | 10–25% | 40–60% |
-| Medium (10–50 fields) | 25–40% | 55–70% |
-| Large graph (100+ symbols) | 40–55% | 65–75% |
-
----
-
-## API Reference
-
-### OpenAI-Compatible
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/v1/models` | List available models |
-| `POST` | `/v1/chat/completions` | Chat completions with compression (streaming supported) |
-| `POST` | `/v1/embeddings` | Embeddings proxy |
-
-### Core
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/health/live` | Liveness probe (always 200 if process running) |
-| `GET` | `/health/ready` | Readiness probe (503 if DB unavailable) |
-| `GET` | `/metrics` | Prometheus OpenTelemetry metrics |
-| `POST` | `/translate/in` | Decode any format to Python object |
-| `POST` | `/translate/out` | Encode object to Axon envelope |
-
-### Processing
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/process` | Run payload through a handler and compress result |
-| `POST` | `/batch` | Compress multiple payloads concurrently |
-
-### Proxy
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/proxy/upstream` | Forward request to any external API and compress response |
-
-### Agents
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/agent/list` | List registered agents |
-| `POST` | `/agent/dispatch` | Route to best agent by capability |
-| `POST` | `/agent/parallel` | Dispatch to multiple agents concurrently |
-| `POST` | `/agent/swarm` | Fan-out to all agents |
-
-### Memory
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/memory/sessions` | List active sessions |
-| `GET` | `/memory/session/{id}` | Get session history |
-| `DELETE` | `/memory/session/{id}` | Delete session |
-| `DELETE` | `/memory/cleanup` | Purge sessions older than N days |
-
-### Security & Admin
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/security/config` | Current security settings |
-| `POST` | `/security/domain/allow` | Add domain to allowlist |
-| `DELETE` | `/security/domain` | Remove domain from allowlist |
-| `POST` | `/security/require-api-key` | Toggle API key enforcement |
-| `POST` | `/v1/admin/tenants` | Create or update tenant quotas (requires Admin API Key) |
-| `GET` | `/v1/admin/tenants/{api_key}` | Retrieve current tenant quota and spend |
-
----
-
-## Configuration
-
-Copy `.env.example` to `.env` and set what you need. Every value has a sensible default.
-
-```bash
-cp .env.example .env
-```
-
-Key variables:
-
-| Variable | Default | Description |
-|---|---|---|
-| `AXON_PORT` | `8080` | Server port |
-| `AXON_LOG_FORMAT` | `text` | `text` or `json` (for Datadog/Splunk) |
-| `AXON_MEMORY_TYPE` | `sqlite` | `sqlite` or `redis` |
-| `AXON_MAX_SESSIONS` | `1000` | LRU cap for in-memory session state |
-| `AXON_REQUIRE_API_KEY` | `false` | Enforce `X-API-Key` on proxy requests |
-| `AXON_ADMIN_API_KEY` | — | Secret key required to access `/v1/admin/*` endpoints |
-| `AXON_ENABLE_TENANT_QUOTAS` | `false` | Enable strict dollar-based quotas per API key |
-| `AXON_ALLOWED_DOMAINS` | *(see .env.example)* | Comma-separated proxy allowlist |
-| `OPENAI_API_KEY` | — | Forwarded to OpenAI when using `/v1/` routes |
-| `AXON_ENABLE_OPENAI_ROUTES` | `true` | Toggle `/v1/` endpoints |
-| `AXON_RATE_LIMIT_PROXY` | `60/minute` | Rate limit for proxy endpoint |
-
----
-
-## Deployment
+Axon is designed for production DevOps environments. It natively exports OpenTelemetry Prometheus metrics on the `/metrics` endpoint, allowing your SRE team to monitor exact `axon.tokens.saved` and latency overhead.
 
 ### Docker
 
 ```bash
-# SQLite (single instance)
+# SQLite (single instance for local / dev)
 docker compose up
 
-# Redis (multi-instance / horizontal scale)
+# Redis (multi-instance / horizontal scale for K8s)
 docker compose -f docker-compose.yml -f docker-compose.redis.yml up
 ```
 
-### Kubernetes
+### Environment Variables
 
-We provide production-ready deployment manifests in the `deploy/kubernetes/` directory:
+Copy `.env.example` to `.env`. Key variables include:
 
-1. **Standalone API Gateway**: (`deploy/kubernetes/standalone.yaml`) Deploy Axon as an independent Service that all your microservices can point their `OPENAI_BASE_URL` toward.
-2. **Sidecar Proxy**: (`deploy/kubernetes/sidecar.yaml`) Deploy the Axon container in the exact same Pod as your application to completely eliminate network latency overhead.
-
-The `/health/live` and `/health/ready` endpoints map directly to Kubernetes liveness and readiness probes:
-
-```yaml
-livenessProbe:
-  httpGet:
-    path: /health/live
-    port: 8080
-readinessProbe:
-  httpGet:
-    path: /health/ready
-    port: 8080
-```
+| Variable | Default | Description |
+|---|---|---|
+| `AXON_PORT` | `8080` | Server port |
+| `AXON_MEMORY_TYPE` | `sqlite` | `sqlite` or `redis` |
+| `AXON_MAX_SESSIONS` | `1000` | LRU cap for in-memory session state |
+| `AXON_REQUIRE_API_KEY` | `false` | Enforce `X-API-Key` on proxy requests |
+| `AXON_ENABLE_TENANT_QUOTAS` | `false` | Enable strict dollar-based quotas per API key |
 
 ---
 
-## Project Structure
+## 🤝 Contributing
 
-```
-bridge/
-├── app.py                      # FastAPI entrypoint
-├── cli.py                      # axon CLI (typer)
-├── pyproject.toml              # Package metadata & build config
-├── requirements.txt            # Runtime dependencies
-├── Dockerfile
-├── docker-compose.yml          # SQLite mode
-├── docker-compose.redis.yml    # Redis override
-├── .env.example                # All AXON_* variables documented
-├── CHANGELOG.md
-├── CONTRIBUTING.md
-│
-├── api/
-│   ├── middleware/
-│   │   └── request_id.py       # X-Request-ID propagation
-│   └── routes/
-│       ├── core_routes.py      # /health/live, /health/ready, /translate/*
-│       ├── v1_openai_routes.py # /v1/chat/completions, /v1/models
-│       ├── batch_routes.py     # /batch
-│       ├── proxy_routes.py     # /proxy/upstream
-│       ├── agent_routes.py     # /agent/*
-│       ├── memory_routes.py    # /memory/*
-│       ├── process_routes.py   # /process
-│       └── security_routes.py  # /security/*
-│
-├── core/
-│   ├── app_config.py           # Singleton service wiring
-│   ├── logging_config.py       # Structured JSON logging
-│   └── settings.py             # Env-driven config (dotenv)
-│
-├── services/
-│   ├── token_optimizer.py      # Core: benchmarks all 8 strategies
-│   ├── bridge_service.py       # AxonService public API
-│   ├── payload_cache.py        # LRU cache (skip re-encoding identical payloads)
-│   ├── pricing.py              # Model pricing → dollar savings
-│   ├── plugin_registry.py      # @register_strategy plugin system
-│   ├── sqlite_memory_store.py  # Persistent SQLite session store (WAL mode)
-│   ├── redis_memory_store.py   # Redis session store
-│   ├── memory_store.py         # BaseMemoryStore ABC
-│   ├── security_policy.py      # API key + domain allowlist
-│   ├── agent_orchestrator.py   # Multi-agent dispatch/swarm
-│   └── tokenizer_factory.py    # tiktoken / Anthropic tokenizer
-│
-├── integrations/
-│   └── langchain.py            # AxonCallbackHandler for LangChain
-│
-├── adapters/
-│   └── mcp_bridge_adapter.py   # MCP-style tool I/O adapter
-│
-├── domain/
-│   ├── api_models.py           # Pydantic request/response models
-│   └── process_handlers.py     # Built-in payload handlers
-│
-├── examples/
-│   ├── demo_usage.py           # Live end-to-end demo
-│   ├── session_benchmark.py    # Multi-turn savings benchmark
-│   └── strategy_benchmark.py  # Per-strategy latency benchmark
-│
-├── docs/
-│   ├── 01-use-cases.md
-│   └── 03-core-concepts.md
-│
-└── tests/
-    ├── conftest.py
-    └── test_token_optimizer.py
-```
-
----
-
-## Custom Encoding Strategies (Plugin System)
-
-```python
-from services.plugin_registry import register_strategy
-from typing import Any
-
-@register_strategy("my_strategy")
-def encode_my_way(obj: Any, session_id: str | None = None) -> str:
-    # your compression logic
-    return compressed_text
-
-# Now use it:
-from services.token_optimizer import TokenOptimizer
-optimizer = TokenOptimizer(enabled_strategies=["generic", "my_strategy", "json"])
-```
-
----
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, test commands, and how to add a strategy.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, test commands, and how to add a custom strategy to the plugin registry.
 
 ```bash
 pip install -e ".[dev]"
@@ -669,7 +274,7 @@ ruff check .
 
 ---
 
-## License
+## 📜 License
 
 **MIT License**
 

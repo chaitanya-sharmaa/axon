@@ -42,6 +42,7 @@ from api.routes import (
     batch_router,
     admin_router,
 )
+from api.routes.v1_swarm_routes import router as swarm_router
 
 log = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ def create_app() -> FastAPI:
     # OpenAI-compatible routes (always at /v1)
     if settings.enable_openai_routes:
         app.include_router(openai_router)
+        app.include_router(swarm_router)
 
     # Batch processing
     app.include_router(batch_router)

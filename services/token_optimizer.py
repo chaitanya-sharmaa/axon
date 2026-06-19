@@ -528,3 +528,54 @@ class TokenOptimizer:
         if cache_key is not None:
             self._payload_cache[cache_key] = result
         return result
+
+# ── Agentic Feature Suite ──────────────────────────────────────────────────────
+
+import re
+
+try:
+    from rank_bm25 import BM25Okapi
+except ImportError:
+    BM25Okapi = None
+
+def prune_tools(tools: list[dict[str, Any]], query: str, top_k: int = 5) -> list[dict[str, Any]]:
+    """
+    Dynamically prune irrelevant tools from the schema using BM25.
+    If the user's query is short or tools are few, it returns them all.
+    """
+    if not BM25Okapi or not query or len(tools) <= top_k:
+        return tools
+    
+    # Create corpus from tool descriptions/names
+    corpus = []
+    for t in tools:
+        func = t.get("function", {})
+        desc = func.get("description", "") + " " + func.get("name", "")
+        corpus.append(desc.lower().split())
+        
+    bm25 = BM25Okapi(corpus)
+    tokenized_query = query.lower().split()
+    
+    # Get top_k tools
+    top_tools = bm25.get_top_n(tokenized_query, tools, n=top_k)
+    return top_tools
+
+def minify_scratchpad(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Iterate over messages. For older assistant messages, strip <thought>...</thought> blocks
+    and truncate long internal monologues to compress context.
+    """
+    if len(messages) <= 2:
+        return messages
+        
+    minified = []
+    # Leave the last 2 messages intact
+    for i, msg in enumerate(messages):
+        if msg.get("role") == "assistant" and isinstance(msg.get("content"), str) and i < len(messages) - 2:
+            content = msg["content"]
+            # Strip <thought>...</thought> tags and their contents
+            content = re.sub(r'<thought>.*?</thought>', '', content, flags=re.DOTALL)
+            msg["content"] = content.strip()
+        minified.append(msg)
+    return minified
+

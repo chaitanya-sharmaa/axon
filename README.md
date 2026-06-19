@@ -150,7 +150,7 @@ graph LR
 
 ## Quickstart
 
-### Option 1 — Docker (recommended)
+### Option 1 — Docker
 
 ```bash
 docker compose up
@@ -159,10 +159,69 @@ docker compose up
 
 ### Option 2 — pip install
 
-```bash
-pip install axon-bridge
-axon serve --port 8080
+1. Install the bridge:
+   ```bash
+   pip install axon-bridge
+   ```
+
+2. Start the Axon proxy:
+   ```bash
+   axon serve --port 8080
+   ```
+
+3. Update your application's `OPENAI_BASE_URL` to point to `http://localhost:8080/v1`
+
+---
+
+## The Agentic Feature Suite 🤖
+
+AI Agents consume massive amounts of tokens through tool schemas, thought monologues, and raw HTML scraping. Axon provides a purpose-built feature suite to compress and protect Agentic workflows.
+
+```mermaid
+graph TD
+    A[AI Agent / LangChain / AutoGPT] -->|1. ChatRequest| B(Axon API Gateway)
+    
+    subgraph Axon Proxy Layer
+        B --> C{Agentic Optimizers}
+        
+        C --> D[🛠️ Dynamic Tool Pruning]
+        C --> E[🧠 Scratchpad Minification]
+        C --> F[🌐 DOM to Markdown]
+        C --> G[🛡️ JSON Healing & Circuit Breaker]
+        
+        D -.-> |Drops irrelevant tools via BM25| H
+        E -.-> |Strips past <thought> chains| H
+        F -.-> |Compresses raw HTML| H
+        G -.-> |Catches 500s, Fixes JSON syntax| H
+    end
+    
+    H((Compressed Payload)) -->|2. Tiny Token Footprint| I[OpenAI / Claude]
+    
+    I -->|3. Upstream Response| B
+    B -->|4. Response + Metrics| A
+    
+    style A fill:#2D3748,stroke:#4A5568,stroke-width:2px,color:#fff
+    style B fill:#3182CE,stroke:#2B6CB0,stroke-width:2px,color:#fff
+    style H fill:#48BB78,stroke:#2F855A,stroke-width:2px,color:#fff
+    style I fill:#805AD5,stroke:#553C9A,stroke-width:2px,color:#fff
 ```
+
+### 1. Dynamic Tool Pruning (MCP Support)
+Agents often pass 50+ tool schemas on every single request. Axon uses a fast, local **BM25 semantic filter** to dynamically drop irrelevant tools from the context window based on the user's immediate query, saving thousands of tokens per turn without breaking the agent.
+
+### 2. Scratchpad / Chain-of-Thought Minification
+Axon intercepts the `messages` array and automatically strips out long `<thought>...</thought>` blocks and internal monologues from *older* assistant messages, leaving only the final action.
+
+### 3. DOM to Markdown Pruner
+For Browser-automation agents, Axon intercepts raw HTML payloads, aggressively strips `<script>`, `<style>`, and hidden elements, and condenses the structure into pure Markdown.
+
+### 4. Autonomous JSON Healing & Retry Gateway
+Agents crash when LLMs output malformed JSON or hit `429 Rate Limits`. Axon acts as a resilient shield:
+* **JSON Healing:** If the LLM returns invalid JSON when the agent expected a strict schema, Axon automatically re-prompts the LLM ("Fix this JSON syntax error") *before* passing the final response back to the agent.
+* **Auto-Retries:** Wraps upstream calls in exponential backoff to handle rate limits transparently.
+* **Streaming Circuit Breaker:** Terminate rogue infinite loops if spend exceeds `X-Axon-Max-Spend`.
+
+---
 
 ### Option 3 — local dev
 

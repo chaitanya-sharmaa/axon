@@ -40,6 +40,7 @@ from fastapi import APIRouter, Header, HTTPException, Request, BackgroundTasks
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import asyncio
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from core.app_config import axon_service, memory_store
 from core.settings import settings
@@ -218,8 +219,8 @@ async def _stream_openai(
     current_model = model
     
     if max_spend is not None or (settings.enable_tenant_quotas and tenant_id):
-        from services.tokenizer_factory import TokenizerFactory
-        tokenizer = TokenizerFactory.get_tokenizer(model)
+        from services.tokenizer_factory import get_tokenizer_for_model
+        tokenizer = get_tokenizer_for_model(model)
         
     try:
         async with httpx.AsyncClient(timeout=120) as client:
@@ -381,29 +382,62 @@ async def chat_completions(
             headers=headers_to_send,
         )
 
+    extra = req.model_extra or {}
+    requires_json = extra.get("response_format", {}).get("type") == "json_object"
+    
+    @retry(
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.RequestError)),
+        reraise=True
+    )
+    async def _execute_post(client, current_body):
+        resp = await client.post(url, headers=upstream_headers, json=current_body)
+        resp.raise_for_status()
+        return resp
+
     async with httpx.AsyncClient(timeout=120, follow_redirects=False) as client:
-        try:
-            resp = await client.post(url, headers=upstream_headers, json=upstream_body)
-            resp.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code in (429, 503):
-                # Smart Fallback
-                fb_model = fallback_model(routed_model)
-                if fb_model != routed_model:
-                    upstream_body["model"] = fb_model
-                    try:
-                        resp = await client.post(url, headers=upstream_headers, json=upstream_body)
-                        resp.raise_for_status()
-                    except httpx.RequestError as fb_exc:
-                        raise HTTPException(502, f"Fallback connection failed: {fb_exc}") from fb_exc
+        # JSON Healing Loop
+        for attempt in range(3):
+            try:
+                resp = await _execute_post(client, upstream_body)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (429, 503):
+                    # Smart Fallback
+                    fb_model = fallback_model(routed_model)
+                    if fb_model != routed_model:
+                        upstream_body["model"] = fb_model
+                        try:
+                            resp = await _execute_post(client, upstream_body)
+                        except httpx.RequestError as fb_exc:
+                            raise HTTPException(502, f"Fallback connection failed: {fb_exc}") from fb_exc
+                    else:
+                        raise HTTPException(exc.response.status_code, f"Upstream error: {exc}") from exc
                 else:
                     raise HTTPException(exc.response.status_code, f"Upstream error: {exc}") from exc
-            else:
-                raise HTTPException(exc.response.status_code, f"Upstream error: {exc}") from exc
-        except httpx.RequestError as exc:
-            raise HTTPException(502, f"Upstream connection failed: {exc}") from exc
+            except httpx.RequestError as exc:
+                raise HTTPException(502, f"Upstream connection failed: {exc}") from exc
 
-    resp_json = resp.json()
+            resp_json = resp.json()
+            
+            if requires_json:
+                content = resp_json.get("choices", [{}])[0].get("message", {}).get("content", "")
+                if content:
+                    try:
+                        json.loads(content)
+                        break # Valid JSON, exit healing loop
+                    except json.JSONDecodeError as e:
+                        if attempt == 2:
+                            break # Give up on last attempt
+                        log.warning(f"JSON Healing Triggered: {e}")
+                        upstream_body["messages"].append({"role": "assistant", "content": content})
+                        upstream_body["messages"].append({
+                            "role": "user", 
+                            "content": f"Your previous output was invalid JSON. Fix this specific syntax error: {str(e)}"
+                        })
+                        continue # Retry LLM with the error appended
+            else:
+                break # Not requiring JSON, exit loop
     
     # Store successful response in Semantic Cache
     if not req.stream and emb is not None:

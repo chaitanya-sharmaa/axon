@@ -40,7 +40,9 @@ from fastapi import APIRouter, Header, HTTPException, Request, BackgroundTasks
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import asyncio
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+import litellm
+from litellm import acompletion
+from litellm.exceptions import APIError, RateLimitError, ServiceUnavailableError, Timeout
 
 from core.app_config import axon_service, memory_store
 from core.settings import settings
@@ -211,9 +213,10 @@ async def _stream_openai(
     max_spend: float | None = None,
     model: str = "gpt-4o",
     tenant_id: str | None = None,
-    input_cost: float = 0.0
+    input_cost: float = 0.0,
+    api_key: str = ""
 ) -> AsyncIterator[str]:
-    """Async generator that proxies an OpenAI SSE stream with an optional budget circuit breaker."""
+    """Async generator that proxies a stream using LiteLLM with an optional budget circuit breaker."""
     accumulated_tokens = 0
     tokenizer = None
     current_model = model
@@ -222,47 +225,43 @@ async def _stream_openai(
         from services.tokenizer_factory import get_tokenizer_for_model
         tokenizer = get_tokenizer_for_model(model)
         
+    # Extract required LiteLLM args
+    messages = body.pop("messages", [])
+    body.pop("model", None) # Prevent duplicate keyword error
+    body.pop("stream", None) # Prevent duplicate keyword error
+    
     try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            for attempt in range(2):
-                try:
-                    async with client.stream("POST", url, headers=headers, json=body) as resp:
-                        resp.raise_for_status()
-                        async for line in resp.aiter_lines():
-                            if line:
-                                # 4. Streaming Circuit Breaker
-                                if max_spend is not None and tokenizer is not None:
-                                    if line.startswith("data: ") and line != "data: [DONE]":
-                                        try:
-                                            data = json.loads(line[6:])
-                                            delta_text = data["choices"][0]["delta"].get("content", "")
-                                            if delta_text:
-                                                accumulated_tokens += len(tokenizer.encode(delta_text))
-                                                
-                                                # Calculate true output cost for the specific model
-                                                from services.pricing import estimate_cost_usd
-                                                cost = estimate_cost_usd(accumulated_tokens, current_model, direction="output")
-                                                if cost is None:
-                                                    cost = (accumulated_tokens / 1000.0) * 0.015 # fallback
-                                                
-                                                if cost > max_spend:
-                                                    log.warning(f"Circuit Breaker Triggered! Cost ${cost:.4f} exceeded budget ${max_spend}")
-                                                    yield f'data: {{"choices": [{{"delta": {{"content": "\\n\\n[AXON BUDGET EXCEEDED - STREAM TERMINATED]"}}}}]}}\n\n'
-                                                    yield "data: [DONE]\n\n"
-                                                    return
-                                        except (json.JSONDecodeError, KeyError, IndexError):
-                                            pass
+        response = await litellm.acompletion(
+            model=current_model,
+            messages=messages,
+            api_key=api_key,
+            stream=True,
+            num_retries=2,
+            **body
+        )
+        
+        async for chunk in response:
+            if max_spend is not None and tokenizer is not None:
+                delta_text = chunk.choices[0].delta.content or ""
+                if delta_text:
+                    accumulated_tokens += len(tokenizer.encode(delta_text))
+                    
+                    # Calculate true output cost for the specific model
+                    from services.pricing import estimate_cost_usd
+                    cost = estimate_cost_usd(accumulated_tokens, current_model, direction="output")
+                    if cost is None:
+                        cost = (accumulated_tokens / 1000.0) * 0.015 # fallback
+                    
+                    if cost > max_spend:
+                        log.warning(f"Circuit Breaker Triggered! Cost ${cost:.4f} exceeded budget ${max_spend}")
+                        yield f'data: {{"choices": [{{"delta": {{"content": "\\n\\n[AXON BUDGET EXCEEDED - STREAM TERMINATED]"}}}}]}}\n\n'
+                        yield "data: [DONE]\n\n"
+                        return
 
-                                yield f"{line}\n\n"
-                    break # Exit retry loop on success
-                except httpx.HTTPStatusError as exc:
-                    if exc.response.status_code in (429, 503) and attempt == 0:
-                        fb_model = fallback_model(current_model)
-                        if fb_model != current_model:
-                            body["model"] = fb_model
-                            current_model = fb_model
-                            continue
-                    raise # Re-raise if no fallback or second attempt failed
+            yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
+        
+        yield "data: [DONE]\n\n"
+        
     finally:
         if settings.enable_tenant_quotas and tenant_id and memory_store:
             output_cost = estimate_cost_usd(accumulated_tokens, current_model, direction="output") or 0.0
@@ -377,7 +376,7 @@ async def chat_completions(
         input_cost = estimate_cost_usd(metrics["compressed_tokens"], routed_model, direction="input") or 0.0
             
         return StreamingResponse(
-            _stream_openai(url, upstream_headers, upstream_body, max_spend, routed_model, tenant_id, input_cost),
+            _stream_openai(url, upstream_headers, upstream_body, max_spend, routed_model, tenant_id, input_cost, api_key),
             media_type="text/event-stream",
             headers=headers_to_send,
         )
@@ -385,59 +384,59 @@ async def chat_completions(
     extra = req.model_extra or {}
     requires_json = extra.get("response_format", {}).get("type") == "json_object"
     
-    @retry(
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        stop=stop_after_attempt(3),
-        retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.RequestError)),
-        reraise=True
-    )
-    async def _execute_post(client, current_body):
-        resp = await client.post(url, headers=upstream_headers, json=current_body)
-        resp.raise_for_status()
-        return resp
+    async def _execute_post(current_body):
+        model = current_body.pop("model")
+        messages = current_body.pop("messages")
+        response = await litellm.acompletion(
+            model=model,
+            messages=messages,
+            api_key=api_key,
+            num_retries=2,
+            **current_body
+        )
+        # Restore them for the healing loop if needed
+        current_body["model"] = model
+        current_body["messages"] = messages
+        return response.model_dump()
 
-    async with httpx.AsyncClient(timeout=120, follow_redirects=False) as client:
-        # JSON Healing Loop
-        for attempt in range(3):
-            try:
-                resp = await _execute_post(client, upstream_body)
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code in (429, 503):
-                    # Smart Fallback
-                    fb_model = fallback_model(routed_model)
-                    if fb_model != routed_model:
-                        upstream_body["model"] = fb_model
-                        try:
-                            resp = await _execute_post(client, upstream_body)
-                        except httpx.RequestError as fb_exc:
-                            raise HTTPException(502, f"Fallback connection failed: {fb_exc}") from fb_exc
-                    else:
-                        raise HTTPException(exc.response.status_code, f"Upstream error: {exc}") from exc
-                else:
-                    raise HTTPException(exc.response.status_code, f"Upstream error: {exc}") from exc
-            except httpx.RequestError as exc:
-                raise HTTPException(502, f"Upstream connection failed: {exc}") from exc
-
-            resp_json = resp.json()
-            
-            if requires_json:
-                content = resp_json.get("choices", [{}])[0].get("message", {}).get("content", "")
-                if content:
-                    try:
-                        json.loads(content)
-                        break # Valid JSON, exit healing loop
-                    except json.JSONDecodeError as e:
-                        if attempt == 2:
-                            break # Give up on last attempt
-                        log.warning(f"JSON Healing Triggered: {e}")
-                        upstream_body["messages"].append({"role": "assistant", "content": content})
-                        upstream_body["messages"].append({
-                            "role": "user", 
-                            "content": f"Your previous output was invalid JSON. Fix this specific syntax error: {str(e)}"
-                        })
-                        continue # Retry LLM with the error appended
+    # JSON Healing Loop
+    for attempt in range(3):
+        try:
+            resp_json = await _execute_post(upstream_body)
+        except (RateLimitError, ServiceUnavailableError, Timeout) as exc:
+            # Smart Fallback
+            fb_model = fallback_model(routed_model)
+            if fb_model != routed_model:
+                upstream_body["model"] = fb_model
+                try:
+                    resp_json = await _execute_post(upstream_body)
+                except Exception as fb_exc:
+                    raise HTTPException(502, f"Fallback connection failed: {fb_exc}") from fb_exc
             else:
-                break # Not requiring JSON, exit loop
+                raise HTTPException(502, f"Upstream error: {exc}") from exc
+        except APIError as exc:
+            raise HTTPException(502, f"Upstream API Error: {exc}") from exc
+        except Exception as exc:
+            raise HTTPException(500, f"Unexpected error: {exc}") from exc
+        
+        if requires_json:
+            content = resp_json.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if content:
+                try:
+                    json.loads(content)
+                    break # Valid JSON, exit healing loop
+                except json.JSONDecodeError as e:
+                    if attempt == 2:
+                        break # Give up on last attempt
+                    log.warning(f"JSON Healing Triggered: {e}")
+                    upstream_body["messages"].append({"role": "assistant", "content": content})
+                    upstream_body["messages"].append({
+                        "role": "user", 
+                        "content": f"Your previous output was invalid JSON. Fix this specific syntax error: {str(e)}"
+                    })
+                    continue # Retry LLM with the error appended
+        else:
+            break # Not requiring JSON, exit loop
     
     # Store successful response in Semantic Cache
     if not req.stream and emb is not None:
@@ -456,7 +455,7 @@ async def chat_completions(
         if total_cost > 0:
             background_tasks.add_task(memory_store.increment_tenant_spend, tenant_id, total_cost)
 
-    response = JSONResponse(status_code=resp.status_code, content=resp_json)
+    response = JSONResponse(status_code=200, content=resp_json)
     response.headers["x-axon-metrics"] = savings_header
 
     if savings_usd is not None:
@@ -475,14 +474,16 @@ async def embeddings(
     if not api_key:
         api_key = os.getenv("OPENAI_API_KEY", "")
 
-    async with httpx.AsyncClient(timeout=60, follow_redirects=False) as client:
-        try:
-            resp = await client.post(
-                f"{_OPENAI_BASE}/embeddings",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json=req.model_dump(exclude_none=True),
-            )
-        except httpx.RequestError as exc:
-            raise HTTPException(502, f"Upstream connection failed: {exc}") from exc
+    try:
+        response = await litellm.acompletion(
+            model=req.model,
+            messages=[], # Embeddings don't use messages in liteLLM the same way
+            api_base=f"{_OPENAI_BASE}",
+            api_key=api_key,
+            input=req.input,
+            num_retries=2
+        )
+    except Exception as exc:
+        raise HTTPException(502, f"Upstream connection failed: {exc}") from exc
 
-    return JSONResponse(status_code=resp.status_code, content=resp.json())
+    return JSONResponse(status_code=200, content=response.model_dump())

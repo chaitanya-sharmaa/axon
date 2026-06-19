@@ -7,15 +7,67 @@ class MockCompletions:
             def __init__(self, request_kwargs):
                 self.request_kwargs = request_kwargs
                 self.id = "chatcmpl-123"
+                self.choices = []
+
+            def _add_choice(self, content):
+                class Msg:
+                    def __init__(self, c):
+                        self.content = c
+                class Choice:
+                    def __init__(self, c):
+                        self.message = Msg(c)
+                self.choices.append(Choice(content))
+
+        # Handle stream mocked return
+        if kwargs.get("stream"):
+            class MockStream:
+                def __init__(self, kwargs):
+                    self.request_kwargs = kwargs
+                def __iter__(self):
+                    yield "chunk1"
+                    yield "chunk2"
+            return MockStream(kwargs)
+            
+        resp = MockResponse(kwargs)
+        
+        # Simulate JSON hallucination for testing
+        if kwargs.get("response_format", {}).get("type") == "json_object":
+            if "Fix this specific syntax error" not in str(kwargs.get("messages", [])):
+                resp._add_choice("{ bad_json: ")
+            else:
+                resp._add_choice('{"fixed": "json"}')
+        else:
+            resp._add_choice("normal text")
+            
+        return resp
+
+class MockChat:
+    def __init__(self):
+        self.completions = MockCompletions()
+
+class MockAsyncCompletions:
+    async def create(self, **kwargs):
+        class MockResponse:
+            def __init__(self, request_kwargs):
+                self.request_kwargs = request_kwargs
+                self.id = "chatcmpl-async-123"
         return MockResponse(kwargs)
 
 class MockChat:
     def __init__(self):
         self.completions = MockCompletions()
 
+class MockAsyncChat:
+    def __init__(self):
+        self.completions = MockAsyncCompletions()
+
 class MockOpenAIClient:
     def __init__(self):
         self.chat = MockChat()
+
+class MockAsyncOpenAIClient:
+    def __init__(self):
+        self.chat = MockAsyncChat()
 
 def test_axon_patch_compresses_messages():
     client = MockOpenAIClient()
@@ -74,3 +126,51 @@ def test_axon_patch_prunes_tools():
     
     assert final_tools is not None
     assert len(final_tools) <= 5 # max_tools=5 default
+
+@pytest.mark.asyncio
+async def test_axon_patch_async():
+    client = MockAsyncOpenAIClient()
+    patched_client = patch(client)
+    
+    response = await patched_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "Hello Async!"}]
+    )
+    
+    assert hasattr(response, "_axon_metrics")
+    assert response.id == "chatcmpl-async-123"
+
+def test_axon_patch_stream():
+    client = MockOpenAIClient()
+    patched_client = patch(client)
+    
+    response = patched_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "Stream me"}],
+        stream=True
+    )
+    
+    assert hasattr(response, "_axon_metrics")
+    chunks = list(response)
+    assert chunks == ["chunk1", "chunk2"]
+
+def test_axon_patch_json_healing():
+    client = MockOpenAIClient()
+    patched_client = patch(client)
+    
+    response = patched_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "Give me JSON"}],
+        response_format={"type": "json_object"}
+    )
+    
+    assert hasattr(response, "_axon_metrics")
+    
+    # Verify the healing prompt was injected into the messages
+    final_kwargs = response.request_kwargs
+    messages = final_kwargs["messages"]
+    
+    assert len(messages) == 3
+    assert messages[1]["role"] == "assistant"
+    assert messages[1]["content"] == "{ bad_json: "
+    assert "Fix this specific syntax error" in messages[2]["content"]

@@ -180,6 +180,22 @@ uvicorn app:app --reload
 
 The fastest way to start saving tokens. Change **one line** in your existing code:
 
+```mermaid
+graph LR
+    subgraph "Before Axon"
+        App1["Your Application"]:::app -->|"POST api.openai.com"| OpenAI1["OpenAI"]:::provider
+    end
+
+    subgraph "After Axon (1 Line Changed)"
+        App2["Your Application"]:::app -->|"POST localhost:8080"| AxonProxy["Axon Proxy"]:::axon
+        AxonProxy -->|"Compressed POST"| OpenAI2["OpenAI / Claude / Azure"]:::provider
+    end
+    
+    classDef app fill:#4f46e5,stroke:#4338ca,color:#fff,stroke-width:2px
+    classDef axon fill:#2563eb,stroke:#1d4ed8,color:#fff,stroke-width:2px
+    classDef provider fill:#059669,stroke:#047857,color:#fff,stroke-width:2px
+```
+
 ```python
 import openai
 

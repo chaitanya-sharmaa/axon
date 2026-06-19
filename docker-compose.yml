@@ -22,9 +22,5 @@ services:
 volumes:
   axon_data:
 
-# ── Redis profile: docker compose --profile redis up ──────────────────────────
-# Adds a Redis container and switches Axon to Redis-backed session storage.
-# Useful for multi-instance (horizontally scaled) deployments.
----
-# docker-compose.redis.yml (override file)
+# Note: For Redis usage, use the docker-compose.redis.yml override file:
 # Usage: docker compose -f docker-compose.yml -f docker-compose.redis.yml up

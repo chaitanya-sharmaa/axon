@@ -244,51 +244,77 @@ def _build_payload(obj: Mapping) -> Payload | None:
     )
 
 
-def _build_generic_delta(current: Any, previous: Any | None) -> Any:
-    """TOON for generic dicts: return only the keys that changed vs previous turn.
+def _build_generic_delta(current: Any, previous: Any) -> Any:
+    """Build a recursive delta between two generic dicts or lists.
 
     - First turn (previous is None): returns the full payload.
-    - Subsequent turns: returns a dict of only changed/new top-level keys.
+    - Subsequent turns: returns a dict of only changed/new nested keys.
       Deleted keys are represented as ``{"__deleted__": true}``.
-    - Non-dict payloads fall back to the full payload.
+    - Non-dict/list payloads fall back to the full payload.
     """
-    if previous is None or not isinstance(current, dict) or not isinstance(previous, dict):
+    if previous is None:
         return current
+        
+    if isinstance(current, dict) and isinstance(previous, dict):
+        delta: dict[str, Any] = {}
+        all_keys = set(current) | set(previous)
+        for key in all_keys:
+            if key not in current:
+                delta[key] = {"__deleted__": True}
+            elif key not in previous:
+                delta[key] = current[key]
+            else:
+                sub_delta = _build_generic_delta(current[key], previous[key])
+                if sub_delta is not None:
+                    delta[key] = sub_delta
+        return delta if delta else None
+        
+    if isinstance(current, list) and isinstance(previous, list):
+        if current == previous:
+            return None
+        return current
+        
+    if current == previous:
+        return None
+        
+    return current
 
-    delta: dict[str, Any] = {}
-    all_keys = set(current) | set(previous)
-    for key in all_keys:
-        if key not in current:
-            delta[key] = {"__deleted__": True}
-        elif key not in previous or current[key] != previous[key]:
-            delta[key] = current[key]
-    return delta if delta else current  # if nothing changed, send full to be safe
 
-
-def _build_generic_session(current: Any, seen_values: dict[str, str]) -> Any:
-    """TRON for generic dicts: replace repeated scalar values with a short ref token.
+def _build_generic_session(current: Any, seen_values: dict[str, str], path: str = "") -> Any:
+    """TRON for generic dicts and lists: recursively replace repeated scalar values with a short ref token.
 
     Scalars (strings, numbers) that appeared in a previous turn are replaced with
-    ``@ref:<key>`` where ``<key>`` is the first key they were stored under.  The
-    LLM already has the value from context so this cuts repeated literals.
-
-    ``seen_values`` maps ``str(value) → original_key`` and is mutated in place.
+    ``@ref:<path>`` where ``<path>`` is the first JSON path they were stored under.
+    
+    ``seen_values`` maps ``str(value) → original_path`` and is mutated in place.
     """
-    if not isinstance(current, dict):
-        return current
-
-    compressed: dict[str, Any] = {}
-    for k, v in current.items():
-        if isinstance(v, (str, int, float, bool)):
-            vstr = str(v)
-            if vstr in seen_values and seen_values[vstr] != k:
-                compressed[k] = f"@ref:{seen_values[vstr]}"
-            else:
-                seen_values[vstr] = k
-                compressed[k] = v
+    if isinstance(current, dict):
+        compressed_dict: dict[str, Any] = {}
+        for k, v in current.items():
+            current_path = f"{path}.{k}" if path else k
+            compressed_dict[k] = _build_generic_session(v, seen_values, current_path)
+        return compressed_dict
+        
+    elif isinstance(current, list):
+        compressed_list: list[Any] = []
+        for i, v in enumerate(current):
+            current_path = f"{path}[{i}]"
+            compressed_list.append(_build_generic_session(v, seen_values, current_path))
+        return compressed_list
+        
+    elif isinstance(current, (str, int, float, bool)):
+        vstr = str(current)
+        if vstr in seen_values:
+            # ONLY return ref if the ref is actually shorter than the string itself
+            ref_str = f"@ref:{seen_values[vstr]}"
+            if len(ref_str) < len(vstr):
+                return ref_str
+            return current
         else:
-            compressed[k] = v
-    return compressed
+            seen_values[vstr] = path
+            return current
+    else:
+        return current
 
 
 def _build_delta(payload: Payload | None, prev_symbols: list[str] | None) -> DeltaPayload | None:

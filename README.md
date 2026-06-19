@@ -267,6 +267,35 @@ print(handler.last_savings)
 
 ---
 
+## LlamaIndex Integration (RAG Pruning)
+
+Use the Axon `NodePostprocessor` to dynamically compress retrieved context chunks from your vector database *before* they are sent to the LLM.
+
+```python
+from integrations.llamaindex import AxonNodePostprocessor
+from services.token_optimizer import TokenOptimizer
+
+# Configure the postprocessor
+axon_postprocessor = AxonNodePostprocessor(
+    optimizer=TokenOptimizer(), 
+    model="gpt-4o",
+    enable_pruning=True
+)
+
+# Apply it in your query engine
+query_engine = index.as_query_engine(
+    node_postprocessors=[axon_postprocessor]
+)
+
+response = query_engine.query("What is the Q3 revenue?")
+
+# Check savings on retrieved nodes
+for node in response.source_nodes:
+    print(node.node.metadata["axon_tokens_saved"])
+```
+
+---
+
 ## CLI
 
 ```bash
@@ -429,7 +458,12 @@ docker compose -f docker-compose.yml -f docker-compose.redis.yml up
 
 ### Kubernetes
 
-The `/health/live` and `/health/ready` endpoints map directly to liveness and readiness probes:
+We provide production-ready deployment manifests in the `deploy/kubernetes/` directory:
+
+1. **Standalone API Gateway**: (`deploy/kubernetes/standalone.yaml`) Deploy Axon as an independent Service that all your microservices can point their `OPENAI_BASE_URL` toward.
+2. **Sidecar Proxy**: (`deploy/kubernetes/sidecar.yaml`) Deploy the Axon container in the exact same Pod as your application to completely eliminate network latency overhead.
+
+The `/health/live` and `/health/ready` endpoints map directly to Kubernetes liveness and readiness probes:
 
 ```yaml
 livenessProbe:

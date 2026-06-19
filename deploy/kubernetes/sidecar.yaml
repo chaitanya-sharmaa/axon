@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-with-axon-sidecar
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+      # 1. Your Main Application
+      - name: my-app
+        image: my-app:latest # Replace with your app's image
+        ports:
+        - containerPort: 3000
+        env:
+        # Point the application's OpenAI client to localhost where the sidecar runs
+        - name: OPENAI_BASE_URL
+          value: "http://127.0.0.1:8080/v1"
+        - name: OPENAI_API_KEY
+          value: "dummy-key" # Axon proxies the request and injects the real key
+          
+      # 2. Axon Proxy Sidecar
+      - name: axon-sidecar
+        image: axon-bridge:latest # Replace with your registry image
+        ports:
+        - containerPort: 8080
+        env:
+        - name: AXON_MEMORY_TYPE
+          value: "sqlite" # Safe to use SQLite since it's 1:1 with the app replica
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: axon-secrets
+              key: openai-api-key
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"

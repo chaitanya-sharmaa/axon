@@ -151,8 +151,18 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
             if prune_enabled and len(content) > 2000:
                 content = prune_text(content)
 
+            import json
+            parsed_content = content
+            try:
+                # Attempt to parse as JSON so structural algorithms (schema_values, TRON, etc.) can work
+                parsed = json.loads(content)
+                if isinstance(parsed, (dict, list)):
+                    parsed_content = parsed
+            except Exception:
+                pass
+
             result = axon_service._optimizer.optimize(
-                {"role": msg.role, "content": content},
+                {"role": msg.role, "content": parsed_content},
                 session_id=session_id,
             )
             original_tokens += result.json_baseline_tokens

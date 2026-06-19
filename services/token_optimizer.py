@@ -204,10 +204,15 @@ def _build_payload(obj: Mapping) -> Payload | None:
             name = item.get("name", "unknown")
             module = item.get("module", "")
             qn = f"{module}:{name}" if module else name
+        try:
+            score = float(item.get("score", 1.0))
+        except (ValueError, TypeError):
+            score = 1.0
+            
         symbols.append(Symbol(
             qualified_name=str(qn),
             kind=str(item.get("kind", item.get("type", "function"))),
-            score=float(item.get("score", 1.0)),
+            score=score,
             provenance=str(item.get("provenance", "bridge")),
             distance=int(item.get("distance", 0)),
         ))

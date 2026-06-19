@@ -36,7 +36,7 @@ import os
 from typing import Any, AsyncIterator
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request, BackgroundTasks
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import asyncio
@@ -177,31 +177,46 @@ async def _stream_openai(
         tokenizer = TokenizerFactory.get_tokenizer(model)
         
     async with httpx.AsyncClient(timeout=120) as client:
-        async with client.stream("POST", url, headers=headers, json=body) as resp:
-            async for line in resp.aiter_lines():
-                if line:
-                    # 4. Streaming Circuit Breaker
-                    if max_spend is not None and tokenizer is not None:
-                        if line.startswith("data: ") and line != "data: [DONE]":
-                            try:
-                                data = json.loads(line[6:])
-                                delta_text = data["choices"][0]["delta"].get("content", "")
-                                if delta_text:
-                                    accumulated_tokens += len(tokenizer.encode(delta_text))
-                                    
-                                    # Calculate cost (using estimate_savings_usd logic or basic tier rates)
-                                    # Assume roughly $0.015 per 1k output tokens for gpt-4o
-                                    cost = (accumulated_tokens / 1000.0) * 0.015 
-                                    
-                                    if cost > max_spend:
-                                        log.warning(f"Circuit Breaker Triggered! Cost ${cost:.4f} exceeded budget ${max_spend}")
-                                        yield f'data: {{"choices": [{{"delta": {{"content": "\\n\\n[AXON BUDGET EXCEEDED - STREAM TERMINATED]"}}}}]}}\n\n'
-                                        yield "data: [DONE]\n\n"
-                                        break
-                            except (json.JSONDecodeError, KeyError, IndexError):
-                                pass
+        current_model = model
+        for attempt in range(2):
+            try:
+                async with client.stream("POST", url, headers=headers, json=body) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if line:
+                            # 4. Streaming Circuit Breaker
+                            if max_spend is not None and tokenizer is not None:
+                                if line.startswith("data: ") and line != "data: [DONE]":
+                                    try:
+                                        data = json.loads(line[6:])
+                                        delta_text = data["choices"][0]["delta"].get("content", "")
+                                        if delta_text:
+                                            accumulated_tokens += len(tokenizer.encode(delta_text))
+                                            
+                                            # Calculate true output cost for the specific model
+                                            from services.pricing import estimate_cost_usd
+                                            cost = estimate_cost_usd(accumulated_tokens, current_model, direction="output")
+                                            if cost is None:
+                                                cost = (accumulated_tokens / 1000.0) * 0.015 # fallback
+                                            
+                                            if cost > max_spend:
+                                                log.warning(f"Circuit Breaker Triggered! Cost ${cost:.4f} exceeded budget ${max_spend}")
+                                                yield f'data: {{"choices": [{{"delta": {{"content": "\\n\\n[AXON BUDGET EXCEEDED - STREAM TERMINATED]"}}}}]}}\n\n'
+                                                yield "data: [DONE]\n\n"
+                                                return
+                                    except (json.JSONDecodeError, KeyError, IndexError):
+                                        pass
 
-                    yield f"{line}\n\n"
+                            yield f"{line}\n\n"
+                break # Exit retry loop on success
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (429, 503) and attempt == 0:
+                    fb_model = fallback_model(current_model)
+                    if fb_model != current_model:
+                        body["model"] = fb_model
+                        current_model = fb_model
+                        continue
+                raise # Re-raise if no fallback or second attempt failed
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -225,6 +240,7 @@ async def list_models(authorization: str | None = Header(None)) -> JSONResponse:
 async def chat_completions(
     req: ChatCompletionRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     authorization: str | None = Header(None),
 ) -> Any:
     """OpenAI-compatible chat completions with automatic token compression.
@@ -283,6 +299,11 @@ async def chat_completions(
         "Content-Type": "application/json",
     }
 
+    # Add dollar savings if model pricing is known
+    savings_usd = estimate_savings_usd(
+        metrics["original_tokens"], metrics["compressed_tokens"], req.model
+    )
+
     savings_header = json.dumps(metrics)
     url = f"{_OPENAI_BASE}/chat/completions"
 
@@ -290,10 +311,14 @@ async def chat_completions(
         max_spend_str = request.headers.get("X-Axon-Max-Spend")
         max_spend = float(max_spend_str) if max_spend_str else None
         
+        headers_to_send = {"x-axon-metrics": savings_header}
+        if savings_usd is not None:
+            headers_to_send["x-axon-cost-saved-usd"] = str(savings_usd)
+            
         return StreamingResponse(
             _stream_openai(url, upstream_headers, upstream_body, max_spend, routed_model),
             media_type="text/event-stream",
-            headers={"x-axon-metrics": savings_header},
+            headers=headers_to_send,
         )
 
     async with httpx.AsyncClient(timeout=120, follow_redirects=False) as client:
@@ -326,19 +351,11 @@ async def chat_completions(
 
     # Spawn background fact extraction if we have user text
     if session_id and user_text and memory_store:
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(extract_facts_async(session_id, user_text, api_key, memory_store))
-        except RuntimeError:
-            pass
+        background_tasks.add_task(extract_facts_async, session_id, user_text, api_key, memory_store)
 
     response = JSONResponse(status_code=resp.status_code, content=resp_json)
     response.headers["x-axon-metrics"] = savings_header
 
-    # Add dollar savings if model pricing is known
-    savings_usd = estimate_savings_usd(
-        metrics["original_tokens"], metrics["compressed_tokens"], req.model
-    )
     if savings_usd is not None:
         response.headers["x-axon-cost-saved-usd"] = str(savings_usd)
 

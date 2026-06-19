@@ -170,25 +170,36 @@ async def _stream_openai(
 ) -> AsyncIterator[str]:
     """Async generator that proxies an OpenAI SSE stream with an optional budget circuit breaker."""
     accumulated_tokens = 0
+    tokenizer = None
     
+    if max_spend is not None:
+        from services.tokenizer_factory import TokenizerFactory
+        tokenizer = TokenizerFactory.get_tokenizer(model)
+        
     async with httpx.AsyncClient(timeout=120) as client:
         async with client.stream("POST", url, headers=headers, json=body) as resp:
             async for line in resp.aiter_lines():
                 if line:
                     # 4. Streaming Circuit Breaker
-                    if max_spend is not None:
-                        # Very crude heuristic: 1 line delta ~ 1-5 tokens. We count characters as roughly 4 chars = 1 token.
-                        accumulated_tokens += len(line) / 4.0
-                        
-                        # Calculate cost (using estimate_savings_usd logic or basic tier rates)
-                        # Assume roughly $0.015 per 1k output tokens for gpt-4o
-                        cost = (accumulated_tokens / 1000.0) * 0.015 
-                        
-                        if cost > max_spend:
-                            log.warning(f"Circuit Breaker Triggered! Cost ${cost:.4f} exceeded budget ${max_spend}")
-                            yield f'data: {{"choices": [{{"delta": {{"content": "\\n\\n[AXON BUDGET EXCEEDED - STREAM TERMINATED]"}}}}]}}\n\n'
-                            yield "data: [DONE]\n\n"
-                            break
+                    if max_spend is not None and tokenizer is not None:
+                        if line.startswith("data: ") and line != "data: [DONE]":
+                            try:
+                                data = json.loads(line[6:])
+                                delta_text = data["choices"][0]["delta"].get("content", "")
+                                if delta_text:
+                                    accumulated_tokens += len(tokenizer.encode(delta_text))
+                                    
+                                    # Calculate cost (using estimate_savings_usd logic or basic tier rates)
+                                    # Assume roughly $0.015 per 1k output tokens for gpt-4o
+                                    cost = (accumulated_tokens / 1000.0) * 0.015 
+                                    
+                                    if cost > max_spend:
+                                        log.warning(f"Circuit Breaker Triggered! Cost ${cost:.4f} exceeded budget ${max_spend}")
+                                        yield f'data: {{"choices": [{{"delta": {{"content": "\\n\\n[AXON BUDGET EXCEEDED - STREAM TERMINATED]"}}}}]}}\n\n'
+                                        yield "data: [DONE]\n\n"
+                                        break
+                            except (json.JSONDecodeError, KeyError, IndexError):
+                                pass
 
                     yield f"{line}\n\n"
 

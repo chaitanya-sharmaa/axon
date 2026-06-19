@@ -18,6 +18,7 @@ axon serve
 Axon is built from the ground up for high-concurrency, low-latency, and exact precision. The core proxy is written in modern asynchronous Python, utilizing the following technologies:
 
 * **FastAPI & Uvicorn**: Powers the high-throughput asynchronous `/v1` proxy layer, ensuring the middleware adds less than 50ms of latency per request.
+* **LiteLLM**: Core routing engine seamlessly translating compressed payloads to 100+ LLM providers (Anthropic, Gemini, Ollama, Bedrock) transparently.
 * **HTTPX (Async)**: Handles the streaming Server-Sent Events (SSE) connections to OpenAI/Anthropic, allowing real-time proxying without buffering.
 * **Tiktoken (Rust)**: Used natively to count exact token lengths in real-time during stream generation, completely avoiding inaccurate heuristics.
 * **aiosqlite & Redis**: Provides unified `X-Session-ID` state management. SQLite provides zero-setup local persistence (WAL mode), while Redis allows horizontal scaling across multiple nodes.
@@ -32,7 +33,8 @@ Axon is built from the ground up for high-concurrency, low-latency, and exact pr
 | **Streaming token budget blowouts** | The Streaming Circuit Breaker exactly counts tokens mid-stream and forcefully terminates the TCP connection if the budget is hit. |
 | **Sessions re-send the same data** | Multi-turn deduplication (TOON/TRON): Axon remembers your session state and only transmits the *deltas* (changed fields) after Turn 1. |
 | **Hard to observe token usage** | Every response includes savings %, precise token counts, and estimated dollar cost saved injected as `x-axon-metrics` headers. |
-| **Integrating a new tool takes work** | Drop-in OpenAI-compatible proxy. Just change `base_url` to Axon and everything instantly works. |
+| **Integrating a new tool takes work** | Drop-in OpenAI-compatible proxy and native Python SDK wrapper. Just change `base_url` or use `axon.patch()`. |
+| **Vendor lock-in** | Powered by LiteLLM — switch from `gpt-4o` to `claude-3-5-sonnet` just by changing the string, Axon translates it. |
 
 ### System Architecture Pipeline
 
@@ -156,22 +158,24 @@ If you don't want to run a separate proxy server, you can use Axon as a native P
 
 ```python
 import openai
-from bridge import patch
+from axon import patch
 
-# 1. Create your normal client
-client = openai.OpenAI(api_key="sk-your-real-key")
+# 1. Create your normal sync or async client
+client = openai.AsyncOpenAI(api_key="sk-your-real-key")
 
 # 2. Patch it with Axon
 client = patch(client)
 
 # 3. Use it exactly as before! Your agent's payloads are now automatically compressed.
-response = client.chat.completions.create(
+response = await client.chat.completions.create(
     model="gpt-4o",
-    messages=[{"role": "user", "content": "Huge payload..."}]
+    messages=[{"role": "user", "content": "Huge payload..."}],
+    stream=True # Streaming is fully supported!
 )
 
-# See how much you saved!
-print(f"Savings: {response._axon_metrics['savings_pct']}%")
+# Axon's patched SDK automatically handles JSON Healing retries if response_format="json_object" is used!
+async for chunk in response:
+    print(chunk.choices[0].delta.content)
 ```
 
 ### Option 2 — Proxy Server (Docker)
@@ -285,11 +289,12 @@ import openai
 
 client = openai.OpenAI(
     base_url="http://localhost:8080/v1",   # ← only change
-    api_key="any-value",
+    api_key="your-anthropic-key",          # ← Automatically translates!
 )
 
+# You can route to ANY of the 100+ providers just by changing the model string!
 response = client.chat.completions.create(
-    model="gpt-4o",
+    model="claude-3-5-sonnet", # Axon translates the OpenAI schema to Anthropic seamlessly
     messages=[{"role": "user", "content": "Summarise the latest earnings report..."}],
 )
 
@@ -298,7 +303,7 @@ response = client.chat.completions.create(
 # x-axon-cost-saved-usd: 0.00156
 ```
 
-Axon compresses your `messages[]`, forwards to the real OpenAI API, and returns the standard response. Streaming (`stream=True`) is fully supported.
+Axon compresses your `messages[]`, forwards them via LiteLLM to the target provider, and returns the standard response. Streaming (`stream=True`) is fully supported and protected by the circuit breaker.
 
 ---
 

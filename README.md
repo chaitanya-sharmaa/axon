@@ -13,17 +13,28 @@ axon serve
 
 ---
 
-## Why Axon?
+## How It Was Made (Technology Stack)
 
-| Problem | Axon's solution |
+Axon is built from the ground up for high-concurrency, low-latency, and exact precision. The core proxy is written in modern asynchronous Python, utilizing the following technologies:
+
+* **FastAPI & Uvicorn**: Powers the high-throughput asynchronous `/v1` proxy layer, ensuring the middleware adds less than 50ms of latency per request.
+* **HTTPX (Async)**: Handles the streaming Server-Sent Events (SSE) connections to OpenAI/Anthropic, allowing real-time proxying without buffering.
+* **Tiktoken (Rust)**: Used natively to count exact token lengths in real-time during stream generation, completely avoiding inaccurate heuristics.
+* **aiosqlite & Redis**: Provides unified `X-Session-ID` state management. SQLite provides zero-setup local persistence (WAL mode), while Redis allows horizontal scaling across multiple nodes.
+* **Pillow**: Silently intercepts and downscales massive `base64` vision payloads before they reach the LLM, slashing vision costs.
+* **Strategy Plugin System**: The core `TokenOptimizer` dynamically benchmarks 8 different custom encoding algorithms (Generic, TOON, TRON, Graph) in parallel to find the mathematical cheapest payload.
+
+## Core Benefits
+
+| Problem | Axon's Solution |
 |---|---|
-| LLM API bills are high | Auto-picks the cheapest encoding per call — Axon, TOON (delta), TRON (session), schema-values |
-| Sessions re-send the same data | Multi-turn deduplication: only changed fields are transmitted after turn 1 |
-| Hard to observe token usage | Every response includes savings %, token counts, and optional dollar cost |
-| Integrating a new tool takes work | Drop-in OpenAI-compatible `/v1/chat/completions` proxy — change one URL |
-| Complex deployment | Single Docker image, SQLite default, Redis for horizontal scale |
+| **LLM API bills are out of control** | Auto-picks the cheapest structural encoding per call — reducing raw token counts by up to 70%. |
+| **Streaming token budget blowouts** | The Streaming Circuit Breaker exactly counts tokens mid-stream and forcefully terminates the TCP connection if the budget is hit. |
+| **Sessions re-send the same data** | Multi-turn deduplication (TOON/TRON): Axon remembers your session state and only transmits the *deltas* (changed fields) after Turn 1. |
+| **Hard to observe token usage** | Every response includes savings %, precise token counts, and estimated dollar cost saved injected as `x-axon-metrics` headers. |
+| **Integrating a new tool takes work** | Drop-in OpenAI-compatible proxy. Just change `base_url` to Axon and everything instantly works. |
 
-### Architecture Pipeline
+### System Architecture Pipeline
 
 Axon acts as an intelligent firewall for your tokens. Every request goes through a rigorous gauntlet of caching, pruning, and structural compression before it ever hits the LLM.
 
@@ -84,8 +95,34 @@ Axon implements several rigorous structural heuristics to squeeze every token ou
 
 * **Vision Payload Downscaling**: Automatically intercepts `base64` images in your payload. If an image exceeds the optimal token tier limits (e.g., 4K resolution), Axon uses `Pillow` to silently downscale it to 768px/512px while preserving aspect ratio, slashing Vision token costs by up to 85%.
 * **LLMLingua Text Pruning**: (Opt-in via `AXON_PRUNE_TEXT=true`) For massive prompts over 2,000 characters, Axon heuristically condenses whitespace and removes structural English stop-words ("the", "is", "a"), shrinking raw text by up to 30% while preserving semantics.
-* **Streaming Circuit Breaker**: Prevent runaway LLM generations from burning your budget. Pass `X-Axon-Max-Spend: 0.05` to the `/v1/chat/completions` proxy, and Axon will forcefully terminate the TCP stream the millisecond your token cost exceeds $0.05.
+* **Streaming Circuit Breaker**: Prevent runaway LLM generations from burning your budget. Pass `X-Axon-Max-Spend: 0.05` to the `/v1/chat/completions` proxy. Axon will use `tiktoken` to count every incoming chunk and forcefully terminate the TCP stream the millisecond your token cost exceeds $0.05.
 * **Native Provider Prompt Caching**: Automatically wraps your largest text blocks in Anthropic's specific `{"cache_control": {"type": "ephemeral"}}` schema when routing to `claude-3` models, letting you hit their 90% cheaper cache tier with zero code changes.
+
+#### How the Streaming Circuit Breaker Works
+
+```mermaid
+sequenceDiagram
+    participant App as Client Application
+    participant Axon as Axon Bridge
+    participant LLM as OpenAI (Upstream)
+
+    App->>Axon: POST /v1/chat/completions<br/>(stream: true, X-Axon-Max-Spend: 0.05)
+    Axon->>Axon: Compress Payload
+    Axon->>LLM: POST /v1/chat/completions
+    
+    loop Server-Sent Events (SSE)
+        LLM-->>Axon: data: {"choices": [{"delta": {"content": "Hello"}}]}
+        Axon->>Axon: Extract content, run `tiktoken.encode("Hello")`
+        Axon->>Axon: Calculate exact running cost (e.g., $0.01)
+        Axon-->>App: Proxy raw SSE chunk
+        
+        opt Cost exceeds Max Spend ($0.05)
+            Axon-->>App: data: {"delta": {"content": "\n\n[BUDGET EXCEEDED]"}}
+            Axon-->>App: data: [DONE]
+            Axon-xLLM: Terminate TCP Connection (Save $)
+        end
+    end
+```
 
 ---
 

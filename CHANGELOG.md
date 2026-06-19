@@ -9,6 +9,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Asynchronous Swarm Routing** (`/v1/swarm/completions`) — concurrent multi-model fan-out with automatic LLM synthesis and SSE streaming
 - **OpenAI-compatible proxy** (`/v1/chat/completions`, `/v1/models`, `/v1/embeddings`) — point any OpenAI SDK client at Axon for automatic token compression with zero code changes
 - **Streaming support** — `/v1/chat/completions` passes through SSE streams from upstream
 - **Batch endpoint** (`POST /batch`) — compress up to 50 payloads in a single HTTP call

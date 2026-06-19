@@ -30,6 +30,20 @@ slowapi>=0.1.9         # per-IP / per-key rate limiting for FastAPI
 typer>=0.12.0          # axon serve / axon benchmark / axon encode
 rich>=13.0.0           # pretty CLI output (used by typer)
 
+# ── Observability ─────────────────────────────────────────────────────────────
+opentelemetry-api>=1.24.0
+opentelemetry-sdk>=1.24.0
+opentelemetry-instrumentation-fastapi>=0.45b0
+opentelemetry-exporter-prometheus>=0.45b0
+prometheus-client>=0.20.0
+
+# ── Agentic Features ──────────────────────────────────────────────────────────
+beautifulsoup4>=4.12.0 # DOM to Markdown
+markdownify>=0.11.6    # DOM to Markdown
+rank_bm25>=0.2.2       # Semantic tool pruning
+tenacity>=8.2.3        # Resilience retries
+litellm>=1.40.0        # Universal proxy routing
+
 # ── Optional — install only when needed ──────────────────────────────────────
 # Redis backend:   pip install "axon-bridge[redis]"   → redis>=5.0.0
 # Claude models:  pip install "axon-bridge[claude]"  → anthropic>=0.28.0

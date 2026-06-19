@@ -95,34 +95,8 @@ Axon implements several rigorous structural heuristics to squeeze every token ou
 
 * **Vision Payload Downscaling**: Automatically intercepts `base64` images in your payload. If an image exceeds the optimal token tier limits (e.g., 4K resolution), Axon uses `Pillow` to silently downscale it to 768px/512px while preserving aspect ratio, slashing Vision token costs by up to 85%.
 * **LLMLingua Text Pruning**: (Opt-in via `AXON_PRUNE_TEXT=true`) For massive prompts over 2,000 characters, Axon heuristically condenses whitespace and removes structural English stop-words ("the", "is", "a"), shrinking raw text by up to 30% while preserving semantics.
-* **Streaming Circuit Breaker**: Prevent runaway LLM generations from burning your budget. Pass `X-Axon-Max-Spend: 0.05` to the `/v1/chat/completions` proxy. Axon will use `tiktoken` to count every incoming chunk and forcefully terminate the TCP stream the millisecond your token cost exceeds $0.05.
+* **Streaming Circuit Breaker**: Prevent runaway LLM generations from burning your budget. By passing `X-Axon-Max-Spend: 0.05` to the `/v1/chat/completions` proxy, Axon will safely halt the stream if the cost threshold is reached, protecting you from infinite loops or prompt-injection attacks.
 * **Native Provider Prompt Caching**: Automatically wraps your largest text blocks in Anthropic's specific `{"cache_control": {"type": "ephemeral"}}` schema when routing to `claude-3` models, letting you hit their 90% cheaper cache tier with zero code changes.
-
-#### How the Streaming Circuit Breaker Works
-
-```mermaid
-sequenceDiagram
-    participant App as Client Application
-    participant Axon as Axon Bridge
-    participant LLM as OpenAI (Upstream)
-
-    App->>Axon: POST /v1/chat/completions<br/>(stream: true, X-Axon-Max-Spend: 0.05)
-    Axon->>Axon: Compress Payload
-    Axon->>LLM: POST /v1/chat/completions
-    
-    loop Server-Sent Events (SSE)
-        LLM-->>Axon: data: {"choices": [{"delta": {"content": "Hello"}}]}
-        Axon->>Axon: Extract content, run `tiktoken.encode("Hello")`
-        Axon->>Axon: Calculate exact running cost (e.g., $0.01)
-        Axon-->>App: Proxy raw SSE chunk
-        
-        opt Cost exceeds Max Spend ($0.05)
-            Axon-->>App: data: {"delta": {"content": "\n\n[BUDGET EXCEEDED]"}}
-            Axon-->>App: data: [DONE]
-            Axon-xLLM: Terminate TCP Connection (Save $)
-        end
-    end
-```
 
 ---
 

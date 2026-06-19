@@ -47,6 +47,13 @@ def mock_httpx_request():
 
 
 @pytest.fixture
+def mock_litellm_acompletion():
+    """Mocks litellm.acompletion."""
+    with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion:
+        yield mock_acompletion
+
+
+@pytest.fixture
 def mock_redis():
     """Mocks redis.asyncio.from_url to prevent actual Redis connections."""
     with patch("redis.asyncio.from_url") as mock_from_url:

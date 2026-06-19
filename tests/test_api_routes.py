@@ -185,7 +185,7 @@ def test_openapi_schema(client):
     assert res2.status_code == 200
 
 def test_openapi_schema_with_logo(client):
-    from app import settings as app_settings
+    from core.settings import settings as app_settings
     from app import app
     old_logo = app_settings.openapi_logo_url
     object.__setattr__(app_settings, "openapi_logo_url", "http://logo.png")

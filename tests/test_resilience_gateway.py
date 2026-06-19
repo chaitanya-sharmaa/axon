@@ -15,24 +15,19 @@ def test_json_healing_loop(monkeypatch):
     call_count = 0
     captured_bodies = []
 
-    class MockResponse:
-        def __init__(self, content, status_code=200):
-            self._content = content
-            self.status_code = status_code
-
-        def json(self):
-            return self._content
-            
-        def raise_for_status(self):
-            pass
-
-    async def mock_post(self_obj, url, headers=None, json=None, **kwargs):
+    async def mock_acompletion(*args, **kwargs):
         nonlocal call_count
-        captured_bodies.append(copy.deepcopy(json))
+        captured_bodies.append(copy.deepcopy(kwargs))
         call_count += 1
         
+        class MockResponse:
+            def __init__(self, content):
+                self._content = content
+            def model_dump(self):
+                return self._content
+                
         if call_count == 1:
-            # Return malformed JSON string inside the valid OpenAI response envelope
+            # Return malformed JSON string
             return MockResponse({
                 "choices": [{"message": {"content": "{ \"key\": \"value\", "}}]
             })
@@ -42,7 +37,7 @@ def test_json_healing_loop(monkeypatch):
                 "choices": [{"message": {"content": "{\"key\": \"value\"}"}}]
             })
 
-    monkeypatch.setattr("httpx.AsyncClient.post", mock_post)
+    monkeypatch.setattr("litellm.acompletion", mock_acompletion)
 
     response = client.post(
         "/v1/chat/completions",
@@ -58,6 +53,7 @@ def test_json_healing_loop(monkeypatch):
     assert call_count == 2
     
     # The first request was the original payload
+    print("Captured body:", captured_bodies[0])
     assert len(captured_bodies[0]["messages"]) == 1
     
     # The second request included the JSON Healing prompt
@@ -71,36 +67,36 @@ def test_circuit_breaker(monkeypatch):
     """
     Mock the upstream SSE stream and ensure it terminates when cost exceeds max_spend.
     """
+    class MockChunk:
+        def __init__(self, content):
+            class Delta:
+                def __init__(self, c):
+                    self.content = c
+            class Choice:
+                def __init__(self, d):
+                    self.delta = d
+            self.choices = [Choice(Delta(content))]
+            self._content = content
+        def model_dump_json(self, **kwargs):
+            return f'{{"choices": [{{"delta": {{"content": "{self._content}"}}}}]}}'
+
     class MockStreamResp:
         def __init__(self):
             pass
-            
-        async def __aenter__(self):
+        def __aiter__(self):
             return self
-            
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            pass
-            
-        def raise_for_status(self):
-            pass
-            
-        async def aiter_lines(self):
-            yield 'data: {"choices": [{"delta": {"content": " expensive word"}}]}'
-            yield 'data: {"choices": [{"delta": {"content": " expensive word"}}]}'
-            yield 'data: {"choices": [{"delta": {"content": " expensive word"}}]}'
-            
-    class MockStreamContext:
-        def __init__(self):
-            pass
-        async def __aenter__(self):
-            return MockStreamResp()
-        async def __aexit__(self, *args):
-            pass
+        async def __anext__(self):
+            if not hasattr(self, 'count'):
+                self.count = 0
+            if self.count >= 3:
+                raise StopAsyncIteration
+            self.count += 1
+            return MockChunk(" expensive word")
 
-    def mock_stream(self_obj, method, url, **kwargs):
-        return MockStreamContext()
+    async def mock_acompletion(*args, **kwargs):
+        return MockStreamResp()
 
-    monkeypatch.setattr("httpx.AsyncClient.stream", mock_stream)
+    monkeypatch.setattr("litellm.acompletion", mock_acompletion)
 
     response = client.post(
         "/v1/chat/completions",

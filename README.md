@@ -150,14 +150,39 @@ graph LR
 
 ## Quickstart
 
-### Option 1 — Docker
+### Option 1 — Native Python Library (Zero Infrastructure)
+
+If you don't want to run a separate proxy server, you can use Axon as a native Python library! Just wrap your existing OpenAI client, and Axon will seamlessly intercept, compress, and forward requests using your existing API keys.
+
+```python
+import openai
+from bridge import patch
+
+# 1. Create your normal client
+client = openai.OpenAI(api_key="sk-your-real-key")
+
+# 2. Patch it with Axon
+client = patch(client)
+
+# 3. Use it exactly as before! Your agent's payloads are now automatically compressed.
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Huge payload..."}]
+)
+
+# See how much you saved!
+print(f"Savings: {response._axon_metrics['savings_pct']}%")
+```
+
+### Option 2 — Proxy Server (Docker)
+
+If you want to proxy multiple applications centrally:
 
 ```bash
 docker compose up
-# Server is live at http://localhost:8080
 ```
 
-### Option 2 — pip install
+### Option 3 — Proxy Server (pip install)
 
 1. Install the bridge:
    ```bash

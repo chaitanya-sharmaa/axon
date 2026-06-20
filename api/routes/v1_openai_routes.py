@@ -161,9 +161,11 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
             except Exception:
                 pass
 
+            # Pass a message-specific session ID so the optimizer tracks state independently per message position
+            msg_session_id = f"{session_id}_msg{idx}" if session_id else None
             result = axon_service._optimizer.optimize(
                 {"role": msg.role, "content": parsed_content},
-                session_id=session_id,
+                session_id=msg_session_id,
             )
             original_tokens += result.json_baseline_tokens
             compressed_tokens += result.winner.token_estimate
@@ -313,7 +315,7 @@ async def chat_completions(
     if not api_key:
         api_key = os.getenv("OPENAI_API_KEY", "")
 
-    session_id = request.headers.get("X-Session-ID")
+    session_id = request.headers.get("X-Axon-Session-ID") or request.headers.get("X-Session-ID")
     tenant_id = request.headers.get("X-Axon-Tenant-ID")
 
     # Quota Enforcement
@@ -362,10 +364,14 @@ async def chat_completions(
     upstream_body["messages"] = compressed_messages
     upstream_body["model"] = routed_model
 
-    upstream_headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+    # Use the appropriate header based on key format
+    if api_key.startswith("AQ."):
+        # New Authorization keys must be sent via the x-goog-api-key header
+        upstream_headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
+    else:
+        # Traditional keys (or OpenAI keys) use the standard Authorization header
+        upstream_headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
 
     # Add dollar savings if model pricing is known
     savings_usd = estimate_savings_usd(
@@ -373,7 +379,14 @@ async def chat_completions(
     )
 
     savings_header = json.dumps(metrics)
-    url = f"{_OPENAI_BASE}/chat/completions"
+    # Choose the correct endpoint based on the model type
+    if routed_model.startswith("gemini/"):
+        # Gemini models use the generateContent endpoint under /v1/models/<model>:generateContent
+        model_name = routed_model.split("/")[1]
+        url = f"{_OPENAI_BASE}/models/{model_name}:generateContent"
+    else:
+        # OpenAI-compatible models keep using the chat completions endpoint
+        url = f"{_OPENAI_BASE}/chat/completions"
 
     if req.stream:
         max_spend_str = request.headers.get("X-Axon-Max-Spend")
@@ -397,17 +410,62 @@ async def chat_completions(
     async def _execute_post(current_body):
         model = current_body.pop("model")
         messages = current_body.pop("messages")
-        response = await litellm.acompletion(
-            model=model,
-            messages=messages,
-            api_key=api_key,
-            num_retries=2,
-            **current_body
-        )
-        # Restore them for the healing loop if needed
-        current_body["model"] = model
-        current_body["messages"] = messages
-        return response.model_dump()
+        try:
+            # For Gemini models we bypass litellm and call the API directly
+            if routed_model.startswith("gemini/"):
+                # Build Gemini request payload
+                gemini_payload = {
+                    "contents": [
+                        {"role": "user", "parts": [{"text": msg["content"]}]} for msg in messages
+                    ]
+                }
+                # Send request to Gemini generateContent endpoint
+                import requests
+                gemini_resp = requests.post(url, json=gemini_payload, headers=upstream_headers)
+                gemini_resp.raise_for_status()
+                gemini_data = gemini_resp.json()
+                
+                # Extract text from Gemini response format
+                candidates = gemini_data.get("candidates", [])
+                text = ""
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        text = parts[0].get("text", "")
+                
+                # Translate back to OpenAI standard format
+                return {
+                    "id": "chatcmpl-gemini",
+                    "object": "chat.completion",
+                    "model": routed_model,
+                    "choices": [{
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": text
+                        },
+                        "finish_reason": "stop"
+                    }],
+                    "usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0
+                    }
+                }
+            else:
+                # OpenAI-compatible fallback using litellm
+                response = await litellm.acompletion(
+                    model=model,
+                    messages=messages,
+                    api_key=api_key,
+                    num_retries=2,
+                    **current_body
+                )
+                return response.model_dump()
+        finally:
+            # Restore them for the healing loop or fallback if needed
+            current_body["model"] = model
+            current_body["messages"] = messages
 
     # JSON Healing Loop
     for attempt in range(3):

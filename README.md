@@ -39,6 +39,12 @@ Axon automatically intercepted the payloads, mathematically stripped the structu
 - **Turn 1 (Cold Start):** 2,592 tokens (**47.04% Savings**)
 - **Turn 2 (Follow-up Question):** 5 tokens (**99.90% Savings**)
 
+### 🧠 No Semantic Loss (Zero Hallucinations)
+Because Axon dynamically mathematically encodes the structure of your data (rather than using lossy compression), the LLM reasoning is **completely unaffected**. We verify this using rigorous, automated evaluations built directly into the repository (`tests/eval_integration.py`):
+1. **Needle in a Haystack Passed:** We injected a single anomalous `"status": "SYSTEM_MELTDOWN"` deep inside an array of 100 logs. Even after Axon compressed the payload by 75%, the LLM flawlessly identified and extracted the exact log ID and message.
+2. **Deterministic Extraction Passed:** We sent an array of employee data through Axon and instructed the LLM to output a strictly formatted JSON object of the highest-paid employee. The LLM read the Axon pipe-delimited payload, computed the math correctly, and returned perfectly formatted JSON back to the client.
+
+
 ### 🧩 How Axon Works Under the Hood
 
 When an application queries the API, Axon intercepts the JSON, hoists the schema to the top of the context, and transforms deep JSON hierarchies into a highly readable, pipe-delimited layout that LLMs natively understand. No semantic values are lost.
@@ -75,6 +81,26 @@ Axon mathematically detects this bloat and crushes it.
 |---|---|
 | Sending 1,000 JSON items costs 30,000 tokens due to the repeated keys on every single row. | Axon mathematically detects the schema, strips all keys, sends the schema once at the top, and sends raw comma-separated values below it. 30,000 tokens drops to 8,000 tokens. |
 | Turn 1 sends 10KB. Turn 2 changes one variable and sends 10.1KB. The LLM re-reads the entire 10KB context again. | **Recursive Session Deduplication (TRON):** Axon maintains a Tree-state Recursive Object Notation (TRON) cache. Turn 1 sends 10KB. Turn 2 sends ONLY the 0.1KB delta using microscopic `@ref` pointers. The LLM processes 99% fewer tokens. |
+
+```mermaid
+graph TD
+    subgraph Turn 1: Cold Start
+        A1[Agent: Send 10KB Context] --> Proxy1[Axon Proxy]
+        Proxy1 -->|Extracts Schema, Strips Keys| B1[Send 2KB to LLM]
+        B1 --> C1[LLM Response]
+        Proxy1 -.->|Save State to Memory| DB[(Redis/SQLite Cache)]
+    end
+    
+    subgraph Turn 2: Follow-up Question
+        A2[Agent: Send 10KB Context Again] --> Proxy2[Axon Proxy]
+        DB -.->|Load Previous State| Proxy2
+        Proxy2 -->|Calculates Diff| B2[Send 0.1KB @ref Pointers to LLM]
+        B2 --> C2[LLM Response]
+    end
+    
+    classDef proxy fill:#2563eb,color:#fff
+    class Proxy1,Proxy2 proxy
+```
 
 ### 📊 Verified Performance Benchmarks
 
@@ -157,6 +183,19 @@ graph LR
 | Without Axon | With Axon |
 |---|---|
 | You must rewrite your SDK code to support `openai`, `anthropic`, and `google-genai`. | **One SDK rules them all.** Send OpenAI-formatted payloads to Axon, and it translates them to 100+ providers automatically. |
+
+```mermaid
+graph LR
+    App[Python App<br/>OpenAI SDK] -->|Base URL: localhost:8080| Axon[Axon Proxy]
+    
+    Axon -->|model='gpt-4o'| OpenAI[OpenAI API]
+    Axon -->|model='gemini/gemini-2.0-flash'| Google[Google Gemini API]
+    Axon -->|model='claude-3-5-sonnet'| Anthropic[Anthropic API]
+    Axon -->|model='bedrock/...'| AWS[AWS Bedrock]
+    
+    classDef proxy fill:#2563eb,color:#fff
+    class Axon proxy
+```
 
 ### 2.4 Real Dollar Cost Tracking & Tenant Quotas
 

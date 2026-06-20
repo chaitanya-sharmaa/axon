@@ -76,6 +76,26 @@ Axon mathematically detects this bloat and crushes it.
 | Sending 1,000 JSON items costs 30,000 tokens due to the repeated keys on every single row. | Axon mathematically detects the schema, strips all keys, sends the schema once at the top, and sends raw comma-separated values below it. 30,000 tokens drops to 8,000 tokens. |
 | Turn 1 sends 10KB. Turn 2 changes one variable and sends 10.1KB. The LLM re-reads the entire 10KB context again. | **Recursive Session Deduplication (TRON):** Axon maintains a Tree-state Recursive Object Notation (TRON) cache. Turn 1 sends 10KB. Turn 2 sends ONLY the 0.1KB delta using microscopic `@ref` pointers. The LLM processes 99% fewer tokens. |
 
+```mermaid
+graph TD
+    subgraph Turn 1: Cold Start
+        A1[Agent: Send 10KB Context] --> Proxy1[Axon Proxy]
+        Proxy1 -->|Extracts Schema, Strips Keys| B1[Send 2KB to LLM]
+        B1 --> C1[LLM Response]
+        Proxy1 -.->|Save State to Memory| DB[(Redis/SQLite Cache)]
+    end
+    
+    subgraph Turn 2: Follow-up Question
+        A2[Agent: Send 10KB Context Again] --> Proxy2[Axon Proxy]
+        DB -.->|Load Previous State| Proxy2
+        Proxy2 -->|Calculates Diff| B2[Send 0.1KB @ref Pointers to LLM]
+        B2 --> C2[LLM Response]
+    end
+    
+    classDef proxy fill:#2563eb,color:#fff
+    class Proxy1,Proxy2 proxy
+```
+
 ### 📊 Verified Performance Benchmarks
 
 Axon Bridge rigorously benchmarks every payload in real-time. Here are the observed token savings and proxy latency (measured across cold vs multi-turn sessions):
@@ -157,6 +177,19 @@ graph LR
 | Without Axon | With Axon |
 |---|---|
 | You must rewrite your SDK code to support `openai`, `anthropic`, and `google-genai`. | **One SDK rules them all.** Send OpenAI-formatted payloads to Axon, and it translates them to 100+ providers automatically. |
+
+```mermaid
+graph LR
+    App[Python App<br/>OpenAI SDK] -->|Base URL: localhost:8080| Axon[Axon Proxy]
+    
+    Axon -->|model='gpt-4o'| OpenAI[OpenAI API]
+    Axon -->|model='gemini/gemini-2.0-flash'| Google[Google Gemini API]
+    Axon -->|model='claude-3-5-sonnet'| Anthropic[Anthropic API]
+    Axon -->|model='bedrock/...'| AWS[AWS Bedrock]
+    
+    classDef proxy fill:#2563eb,color:#fff
+    class Axon proxy
+```
 
 ### 2.4 Real Dollar Cost Tracking & Tenant Quotas
 

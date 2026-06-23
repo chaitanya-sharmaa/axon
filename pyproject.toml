@@ -7,12 +7,12 @@ name = "axon-bridge"
 version = "0.3.0"
 description = "Token-efficient middleware for LLM APIs — automatically picks the cheapest encoding (Axon, TOON, TRON) to reduce API costs by up to 70%."
 authors = [
-    { name = "Chaitanya Sharma", email = "chaitanyasharmaa@example.com" }
+    { name = "Chaitanya Sharma", email = "chaitanyasharma04uk@gmail.com" }
 ]
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-keywords = ["llm", "tokens", "compression", "openai", "anthropic", "middleware", "fastapi"]
+keywords = ["llm", "tokens", "compression", "openai", "anthropic", "middleware", "fastapi", "token saving", "token reduction", "llm cost reduction"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -46,6 +46,8 @@ dependencies = [
     "rank_bm25>=0.2.2",
     "tenacity>=8.2.3",
     "litellm>=1.40.0",
+    "jsonschema>=4.20.0",
+    "jinja2>=3.1.0",
 ]
 
 [project.optional-dependencies]

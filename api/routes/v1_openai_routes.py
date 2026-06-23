@@ -48,10 +48,13 @@ from core.app_config import axon_service, memory_store
 from core.settings import settings
 from services.pricing import estimate_savings_usd, estimate_cost_usd
 from services.semantic_cache import semantic_cache
-from services.smart_router import route_model, fallback_model
+from services.smart_router import route_model, fallback_model, get_load_balanced_key
 from services.fact_extractor import extract_facts_async
 from services.vision_optimizer import downscale_base64_image
 from services.text_pruner import prune_text
+from services.prompt_firewall import prompt_firewall
+from services.pii_redactor import pii_redactor
+from services.schema_validator import schema_validator
 
 from opentelemetry import trace, metrics
 
@@ -183,17 +186,29 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
         compressed.append(d)
 
     # 3. Native Provider Prompt Caching (Anthropic)
-    if model_name and "claude-3" in model_name and largest_msg_idx != -1:
-        # Anthropic supports 'ephemeral' caching on specific blocks
-        target_msg = compressed[largest_msg_idx]
-        if isinstance(target_msg["content"], str):
-            target_msg["content"] = [
-                {
-                    "type": "text", 
-                    "text": target_msg["content"], 
-                    "cache_control": {"type": "ephemeral"}
-                }
-            ]
+    if model_name and "claude-3" in model_name:
+        # Cache the largest message
+        if largest_msg_idx != -1:
+            target_msg = compressed[largest_msg_idx]
+            if isinstance(target_msg["content"], str):
+                target_msg["content"] = [
+                    {
+                        "type": "text", 
+                        "text": target_msg["content"], 
+                        "cache_control": {"type": "ephemeral"}
+                    }
+                ]
+        # Also cache the system prompt if present and not the largest message
+        for idx, msg in enumerate(compressed):
+            if msg["role"] == "system" and idx != largest_msg_idx and isinstance(msg["content"], str) and len(msg["content"]) > 100:
+                msg["content"] = [
+                    {
+                        "type": "text", 
+                        "text": msg["content"], 
+                        "cache_control": {"type": "ephemeral"}
+                    }
+                ]
+                break
 
     savings_pct = round(
         (1 - compressed_tokens / max(1, original_tokens)) * 100, 2
@@ -314,6 +329,8 @@ async def chat_completions(
     api_key = (authorization or "").removeprefix("Bearer ").strip()
     if not api_key:
         api_key = os.getenv("OPENAI_API_KEY", "")
+        
+    api_key = get_load_balanced_key(api_key)
 
     session_id = request.headers.get("X-Axon-Session-ID") or request.headers.get("X-Session-ID")
     tenant_id = request.headers.get("X-Axon-Tenant-ID")
@@ -333,8 +350,18 @@ async def chat_completions(
             mem_msg = ChatMessage(role="system", content=f"Memory: [{fact_str}]")
             req.messages.insert(0, mem_msg)
             
-    # Accumulate user messages for background extraction
-    user_text = " ".join([str(m.content) for m in req.messages if m.role == "user" and isinstance(m.content, str)])
+    # Firewall & PII Redaction
+    user_text_parts = []
+    for msg in req.messages:
+        if isinstance(msg.content, str):
+            if msg.role == "user":
+                if not prompt_firewall.scan(msg.content):
+                    raise HTTPException(400, "Prompt Injection Detected. Request blocked.")
+                user_text_parts.append(msg.content)
+            # Apply PII redaction to all messages sent to LLM
+            msg.content = pii_redactor.redact(msg.content)
+
+    user_text = " ".join(user_text_parts)
 
     # Compress messages
     compressed_messages, metrics = _compress_messages(req.messages, session_id, req.model)
@@ -406,6 +433,7 @@ async def chat_completions(
 
     extra = req.model_extra or {}
     requires_json = extra.get("response_format", {}).get("type") == "json_object"
+    json_schema = extra.get("response_format", {}).get("json_schema", {}).get("schema")
     
     async def _execute_post(current_body):
         model = current_body.pop("model")
@@ -492,17 +520,27 @@ async def chat_completions(
             if content:
                 try:
                     json.loads(content)
-                    break # Valid JSON, exit healing loop
+                    
+                    if json_schema:
+                        is_valid, err_msg, _ = schema_validator.validate_output(content, json_schema)
+                        if not is_valid:
+                            raise ValueError(err_msg)
+                            
+                    break # Valid JSON and Schema, exit healing loop
                 except json.JSONDecodeError as e:
-                    if attempt == 2:
-                        break # Give up on last attempt
-                    log.warning(f"JSON Healing Triggered: {e}")
-                    upstream_body["messages"].append({"role": "assistant", "content": content})
-                    upstream_body["messages"].append({
-                        "role": "user", 
-                        "content": f"Your previous output was invalid JSON. Fix this specific syntax error: {str(e)}"
-                    })
-                    continue # Retry LLM with the error appended
+                    err_msg = f"Your previous output was invalid JSON. Fix this syntax error: {str(e)}"
+                except ValueError as e:
+                    err_msg = str(e)
+                    
+                if attempt == 2:
+                    break # Give up on last attempt
+                log.warning(f"JSON Healing Triggered: {err_msg}")
+                upstream_body["messages"].append({"role": "assistant", "content": content})
+                upstream_body["messages"].append({
+                    "role": "user", 
+                    "content": err_msg
+                })
+                continue # Retry LLM with the error appended
         else:
             break # Not requiring JSON, exit loop
     

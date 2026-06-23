@@ -130,3 +130,48 @@ async def test_redis_delete_cleanup(redis_store, mock_redis_client):
     
     # cleanup is no-op
     assert await redis_store.cleanup_old_sessions() == 0
+
+async def test_redis_list_all_sessions(redis_store, mock_redis_client):
+    mock_redis_client.keys.return_value = ["axon:session:sess1", "axon:session:sess2"]
+    mock_redis_client.hgetall.return_value = {"meta": "data"}
+    sessions = await redis_store.list_all_sessions()
+    assert len(sessions) == 2
+    assert sessions[0]["session_id"] == "sess1"
+    assert sessions[1]["session_id"] == "sess2"
+
+async def test_redis_facts(redis_store, mock_redis_client):
+    mock_redis_client.smembers.return_value = ["fact1", "fact2"]
+    await redis_store.add_session_fact("sess1", "fact1")
+    mock_redis_client.sadd.assert_called_with("axon:facts:sess1", "fact1")
+    
+    facts = await redis_store.get_session_facts("sess1")
+    assert "fact1" in facts
+    assert "fact2" in facts
+
+async def test_redis_tenant_quotas(redis_store, mock_redis_client):
+    # Test setting quota
+    await redis_store.set_tenant_quota("tenant1", 10.0)
+    mock_redis_client.hset.assert_called_with("axon:tenant:tenant1", "quota_usd", "10.0")
+    mock_redis_client.hsetnx.assert_called_with("axon:tenant:tenant1", "spend_usd", "0.0")
+    
+    # Test getting quota
+    mock_redis_client.hmget.return_value = [b"10.0", b"2.5"]
+    quota, spend = await redis_store.get_tenant_quota("tenant1")
+    assert quota == 10.0
+    assert spend == 2.5
+    
+    # Test missing quota/spend defaults
+    mock_redis_client.hmget.return_value = [None, None]
+    quota_m, spend_m = await redis_store.get_tenant_quota("tenant_missing")
+    assert quota_m == 0.0
+    assert spend_m == 0.0
+    
+    # Test incrementing spend
+    await redis_store.increment_tenant_spend("tenant1", 1.5)
+    mock_redis_client.hincrbyfloat.assert_called_with("axon:tenant:tenant1", "spend_usd", 1.5)
+    
+    # Zero or negative cost shouldn't increment
+    mock_redis_client.hincrbyfloat.reset_mock()
+    await redis_store.increment_tenant_spend("tenant1", 0.0)
+    mock_redis_client.hincrbyfloat.assert_not_called()
+

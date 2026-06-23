@@ -223,3 +223,91 @@ def test_unified_session_management(optimizer: TokenOptimizer):
     # Key assertion: the already-transmitted symbol is not re-encoded in full
     assert "pkg.A_Super_Duper_Extremely_Long_Name_To_Beat_Header_Cost_For_Graph_Session" not in result.winner.encoded
     assert "pkg.B_Long_Name" in result.winner.encoded
+
+# --- Coverage for Edge Cases & Error Handling ---
+
+def test_estimate_tokens_fallback():
+    # Model doesn't exist, should use heuristic
+    from services.token_optimizer import _estimate_tokens
+    assert _estimate_tokens("test string", model="non-existent-model") >= 1
+
+def test_savings_zero_tokens():
+    from services.token_optimizer import _savings
+    assert _savings(0, 100) == 0.0
+
+def test_prune_context_empty_query_terms():
+    from services.token_optimizer import _prune_context
+    from gcf import Symbol
+    syms = [Symbol("a", "func", 1.0, "", 0)] * 60
+    assert len(_prune_context(syms, "   ")) == 60
+
+def test_build_payload_invalid_symbols():
+    from services.token_optimizer import _build_payload
+    assert _build_payload({"symbols": "not a list"}) is None
+    assert _build_payload({"symbols": ["not a dict"]}) is None
+
+def test_build_payload_name_module_score_fallback():
+    from services.token_optimizer import _build_payload
+    p = _build_payload({
+        "symbols": [
+            {"name": "foo", "module": "bar", "score": "invalid"},
+            {"name": "baz"}
+        ]
+    })
+    assert p is not None
+    assert p.symbols[0].qualified_name == "bar:foo"
+    assert p.symbols[0].score == 1.0
+    assert p.symbols[1].qualified_name == "baz"
+
+def test_build_payload_invalid_edge():
+    from services.token_optimizer import _build_payload
+    p = _build_payload({
+        "symbols": [{"name": "A"}],
+        "edges": ["not a dict", {"source": "A", "target": "B"}]
+    })
+    assert len(p.edges) == 1
+
+def test_build_generic_delta_list_no_change():
+    from services.token_optimizer import _build_generic_delta
+    assert _build_generic_delta([1, 2], [1, 2]) is None
+
+def test_build_generic_session_unknown_type():
+    from services.token_optimizer import _build_generic_session
+    class UnknownType: pass
+    obj = UnknownType()
+    assert _build_generic_session(obj, {}) == obj
+
+def test_build_delta_none():
+    from services.token_optimizer import _build_delta
+    assert _build_delta(None, None) is None
+
+def test_get_gcf_session(optimizer: TokenOptimizer):
+    sess = optimizer.get_gcf_session("test")
+    assert sess is not None
+
+def test_optimizer_strategy_exceptions(optimizer: TokenOptimizer):
+    # Pass a malformed object that tricks it into entering a strategy but crashes the encoder
+    # Mock the encode functions to raise Exceptions
+    import collections
+    from unittest.mock import patch
+    
+    with patch("services.token_optimizer.encode", side_effect=Exception("mock err")), \
+         patch("services.token_optimizer.encode_with_session", side_effect=Exception("mock err")), \
+         patch("services.token_optimizer.encode_delta", side_effect=Exception("mock err")), \
+         patch("services.token_optimizer.encode_generic", side_effect=Exception("mock err")):
+         
+        payload_graph = {"symbols": [{"qualified_name": "A", "kind": "func"}], "edges": []}
+        # It should catch the exceptions and fallback to json
+        res1 = optimizer.optimize(payload_graph, session_id="test_err")
+        assert res1.winner.strategy == "json"
+        
+        payload_generic = {"a": 1}
+        res2 = optimizer.optimize(payload_generic, session_id="test_err2")
+        assert res2.winner.strategy == "json"
+
+def test_prune_tools_no_bm25():
+    from services.token_optimizer import prune_tools
+    with patch("services.token_optimizer.BM25Okapi", None):
+        tools = [{"type": "function", "function": {"name": "A"}}] * 6
+        assert len(prune_tools(tools, "query", top_k=2)) == 6
+

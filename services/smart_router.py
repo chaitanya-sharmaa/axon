@@ -1,7 +1,24 @@
 import os
 import logging
+import itertools
+from typing import Dict
 
 log = logging.getLogger(__name__)
+
+# Round robin iterators per provider/key-set
+_key_iterators: Dict[str, itertools.cycle] = {}
+
+def get_load_balanced_key(api_key: str) -> str:
+    """If the key contains a comma, round-robin through the keys to bypass RPM limits."""
+    if not api_key or "," not in api_key:
+        return api_key
+        
+    if api_key not in _key_iterators:
+        keys = [k.strip() for k in api_key.split(",") if k.strip()]
+        _key_iterators[api_key] = itertools.cycle(keys)
+        
+    selected_key = next(_key_iterators[api_key])
+    return selected_key
 
 def route_model(original_model: str, payload_tokens: int) -> str:
     """Downgrade to a cheaper model if the payload is small and simple."""

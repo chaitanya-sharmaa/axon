@@ -42,6 +42,7 @@ from api.routes import (
     batch_router,
     admin_router,
 )
+from api.routes.dashboard_routes import router as dashboard_router
 from api.routes.v1_swarm_routes import router as swarm_router
 
 log = logging.getLogger(__name__)
@@ -135,6 +136,9 @@ def create_app() -> FastAPI:
     # Admin Quotas
     if settings.admin_api_key:
         app.include_router(admin_router)
+
+    # Dashboard
+    app.include_router(dashboard_router)
 
     # Metrics
     @app.get("/metrics", tags=["Ops"])

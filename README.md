@@ -1,4 +1,4 @@
-# Axon Bridge
+# Axon Bridge - LLM Token Saving & Cost Reduction Middleware
 
 **Token-efficient agentic middleware for LLM APIs.** Axon sits between your application and any LLM, automatically benchmarking encoding strategies, healing JSON crashes, and mathematically reducing API token costs by **up to 99.98%** with zero changes to your existing code.
 
@@ -19,13 +19,23 @@ We rigorously tested Axon's real-time integration by pointing the standard `open
 
 Axon automatically intercepted the payloads, mathematically stripped the structural bloat on the fly, and forwarded the raw values to Gemini. **The LLM perfectly retained 100% semantic comprehension and answered every question correctly.**
 
-### 🛒 Scenario 1: E-Commerce Product Catalog
-*Payload: JSON array of 100 heavily nested products (Price, Dimensions, Description, Specs, etc).*
-- **Baseline Payload Size:** ~12,436 tokens
-- **Turn 1 (Cold Start):** Axon instantly stripped repetitive JSON keys like `"product_id"` and `"specifications"` from all 100 items. 
-  - **Tokens Sent:** 2,929 (**75.53% Savings!**)
-- **Turn 2 (Follow-up Question):** Axon's recursive TRON deduplicator kicked in.
-  - **Tokens Sent:** 5 (**99.96% Savings!**)
+### 🛒 Scenario 1: E-Commerce Product Catalog (Real-World Multi-Turn Simulation)
+*Payload: JSON array of 100 heavily nested products (Price, Dimensions, Description, Specs, etc). Total baseline tokens if sent raw across 3 conversational turns: 41,448 tokens.*
+
+**Turn 1 (Cold Start): Identify the cheapest item.**
+Axon intercepts the payload, dynamically maps the schema, and mathematically strips out repetitive JSON keys (`"product_id"`, `"specifications"`, etc.) from all 100 items. It encodes the values into a pipe-delimited format.
+- **Tokens Sent:** 9,711 vs 13,776 raw (**29.51% Savings**)
+
+**Turn 2 (Follow-up): Are there any products made of Unobtanium alloy?**
+Axon's recursive **TRON (Tree-state Recursive Object Notation)** deduplicator kicks in. It recognizes this exact session has already transmitted the massive dataset. It generates microscopic `@ref` delta pointers instead of resending the array.
+- **Tokens Sent:** 37 vs 13,800 raw (**99.73% Savings!**)
+
+**Turn 3 (Reasoning): What is the average stock of the first 5 items?**
+The deduplicator caches the static data yet again.
+- **Tokens Sent:** 86 vs 13,872 raw (**99.38% Savings!**)
+
+> **🏆 OVERALL SAVINGS: 76.27%**  
+> You avoided paying for **31,614 redundant structural tokens** in a single conversation!
 
 ### 💻 Scenario 2: Codebase AST / Dependency Graph
 *Payload: Array of 100 Codebase Class/Function node objects mimicking a Repository Graph.*

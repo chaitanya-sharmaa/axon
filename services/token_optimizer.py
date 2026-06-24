@@ -46,6 +46,12 @@ from gcf import (
     encode_generic,
     encode_with_session,
 )
+import re
+
+try:
+    from rank_bm25 import BM25Okapi
+except ImportError:
+    BM25Okapi = None
 
 # ── Strategy names ─────────────────────────────────────────────────────────────
 STRATEGY_AXON_GRAPH = "graph"
@@ -57,6 +63,11 @@ STRATEGY_AXON_GENERIC_SESSION = "generic_session"  # TRON for non-graph
 STRATEGY_SCHEMA_VALUES = "schema_values"
 STRATEGY_JSON = "json"
 
+# Semantic Aliases requested by User
+STRATEGY_GCF = "gcf"
+STRATEGY_TOON = "toon"
+STRATEGY_TRON = "tron"
+
 ALL_STRATEGIES = [
     STRATEGY_AXON_GRAPH,
     STRATEGY_AXON_SESSION,
@@ -66,42 +77,26 @@ ALL_STRATEGIES = [
     STRATEGY_AXON_GENERIC_SESSION,
     STRATEGY_SCHEMA_VALUES,
     STRATEGY_JSON,
+    STRATEGY_GCF,
+    STRATEGY_TOON,
+    STRATEGY_TRON,
 ]
 
 
 # ── LRU session cache ──────────────────────────────────────────────────────────
 
-class _LRUDict(collections.OrderedDict):
-    """OrderedDict that silently evicts the least-recently-used entry
-    once it grows beyond *maxsize*.
+from cachetools import TTLCache
 
-    All five per-session dicts in ``TokenOptimizer`` use this so that
+class _TTLDict(TTLCache):
+    """TTLCache that silently evicts the oldest entry based on time or size.
+    
+    All per-session dicts in ``TokenOptimizer`` use this so that
     a long-running server cannot accumulate unbounded session state.
     """
+    def __init__(self, maxsize: int = 1024, ttl: int = 3600, *args, **kwargs) -> None:
+        super().__init__(maxsize=maxsize, ttl=ttl, *args, **kwargs)
 
-    def __init__(self, maxsize: int = 1024, *args, **kwargs) -> None:
-        self._maxsize = maxsize
-        super().__init__(*args, **kwargs)
-
-    def __setitem__(self, key, value):  # type: ignore[override]
-        if key in self:
-            self.move_to_end(key)
-        super().__setitem__(key, value)
-        if len(self) > self._maxsize:
-            self.popitem(last=False)  # evict the oldest (LRU) entry
-
-    def __getitem__(self, key):  # type: ignore[override]
-        value = super().__getitem__(key)
-        self.move_to_end(key)  # mark as recently used
-        return value
-
-    def get(self, key, default=None):  # type: ignore[override]
-        try:
-            return self[key]
-        except KeyError:
-            return default
-
-    def setdefault(self, key, default=None):  # type: ignore[override]
+    def setdefault(self, key, default=None):
         if key not in self:
             self[key] = default
         return self[key]
@@ -177,12 +172,28 @@ def _prune_context(symbols: list[Symbol], query: str | None) -> list[Symbol]:
         return symbols
         
     scored = []
-    for s in symbols:
-        name_terms = set(s.qualified_name.lower().replace(".", " ").replace("_", " ").split())
-        overlap = len(query_terms.intersection(name_terms))
-        # Base relevance + overlap boost
-        final_score = s.score + (overlap * 2.0)
-        scored.append((final_score, s))
+    if BM25Okapi:
+        # Use BM25 for advanced contextual pruning
+        corpus = []
+        for s in symbols:
+            desc = f"{s.qualified_name} {s.kind} {s.provenance}"
+            corpus.append(desc.lower().split())
+        
+        bm25 = BM25Okapi(corpus)
+        tokenized_query = query.lower().split()
+        bm25_scores = bm25.get_scores(tokenized_query)
+        
+        for idx, s in enumerate(symbols):
+            # Combine BM25 normalized score with native payload score
+            final_score = s.score + (bm25_scores[idx] * 2.0)
+            scored.append((final_score, s))
+    else:
+        # Fallback to string overlap
+        for s in symbols:
+            name_terms = set(s.qualified_name.lower().replace(".", " ").replace("_", " ").split())
+            overlap = len(query_terms.intersection(name_terms))
+            final_score = s.score + (overlap * 2.0)
+            scored.append((final_score, s))
         
     # Sort highest score first
     scored.sort(key=lambda x: x[0], reverse=True)
@@ -280,26 +291,24 @@ def _build_generic_delta(current: Any, previous: Any) -> Any:
     return current
 
 
-def _build_generic_session(current: Any, seen_values: dict[str, str], path: str = "") -> Any:
+def _build_generic_session(current: Any, seen_values: dict[str, int]) -> Any:
     """TRON for generic dicts and lists: recursively replace repeated scalar values with a short ref token.
 
     Scalars (strings, numbers) that appeared in a previous turn are replaced with
-    ``@ref:<path>`` where ``<path>`` is the first JSON path they were stored under.
+    ``@ref:<id>`` where ``<id>`` is a unique integer ID assigned during encoding.
     
-    ``seen_values`` maps ``str(value) → original_path`` and is mutated in place.
+    ``seen_values`` maps ``str(value) → int`` and is mutated in place.
     """
     if isinstance(current, dict):
         compressed_dict: dict[str, Any] = {}
         for k, v in current.items():
-            current_path = f"{path}.{k}" if path else k
-            compressed_dict[k] = _build_generic_session(v, seen_values, current_path)
+            compressed_dict[k] = _build_generic_session(v, seen_values)
         return compressed_dict
         
     elif isinstance(current, list):
         compressed_list: list[Any] = []
-        for i, v in enumerate(current):
-            current_path = f"{path}[{i}]"
-            compressed_list.append(_build_generic_session(v, seen_values, current_path))
+        for v in current:
+            compressed_list.append(_build_generic_session(v, seen_values))
         return compressed_list
         
     elif isinstance(current, (str, int, float, bool)):
@@ -311,7 +320,8 @@ def _build_generic_session(current: Any, seen_values: dict[str, str], path: str 
                 return ref_str
             return current
         else:
-            seen_values[vstr] = path
+            next_id = len(seen_values) + 1
+            seen_values[vstr] = next_id
             return current
     else:
         return current
@@ -352,19 +362,19 @@ class TokenOptimizer:
         self._enabled = set(enabled_strategies or ALL_STRATEGIES)
         self._max_sessions = max_sessions
         # Per-session Axon Session objects for session-aware dedup
-        self._sessions: _LRUDict = _LRUDict(maxsize=max_sessions)
+        self._sessions: _TTLDict = _TTLDict(maxsize=max_sessions)
         # Per-session previous symbol sets (for graph delta encoding)
-        self._prev_symbols: _LRUDict = _LRUDict(maxsize=max_sessions)
+        self._prev_symbols: _TTLDict = _TTLDict(maxsize=max_sessions)
         # Per-session previous generic payloads (for generic TOON delta)
-        self._prev_generic: _LRUDict = _LRUDict(maxsize=max_sessions)
+        self._prev_generic: _TTLDict = _TTLDict(maxsize=max_sessions)
         # Per-session seen scalar values (for generic TRON session dedup)
-        self._seen_values: _LRUDict = _LRUDict(maxsize=max_sessions)
+        self._seen_values: _TTLDict = _TTLDict(maxsize=max_sessions)
         # Per-session schema keys (for generic schema_values dedup)
-        self._schema_keys: _LRUDict = _LRUDict(maxsize=max_sessions)
+        self._schema_keys: _TTLDict = _TTLDict(maxsize=max_sessions)
         # ML heuristic: track strategy win streaks per session to fast-path optimization
-        self._strategy_wins: _LRUDict = _LRUDict(maxsize=max_sessions)
+        self._strategy_wins: _TTLDict = _TTLDict(maxsize=max_sessions)
         # Payload cache to skip redundant optimizations
-        self._payload_cache: _LRUDict = _LRUDict(maxsize=4096)
+        self._payload_cache: _TTLDict = _TTLDict(maxsize=4096)
 
     def _get_session(self, session_id: str) -> Session:
         if session_id not in self._sessions:
@@ -494,30 +504,66 @@ class TokenOptimizer:
                 logging.warning(f"Strategy {STRATEGY_AXON_GENERIC_DELTA} failed: {e}", exc_info=False)
 
         # ── Axon generic session / TRON for non-graph ──────────────────────────
-        if STRATEGY_AXON_GENERIC_SESSION in active and session_id and not is_graph:
+        if STRATEGY_AXON_GENERIC_SESSION in active or STRATEGY_TRON in active:
+            if session_id and not is_graph:
+                try:
+                    seen = self._seen_values.setdefault(session_id, {})
+                    session_obj = _build_generic_session(obj, seen)
+                    
+                    strat_name = STRATEGY_TRON if STRATEGY_TRON in active else STRATEGY_AXON_GENERIC_SESSION
+                    _add(strat_name, encode_generic(session_obj))
+                except Exception as e:
+                    logging.warning(f"Strategy {STRATEGY_TRON} failed: {e}", exc_info=False)
+
+        # ── GCF (Graph Configuration Format) ───────────────────────────────────
+        if STRATEGY_GCF in active:
             try:
-                seen = self._seen_values.setdefault(session_id, {})
-                session_obj = _build_generic_session(obj, seen)
-                _add(STRATEGY_AXON_GENERIC_SESSION, encode_generic(session_obj))
+                _add(STRATEGY_GCF, encode_generic(obj))
             except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_AXON_GENERIC_SESSION} failed: {e}", exc_info=False)
+                logging.warning(f"Strategy {STRATEGY_GCF} failed: {e}", exc_info=False)
+
+        # ── TOON (Delta Protocol) ──────────────────────────────────────────────
+        if STRATEGY_TOON in active and session_id:
+            try:
+                if is_graph:
+                    prev = self._get_prev_symbols(session_id)
+                    delta = _build_delta(payload, prev)
+                    if delta is not None:
+                        _add(STRATEGY_TOON, encode_delta(delta))
+                else:
+                    prev = self._prev_generic.get(session_id)
+                    delta_obj = _build_generic_delta(obj, prev)
+                    _add(STRATEGY_TOON, encode_generic(delta_obj))
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_TOON} failed: {e}", exc_info=False)
 
         # ── Schema values ───────────────────────────────────────────────────────
         if STRATEGY_SCHEMA_VALUES in active and session_id and not is_graph and isinstance(obj, dict):
             try:
-                # Check if all values are scalars (for flat data)
-                if all(isinstance(v, (str, int, float, bool)) for v in obj.values()):
-                    current_keys = tuple(obj.keys())
-                    prev_keys = self._schema_keys.get(session_id)
-                    if prev_keys == current_keys:
-                        # Keys match exactly, send only values
-                        encoded = ",".join(str(v) for v in obj.values())
-                    else:
-                        # First turn or keys changed, send key=value
-                        encoded = ",".join(f"{k}={v}" for k, v in obj.items())
-                    _add(STRATEGY_SCHEMA_VALUES, encoded)
-                    
-                    self._schema_keys[session_id] = current_keys
+                def _flatten_dict(d: dict, parent_key: str = '', sep: str = '.') -> dict:
+                    items = []
+                    for k, v in d.items():
+                        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+                        if isinstance(v, dict):
+                            items.extend(_flatten_dict(v, new_key, sep=sep).items())
+                        elif isinstance(v, list):
+                            items.append((new_key, str(v)))
+                        else:
+                            items.append((new_key, v))
+                    return dict(items)
+
+                flat_obj = _flatten_dict(obj)
+                current_keys = tuple(flat_obj.keys())
+                prev_keys = self._schema_keys.get(session_id)
+                if prev_keys == current_keys:
+                    # Keys match exactly, send only values
+                    encoded = ",".join(str(v) for v in flat_obj.values())
+                else:
+                    # First turn or keys changed, send key=value
+                    encoded = ",".join(f"{k}={v}" for k, v in flat_obj.items())
+                _add(STRATEGY_SCHEMA_VALUES, encoded)
+                
+                self._schema_keys[session_id] = current_keys
             except Exception as e:
                 logging.warning(f"Strategy {STRATEGY_SCHEMA_VALUES} failed: {e}", exc_info=False)
 
@@ -557,12 +603,7 @@ class TokenOptimizer:
 
 # ── Agentic Feature Suite ──────────────────────────────────────────────────────
 
-import re
 
-try:
-    from rank_bm25 import BM25Okapi
-except ImportError:
-    BM25Okapi = None
 
 def prune_tools(tools: list[dict[str, Any]], query: str, top_k: int = 5) -> list[dict[str, Any]]:
     """

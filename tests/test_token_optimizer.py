@@ -60,8 +60,8 @@ def test_optimize_generic_session_tron_wins(optimizer: TokenOptimizer):
 
     assert result.payload_type == "generic"
     assert result.winner.strategy == "generic_session"
-    # The encoded output should contain references for repeated values
-    assert 'result="@ref:status"' in result.winner.encoded
+    # The encoded output should contain integer references for repeated values
+    assert 'result="@ref:3"' in result.winner.encoded or 'user="@ref:1"' in result.winner.encoded
     assert "action=view_profile" in result.winner.encoded
 
 

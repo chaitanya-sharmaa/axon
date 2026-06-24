@@ -48,3 +48,5 @@ litellm>=1.40.0        # Universal proxy routing
 # Redis backend:   pip install "axon-bridge[redis]"   → redis>=5.0.0
 # Claude models:  pip install "axon-bridge[claude]"  → anthropic>=0.28.0
 # LangChain:      pip install "axon-bridge[langchain]" → langchain-core>=0.2.0
+cachetools>=5.3.0
+gcf-python>=1.0.0

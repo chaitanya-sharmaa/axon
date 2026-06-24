@@ -28,7 +28,13 @@ def prune_text(text: str) -> str:
         # Replace multiple spaces/tabs with a single space
         text = re.sub(r'[ \t]+', ' ', text)
 
-        # 2. Stop-word removal
+        # 2. Markdown stripping
+        # Remove bold/italics markers (* or _)
+        text = re.sub(r'(\*\*|\*|__|_)(.*?)\1', r'\2', text)
+        # Remove list markers (- or *) at start of line
+        text = re.sub(r'^[ \t]*[-*][ \t]+', '', text, flags=re.MULTILINE)
+
+        # 3. Stop-word removal
         # We split by word boundaries, filter, and rejoin.
         # This keeps punctuation intact because \b separates words from punctuation.
         def _filter_word(match):
@@ -40,7 +46,7 @@ def prune_text(text: str) -> str:
         # Only target alphabetical sequences
         text = re.sub(r'\b[a-zA-Z]+\b', _filter_word, text)
         
-        # 3. Final cleanup of orphaned spaces from word removal
+        # 4. Final cleanup of orphaned spaces from word removal
         text = re.sub(r'[ \t]+', ' ', text)
         text = re.sub(r' \.', '.', text)
         text = re.sub(r' ,', ',', text)

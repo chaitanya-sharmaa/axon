@@ -9,8 +9,9 @@ from services.semantic_cache import SemanticCache
 def test_smart_router():
     with patch.dict(os.environ, {"AXON_AUTO_ROUTING": "true"}):
         # Should route simple payloads to a smaller model
-        assert route_model("gpt-4o", 500) == "gpt-4o-mini"
-        assert route_model("gpt-4o", 2000) == "gpt-4o"
+        assert route_model("gpt-4o", 500, "hello") == "gpt-4o-mini"
+        # Should route complex payloads to the pro model
+        assert route_model("gpt-4o-mini", 2000, "think step by step to solve this") == "gpt-4o"
         
         # Check fallback logic
         assert fallback_model("gpt-4o") == "gpt-4-turbo"
@@ -25,15 +26,15 @@ async def test_semantic_cache():
         mock_get_embedding.return_value = [1.0, 0.0]
         
         # Test empty cache miss
-        cached, emb = await cache.check_cache("hello world", "fake_key")
+        cached, state = await cache.check_cache([{"role": "user", "content": "hello world"}], "fake_key")
         assert cached is None
-        assert emb == [1.0, 0.0]
+        assert state["embedding"] == [1.0, 0.0]
         
         # Store response
-        cache.store_response("hello world", emb, {"choices": [{"message": {"content": "hi"}}]})
+        cache.store_response(state, {"choices": [{"message": {"content": "hi"}}]})
         
         # Test cache hit with same embedding
-        cached2, emb2 = await cache.check_cache("hello world!", "fake_key")
+        cached2, state2 = await cache.check_cache([{"role": "user", "content": "hello world!"}], "fake_key")
         assert cached2 is not None
         assert cached2["choices"][0]["message"]["content"] == "hi"
 

@@ -129,6 +129,14 @@ class SessionMemoryStore(BaseMemoryStore):
                 updated_at TIMESTAMP
             )
         """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS session_threads (
+                session_id TEXT PRIMARY KEY,
+                messages_json TEXT,
+                updated_at TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+            )
+        """)
         await conn.commit()
 
     # ── Public API ─────────────────────────────────────────────────────────────
@@ -205,6 +213,55 @@ class SessionMemoryStore(BaseMemoryStore):
                 "fields": json.loads(row["field_names"]),
             }
         return None
+
+    async def get_thread(self, session_id: str) -> list[dict[str, Any]]:
+        conn = await self._ensure_conn()
+        cursor = await conn.execute(
+            "SELECT messages_json FROM session_threads WHERE session_id = ?",
+            (session_id,)
+        )
+        row = await cursor.fetchone()
+        if row and row["messages_json"]:
+            return json.loads(row["messages_json"])
+        return []
+
+    async def append_to_thread(self, session_id: str, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        conn = await self._ensure_conn()
+        async with self.lock:
+            # Fetch existing
+            cursor = await conn.execute(
+                "SELECT messages_json FROM session_threads WHERE session_id = ?",
+                (session_id,)
+            )
+            row = await cursor.fetchone()
+            history = []
+            if row and row["messages_json"]:
+                history = json.loads(row["messages_json"])
+            
+            # Append new messages
+            history.extend(messages)
+            new_json = json.dumps(history)
+            now = datetime.now(timezone.utc)
+            
+            # Ensure session exists (foreign key constraint)
+            await conn.execute(
+                "INSERT OR IGNORE INTO sessions (session_id, created_at, last_accessed) VALUES (?, ?, ?)",
+                (session_id, now, now)
+            )
+            
+            # Upsert
+            await conn.execute(
+                """
+                INSERT INTO session_threads (session_id, messages_json, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(session_id) DO UPDATE SET
+                    messages_json = excluded.messages_json,
+                    updated_at = excluded.updated_at
+                """,
+                (session_id, new_json, datetime.now(timezone.utc))
+            )
+            await conn.commit()
+            return history
 
     async def cache_session_schema(
         self, session_id: str, schema_hash: str, definition: dict[str, Any], field_names: list[str]

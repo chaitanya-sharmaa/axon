@@ -203,20 +203,43 @@ graph LR
 |---|---|
 | You find out you overspent your OpenAI budget at the end of the month when you get the invoice. | Pass `X-Axon-Tenant-ID`. Axon atomically tracks exact dollar spend per user/tenant in Redis. If they hit their budget, Axon blocks them instantly with a `429 Too Many Requests`. |
 
-### 2.5 Dynamic Pruning, Caching & Safety
+### 2.5 Prompt Complexity Auto-Routing
+
+| Without Axon | With Axon |
+|---|---|
+| You hardcode expensive models (`gpt-4o`) for all tasks, wasting money on simple questions. | Axon parses the **semantic intent** of every prompt. If it detects simple questions, it dynamically down-routes to fast, cheap models (e.g. `gemini-2.5-flash`). If it detects deep reasoning triggers ("think step by step", code generation, massive contexts), it auto-upgrades to highly capable Pro models (e.g. `gemini-1.5-pro` or `gpt-4o`). |
+
+### 2.6 Infinite Cascading Fallbacks
+
+| Without Axon | With Axon |
+|---|---|
+| A `429 RateLimitError` or `503 ServiceUnavailable` from the provider crashes your entire Agent workflow. | Axon intercepts network failures and seamlessly cascades the request through a designated tree of fallback models across different providers until a connection succeeds. |
+
+### 2.7 Dynamic Pruning, Caching & Safety
 - **Vision Payload Downscaling**: Automatically intercepts `base64` images. Axon silently downscales massive 4K images to 768px/512px while preserving aspect ratio, slashing Vision API costs by up to 85%.
-- **Fast Vector Semantic Cache**: Thread-safe memory cache. If you send a prompt that is >95% semantically similar to a previous request, Axon intercepts it and instantly returns the cached response with zero API tokens used (<50ms latency). Features automatic TTL invalidation.
+- **Fast Vector Semantic Cache**: Thread-safe memory cache. Axon splits your message history: it uses an exact SHA-256 cryptographic hash for background context, and calculates a semantic cosine similarity embedding ONLY on the newest user question. This slashes embedding latency. If a similar question was asked in the same context, it returns instantly with zero API tokens used.
 - **PII Redaction**: Built-in heuristics automatically redact sensitive data (Credit Cards, SSNs, Emails, and Phone Numbers) from the payload before it ever touches external LLM endpoints.
-- **Dynamic Tool Schema Pruning**: Axon uses a fast, local **BM25 semantic filter** to dynamically drop irrelevant tools from the context window based on the user's immediate query, saving thousands of tokens per turn without breaking the agent.
+- **BM25 Semantic Graph Pruning**: Axon uses the `rank_bm25` search algorithm to dynamically score and drop the bottom 25% of irrelevant context symbols and tools based on the user's immediate query, saving thousands of tokens per turn while keeping the agent fully informed.
+- **Schema Flattening**: Axon converts deeply nested multi-dimensional JSON objects into flat dot-notation structures (e.g. `settings.theme=dark`) before applying token compression, ensuring that even the most complex payloads are mathematically stripped of structural bloat.
 
-### 2.6 TOON & TRON (Advanced — Opt-In)
+### 2.8 The Stateful Threads API (TOON & TRON)
 
-> ⚠️ **Disabled by default.** Standard LLM APIs are stateless. Enabling TOON/TRON on stateless endpoints causes context loss and model hallucinations.
+Standard LLM APIs (OpenAI, Gemini) are stateless, which forces you to repeatedly upload massive conversation histories on every single turn.
 
-- **TOON (Deltas)**: Replaces unchanged message data with `{"__deleted__": true}` markers across turns.
-- **TRON (References)**: Replaces repeated scalar values with microscopic `@ref:<path>` pointers.
+Axon introduces the **Stateful Threads API**. By simply appending the header `X-Axon-Stateful-Thread: true`, Axon's local SQLite/Redis database automatically tracks your conversation history.
+1. **Network Savings**: Your application only needs to send the *new* message (a tiny delta) to Axon.
+2. **Context Compression (TOON/TRON)**: Axon instantly rehydrates the full conversation history from memory, applies mathematically guaranteed **Integer ID Deduplication** to repeated scalar values across the thread, and forwards the heavily compressed footprint to the LLM.
 
-Safe to enable **only** when using Anthropic Prompt Caching or Gemini Context Caching (paid plan), which store the full context server-side. Set `AXON_ENABLE_STATEFUL_COMPRESSION=true` to opt in.
+```python
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Just the new follow-up question..."}],
+    extra_headers={
+        "X-Axon-Stateful-Thread": "true",
+        "X-Axon-Thread-Id": "thread_abc123"
+    }
+)
+```
 
 ---
 

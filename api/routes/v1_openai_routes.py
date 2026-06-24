@@ -643,9 +643,9 @@ async def embeddings(
         api_key = os.getenv("OPENAI_API_KEY", "")
 
     try:
-        response = await litellm.acompletion(
+        # BUG FIX: Use litellm.aembedding for the /embeddings endpoint, not acompletion
+        response = await litellm.aembedding(
             model=req.model,
-            messages=[], # Embeddings don't use messages in liteLLM the same way
             api_base=f"{_OPENAI_BASE}",
             api_key=api_key,
             input=req.input,

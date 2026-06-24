@@ -32,7 +32,7 @@ graph TD
     Pick --> Output[Compressed Payload Sent to LLM]
 ```
 
-**Verified Result:** In real-world testing against a 100-item complex product catalog (~15K tokens), structural compression consistently delivers **~18% token savings** across every single turn with **zero hallucinations**.
+**Verified Result:** In real-world testing against a 100-item complex product catalog (~8K tokens), stateless structural compression consistently delivers **~29% token savings** across every single turn with **zero hallucinations**.
 
 ---
 
@@ -78,11 +78,12 @@ Instead of proxy-level data deletion, Axon uses native provider caching — the 
 Axon natively includes interceptors designed to protect autonomous agent workflows:
 
 1. **Vision Payload Downscaling**: Automatically intercepts `base64` images in your payload. Axon uses `Pillow` to silently downscale massive 4K images to 768px/512px while preserving aspect ratio, slashing Vision API costs by up to 85%.
-2. **Semantic Cache**: If you send a prompt that is >95% semantically similar to a previous request, Axon intercepts it and instantly returns the cached response.
+2. **Fast Vector Semantic Cache**: If you send a prompt that is >95% semantically similar to a previous request, Axon intercepts it via a thread-safe LRU cache with automatic TTL.
    * **Benefit:** Zero API tokens used, <50ms latency response.
-3. **Smart LLM Routing**: Short, simple payloads sent to expensive models (like `gpt-4o`) are automatically down-routed to cheaper models (like `gpt-4o-mini`).
-4. **Tool Schema Pruning**: Axon uses a fast, local **BM25 semantic filter** to dynamically drop irrelevant tools from the context window based on the user's immediate query, saving thousands of tokens per turn without breaking the agent.
-5. **JSON Healing**: If the LLM returns malformed JSON, Axon intercepts the error, appends it to the message history, and automatically asks the LLM to fix it before returning the response to your agent.
+3. **PII Redaction**: Built-in heuristics automatically redact sensitive data (Credit Cards, SSNs, Emails, and Phone Numbers) from the payload before it ever touches external LLM endpoints.
+4. **Smart LLM Routing**: Short, simple payloads sent to expensive models (like `gpt-4o`) are automatically down-routed to cheaper models (like `gpt-4o-mini`).
+5. **Tool Schema Pruning**: Axon uses a fast, local **BM25 semantic filter** to dynamically drop irrelevant tools from the context window based on the user's immediate query, saving thousands of tokens per turn without breaking the agent.
+6. **JSON Healing**: If the LLM returns malformed JSON, Axon intercepts the error, appends it to the message history, and automatically asks the LLM to fix it before returning the response to your agent.
 
 ---
 

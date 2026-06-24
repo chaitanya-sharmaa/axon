@@ -5,7 +5,7 @@ import litellm
 load_dotenv(override=True)
 os.environ.pop("OPENAI_BASE_URL", None)
 api_key = os.getenv("OPENAI_API_KEY")
-print(f"Key used: {api_key[:10]}...")
+print(f"OPENAI_API_KEY present: {bool(api_key)}")
 
 try:
     response = litellm.completion(

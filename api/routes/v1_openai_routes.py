@@ -42,7 +42,6 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import asyncio
 import litellm
-from litellm import acompletion
 from litellm.exceptions import APIError, RateLimitError, ServiceUnavailableError, Timeout
 
 from core.app_config import axon_service, memory_store
@@ -112,162 +111,130 @@ class EmbeddingRequest(BaseModel):
 
 def _compress_messages(messages: list[ChatMessage], session_id: str | None, model_name: str | None = None) -> tuple[list[dict], dict]:
     """Compress each message's content and return (compressed_messages, savings_metrics)."""
+    # FIX #5: The entire compression loop must run *inside* the span so that the
+    # axon.optimization.latency histogram actually captures the true compression time.
+    # Previously the span exited after 8 lines of setup, recording ~0ms every time.
     with tracer.start_as_current_span("compress_messages") as span:
         start_t = time.time()
-        
+
         original_tokens = 0
         compressed_tokens = 0
         compressed: list[dict] = []
-        
+
         prune_enabled = os.getenv("AXON_PRUNE_TEXT", "false").lower() == "true"
         enable_stateful = os.getenv("AXON_ENABLE_STATEFUL_COMPRESSION", "false").lower() == "true"
 
-    # Find the largest message for potential prompt caching (Anthropic)
-    largest_msg_idx = -1
-    largest_msg_len = 0
+        # Find the largest message for potential prompt caching (Anthropic)
+        largest_msg_idx = -1
+        largest_msg_len = 0
 
-    for idx, msg in enumerate(messages):
-        d = msg.model_dump(exclude_none=True)
-        content = msg.content
-        
-        # 1. Vision Downscaling
-        if isinstance(content, list):
-            for item in content:
-                if isinstance(item, dict) and item.get("type") == "image_url":
-                    url_obj = item.get("image_url", {})
-                    url_val = url_obj.get("url", "")
-                    if url_val.startswith("data:image"):
-                        # Extract base64, downscale, and replace
-                        new_b64 = downscale_base64_image(url_val)
-                        if new_b64 != url_val:
-                            url_obj["url"] = new_b64
-                            # Assume ~1000 tokens saved heuristically for the metrics
-                            original_tokens += 1200
-                            compressed_tokens += 200
+        for idx, msg in enumerate(messages):
+            d = msg.model_dump(exclude_none=True)
+            content = msg.content
 
-        # 2. Text Pruning & Compression
-        elif isinstance(content, str) and len(content) > 50:
-            if len(content) > largest_msg_len:
-                largest_msg_len = len(content)
-                largest_msg_idx = idx
+            # 1. Vision Downscaling
+            if isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "image_url":
+                        url_obj = item.get("image_url", {})
+                        url_val = url_obj.get("url", "")
+                        if url_val.startswith("data:image"):
+                            new_b64 = downscale_base64_image(url_val)
+                            if new_b64 != url_val:
+                                url_obj["url"] = new_b64
+                                original_tokens += 1200
+                                compressed_tokens += 200
 
-            # Prune if enabled
-            if prune_enabled and len(content) > 2000:
-                content = prune_text(content)
+            # 2. Text Pruning & Compression
+            elif isinstance(content, str) and len(content) > 50:
+                if len(content) > largest_msg_len:
+                    largest_msg_len = len(content)
+                    largest_msg_idx = idx
 
-            parsed_content = content
-            try:
-                # Attempt to parse as JSON so structural algorithms (schema_values, TRON, etc.) can work
-                parsed = json.loads(content)
-                if isinstance(parsed, (dict, list)):
-                    parsed_content = parsed
-            except Exception:
-                pass
+                if prune_enabled and len(content) > 2000:
+                    content = prune_text(content)
 
-            # By default, disable destructive stateful compression on stateless endpoints.
-            # Only enable if the user specifically opts in (e.g., they are using a stateful LLM or handle context independently).
-            msg_session_id = f"{session_id}_msg{idx}" if session_id and enable_stateful else None
-            
-            result = axon_service._optimizer.optimize(
-                {"role": msg.role, "content": parsed_content},
-                session_id=msg_session_id,
-            )
-            original_tokens += result.json_baseline_tokens
-            compressed_tokens += result.winner.token_estimate
-            
-            # Record strategy win
-            strat_name = getattr(result.winner, "strategy", "unknown")
-            strategy_wins.add(1, {"strategy": strat_name})
-            
-            # Only substitute if we actually saved tokens
-            if result.winner.savings_vs_json_pct > 0:
-                d["content"] = result.winner.encoded
-            elif prune_enabled:
-                d["content"] = content
-                
-        compressed.append(d)
+                parsed_content = content
+                try:
+                    parsed = json.loads(content)
+                    if isinstance(parsed, (dict, list)):
+                        parsed_content = parsed
+                except Exception:
+                    pass
 
-    # 3. Native Provider Prompt Caching
-    # Anthropic: marks the largest message and system prompt with cache_control
-    # so Anthropic's server caches the KV computation and skips re-reading on subsequent turns.
-    if model_name and "claude-3" in model_name:
-        # Cache the largest message
-        if largest_msg_idx != -1:
-            target_msg = compressed[largest_msg_idx]
-            if isinstance(target_msg["content"], str):
-                target_msg["content"] = [
-                    {
-                        "type": "text",
-                        "text": target_msg["content"],
-                        "cache_control": {"type": "ephemeral"}
-                    }
-                ]
-        # Also cache the system prompt if present and not the largest message
-        for idx, msg in enumerate(compressed):
-            if msg["role"] == "system" and idx != largest_msg_idx and isinstance(msg["content"], str) and len(msg["content"]) > 100:
-                msg["content"] = [
-                    {
-                        "type": "text",
-                        "text": msg["content"],
-                        "cache_control": {"type": "ephemeral"}
-                    }
-                ]
-                break
+                msg_session_id = f"{session_id}_msg{idx}" if session_id and enable_stateful else None
 
-    # Gemini: inject cache_control hints on the largest message so LiteLLM's Gemini
-    # adapter forwards them as a cachedContent TTL. This means Gemini's server
-    # caches the KV state of the large context block and reuses it across turns,
-    # achieving ~80% cost reduction on repeated multi-turn context without the
-    # proxy stripping any data from the payload.
-    # NOTE: Gemini cachedContent API requires a PAID plan (free tier limit=0).
-    # Only enable this when using a paid Gemini API key.
-    gemini_cache_enabled = os.getenv("AXON_ENABLE_GEMINI_PROMPT_CACHE", "false").lower() == "true"
-    if gemini_cache_enabled and model_name and ("gemini-1.5" in model_name or "gemini-2" in model_name):
-        GEMINI_CACHE_MIN_CHARS = 1000  # Gemini requires >=1024 tokens to cache
-        if largest_msg_idx != -1:
-            target_msg = compressed[largest_msg_idx]
-            if isinstance(target_msg["content"], str) and len(target_msg["content"]) >= GEMINI_CACHE_MIN_CHARS:
-                # LiteLLM propagates cache_control to Gemini's cachedContent API
-                target_msg["content"] = [
-                    {
-                        "type": "text",
-                        "text": target_msg["content"],
-                        "cache_control": {"type": "ephemeral"}
-                    }
-                ]
-        # Cache system prompt if it's large and not already cached
-        for idx, msg in enumerate(compressed):
-            if msg["role"] == "system" and idx != largest_msg_idx and isinstance(msg["content"], str) and len(msg["content"]) >= GEMINI_CACHE_MIN_CHARS:
-                msg["content"] = [
-                    {
-                        "type": "text",
-                        "text": msg["content"],
-                        "cache_control": {"type": "ephemeral"}
-                    }
-                ]
-                break
+                result = axon_service._optimizer.optimize(
+                    {"role": msg.role, "content": parsed_content},
+                    session_id=msg_session_id,
+                )
+                original_tokens += result.json_baseline_tokens
+                compressed_tokens += result.winner.token_estimate
 
-    savings_pct = round(
-        (1 - compressed_tokens / max(1, original_tokens)) * 100, 2
-    ) if original_tokens > 0 else 0.0
+                strat_name = getattr(result.winner, "strategy", "unknown")
+                strategy_wins.add(1, {"strategy": strat_name})
 
-    saved = max(0, original_tokens - compressed_tokens)
-    
-    # Record Metrics
-    latency_ms = (time.time() - start_t) * 1000
-    optimization_latency.record(latency_ms)
-    if saved > 0:
-        tokens_saved_counter.add(saved)
+                if result.winner.savings_vs_json_pct > 0:
+                    d["content"] = result.winner.encoded
+                elif prune_enabled:
+                    d["content"] = content
 
-    span.set_attribute("axon.tokens.original", original_tokens)
-    span.set_attribute("axon.tokens.compressed", compressed_tokens)
-    span.set_attribute("axon.tokens.saved", saved)
+            compressed.append(d)
 
-    return compressed, {
-        "original_tokens": original_tokens,
-        "compressed_tokens": compressed_tokens,
-        "savings_pct": savings_pct,
-    }
+        # 3. Native Provider Prompt Caching — Anthropic
+        if model_name and "claude-3" in model_name:
+            if largest_msg_idx != -1:
+                target_msg = compressed[largest_msg_idx]
+                if isinstance(target_msg["content"], str):
+                    target_msg["content"] = [
+                        {"type": "text", "text": target_msg["content"], "cache_control": {"type": "ephemeral"}}
+                    ]
+            for idx, msg in enumerate(compressed):
+                if msg["role"] == "system" and idx != largest_msg_idx and isinstance(msg["content"], str) and len(msg["content"]) > 100:
+                    msg["content"] = [
+                        {"type": "text", "text": msg["content"], "cache_control": {"type": "ephemeral"}}
+                    ]
+                    break
+
+        # Gemini: inject cache_control hints so Gemini's server caches the KV state.
+        # NOTE: Requires a PAID Gemini API plan (free tier limit=0).
+        gemini_cache_enabled = os.getenv("AXON_ENABLE_GEMINI_PROMPT_CACHE", "false").lower() == "true"
+        if gemini_cache_enabled and model_name and ("gemini-1.5" in model_name or "gemini-2" in model_name):
+            GEMINI_CACHE_MIN_CHARS = 1000
+            if largest_msg_idx != -1:
+                target_msg = compressed[largest_msg_idx]
+                if isinstance(target_msg["content"], str) and len(target_msg["content"]) >= GEMINI_CACHE_MIN_CHARS:
+                    target_msg["content"] = [
+                        {"type": "text", "text": target_msg["content"], "cache_control": {"type": "ephemeral"}}
+                    ]
+            for idx, msg in enumerate(compressed):
+                if msg["role"] == "system" and idx != largest_msg_idx and isinstance(msg["content"], str) and len(msg["content"]) >= GEMINI_CACHE_MIN_CHARS:
+                    msg["content"] = [
+                        {"type": "text", "text": msg["content"], "cache_control": {"type": "ephemeral"}}
+                    ]
+                    break
+
+        savings_pct = round(
+            (1 - compressed_tokens / max(1, original_tokens)) * 100, 2
+        ) if original_tokens > 0 else 0.0
+
+        saved = max(0, original_tokens - compressed_tokens)
+
+        latency_ms = (time.time() - start_t) * 1000
+        optimization_latency.record(latency_ms)
+        if saved > 0:
+            tokens_saved_counter.add(saved)
+
+        span.set_attribute("axon.tokens.original", original_tokens)
+        span.set_attribute("axon.tokens.compressed", compressed_tokens)
+        span.set_attribute("axon.tokens.saved", saved)
+
+        return compressed, {
+            "original_tokens": original_tokens,
+            "compressed_tokens": compressed_tokens,
+            "savings_pct": savings_pct,
+        }
+
 
 
 async def _stream_openai(

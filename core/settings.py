@@ -110,7 +110,7 @@ def load_settings() -> AppSettings:
         ),
         openapi_description=os.getenv(
             "AXON_OPENAPI_DESCRIPTION",
-            "Token-efficient bridge with 25-71% savings (up to 70%+ in multi-turn sessions)",
+            "Token-efficient LLM proxy: ~29% API token savings via Schema Flattening, 99% network bandwidth savings via Stateful Threads (SQLite). Zero hallucination risk on stateless APIs.",
         ),
         openapi_logo_url=os.getenv("AXON_OPENAPI_LOGO_URL", ""),
         host=os.getenv("AXON_HOST", "127.0.0.1"),

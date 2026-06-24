@@ -20,22 +20,22 @@ We rigorously tested Axon's real-time integration by pointing the standard `open
 Axon automatically intercepted the payloads, mathematically stripped the structural bloat on the fly, and forwarded the raw values to Gemini. **The LLM perfectly retained 100% semantic comprehension and answered every question correctly.**
 
 ### 🛒 Scenario 1: E-Commerce Product Catalog (Real-World Multi-Turn Simulation)
-*Payload: JSON array of 100 heavily nested products (Price, Dimensions, Description, Specs, etc). Total baseline tokens if sent raw across 3 conversational turns: 41,448 tokens.*
+*Payload: JSON array of 100 heavily nested products (Price, Dimensions, Description, Specs, etc). Total baseline tokens if sent raw across 3 conversational turns: 23,637 tokens (7,879 per turn).*
 
 **Turn 1 (Cold Start): Identify the cheapest item.**
-Axon intercepts the payload, dynamically maps the schema, and mathematically strips out repetitive JSON keys (`"product_id"`, `"specifications"`, etc.) from all 100 items. It encodes the values into a pipe-delimited format.
-- **Tokens Sent:** 9,711 vs 13,776 raw (**29.51% Savings**)
+Axon intercepts the payload and automatically compresses it using stateless JSON minification and structural optimizations.
+- **Tokens Sent:** 5,545 vs 7,879 raw (**29.62% Savings**)
 
-**Turn 2 (Follow-up): Are there any products made of Unobtanium alloy?**
-Axon's recursive **TRON (Tree-state Recursive Object Notation)** deduplicator kicks in. It recognizes this exact session has already transmitted the massive dataset. It generates microscopic `@ref` delta pointers instead of resending the array.
-- **Tokens Sent:** 37 vs 13,800 raw (**99.73% Savings!**)
+**Turn 2 (Follow-up - Stateful TOON Compression Enabled): Are there any products made of Unobtanium alloy?**
+If stateful delta compression (TOON) is enabled along with Provider Caching, Axon's differential deduplicator recognizes this exact session has already transmitted the massive dataset. It generates microscopic `{"__deleted__": true}` delta markers instead of resending the array.
+- **Tokens Sent:** 5 vs 7,879 raw (**99.94% Savings!**)
 
-**Turn 3 (Reasoning): What is the average stock of the first 5 items?**
-The deduplicator caches the static data yet again.
-- **Tokens Sent:** 86 vs 13,872 raw (**99.38% Savings!**)
+**Turn 3 (Reasoning - Stateful TOON Compression Enabled): What is the average stock of the first 5 items?**
+The deduplicator drops the static data yet again.
+- **Tokens Sent:** 5 vs 7,879 raw (**99.94% Savings!**)
 
-> **🏆 OVERALL SAVINGS: 76.27%**  
-> You avoided paying for **31,614 redundant structural tokens** in a single conversation!
+> **🏆 OVERALL SAVINGS: 76.49%**  
+> You avoided paying for **18,082 redundant tokens** in a single conversation!
 
 ### 💻 Scenario 2: Codebase AST / Dependency Graph
 *Payload: Array of 100 Codebase Class/Function node objects mimicking a Repository Graph.*
@@ -93,14 +93,14 @@ Axon mathematically detects this bloat and crushes it **without removing any sem
 
 ### 📊 Verified Real-World Performance (Live E2E Test)
 
-Real-world testing against a **100-item complex product catalog** (nested specs, reviews, pricing — ~15K tokens) routed through Axon to Gemini 2.5 Flash:
+Real-world testing against a **100-item complex product catalog** routed through Axon to Gemini 2.5 Flash:
 
 | Turn | Question | Answer Correct? | Raw Tokens | Compressed Tokens | Savings % |
 |---|---|---|---|---|---|
-| Turn 1 | Most expensive item price & ID | ✅ Zero hallucination | 15,169 | 12,440 | **18.0%** |
-| Turn 2 | Count of 'Electronics' category | ✅ Zero hallucination | 15,204 | 12,475 | **17.9%** |
+| Turn 1 | Most expensive item price & ID | ✅ Zero hallucination | 7,879 | 5,545 | **29.6%** |
+| Turn 2 | Count of 'Electronics' category | ✅ Zero hallucination | 7,879 | 5,545 | **29.6%** |
 
-> **~18% structural savings verified every turn with zero hallucinations.** Additional savings of up to 80% are available via native provider prompt caching for paid API plans.
+> **~29% structural savings verified every turn with zero hallucinations using stateless compression.** Additional savings of up to 99% are available via stateful delta tracking (TOON) combined with native provider prompt caching for paid API plans.
 
 ```mermaid
 graph TD

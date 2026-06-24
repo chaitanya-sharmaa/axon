@@ -137,6 +137,12 @@ class SessionMemoryStore(BaseMemoryStore):
                 FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
             )
         """)
+        # FIX #11: Add composite index for the ORDER BY id DESC query in get_session_history
+        # to avoid full table scans on large deployments.
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_memory_events_session
+            ON memory_events(session_id, id DESC)
+        """)
         await conn.commit()
 
     # ── Public API ─────────────────────────────────────────────────────────────
@@ -243,10 +249,12 @@ class SessionMemoryStore(BaseMemoryStore):
             new_json = json.dumps(history)
             now = datetime.now(timezone.utc)
             
-            # Ensure session exists (foreign key constraint)
+            # FIX #3: Ensure metadata is always a valid JSON string ('{}') when
+            # auto-creating sessions. Previously NULL was inserted, which caused
+            # json.loads(row['metadata']) to crash with TypeError.
             await conn.execute(
-                "INSERT OR IGNORE INTO sessions (session_id, created_at, last_accessed) VALUES (?, ?, ?)",
-                (session_id, now, now)
+                "INSERT OR IGNORE INTO sessions (session_id, created_at, last_accessed, metadata) VALUES (?, ?, ?, ?)",
+                (session_id, now, now, "{}")
             )
             
             # Upsert
@@ -397,12 +405,17 @@ class SessionMemoryStore(BaseMemoryStore):
         conn = await self._ensure_conn()
         async with self.lock:
             now = datetime.now(timezone.utc)
+            # FIX #4: Use an upsert so that spend is recorded even for tenants who
+            # have never called set_tenant_quota(). Previously, UPDATE ... WHERE
+            # silently affected 0 rows for unknown tenants, dropping the cost forever.
             await conn.execute(
                 """
-                UPDATE tenant_quotas
-                SET spend_usd = spend_usd + ?, updated_at = ?
-                WHERE tenant_id = ?
+                INSERT INTO tenant_quotas (tenant_id, quota_usd, spend_usd, created_at, updated_at)
+                VALUES (?, 0.0, ?, ?, ?)
+                ON CONFLICT(tenant_id) DO UPDATE SET
+                    spend_usd = spend_usd + excluded.spend_usd,
+                    updated_at = excluded.updated_at
                 """,
-                (cost_usd, now, tenant_id)
+                (tenant_id, cost_usd, now, now)
             )
             await conn.commit()

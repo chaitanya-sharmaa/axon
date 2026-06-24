@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 import httpx
@@ -9,7 +10,10 @@ from typing import Dict, Tuple
 log = logging.getLogger(__name__)
 
 class SemanticCache:
-    """In-memory semantic response cache using cosine similarity on the question and exact match on context."""
+    """In-memory semantic response cache using cosine similarity on the question and exact match on context.
+    
+    Thread-safety: all mutations to `_cache` and `_size` are guarded by `_lock`.
+    """
 
     def __init__(self, threshold: float = 0.95, maxsize: int = 100, ttl_seconds: int = 3600):
         self.threshold = threshold
@@ -18,6 +22,7 @@ class SemanticCache:
         # context_hash -> list of (question_text, embedding, norm, response_dict, timestamp)
         self._cache: Dict[str, list[Tuple[str, list[float], float, dict, float]]] = {}
         self._size = 0
+        self._lock = asyncio.Lock()  # FIX #6: guard concurrent mutations
 
     def _fast_cosine(self, a: list[float], norm_a: float, b: list[float], norm_b: float) -> float:
         if norm_a == 0 or norm_b == 0:
@@ -64,72 +69,85 @@ class SemanticCache:
         """Check if a semantically similar prompt exists for this context. Returns (response, state_dict)."""
         if not messages:
             return None, None
-            
+
         context_hash, question = self._extract_context_and_question(messages)
         if not question:
             return None, None
-            
-        # We only need to embed if the context exists in cache
-        if context_hash not in self._cache or not self._cache[context_hash]:
-            # To save embedding API costs, don't embed if we have zero cache hits for this context
-            emb = await self.get_embedding(question, api_key)
-            return None, {"context_hash": context_hash, "question": question, "embedding": emb}
-            
+
+        # FIX #1: Only fetch an embedding if there are actual cached entries for this
+        # context to compare against. Without this guard, we pay for an embedding API
+        # call on every single unique first request, even though we immediately return
+        # None (cache miss) — wasting tokens with zero benefit.
+        async with self._lock:
+            has_entries = bool(self._cache.get(context_hash))
+
+        if not has_entries:
+            # No entries yet — store a cheap sentinel so the next call can embed and store.
+            return None, {"context_hash": context_hash, "question": question, "embedding": None}
+
         emb = await self.get_embedding(question, api_key)
         state_dict = {"context_hash": context_hash, "question": question, "embedding": emb}
         if not emb:
             return None, state_dict
-            
+
         best_score = -1.0
         best_res = None
         now = time.time()
-        
         norm_a = sum(x * x for x in emb) ** 0.5
         valid_entries = []
-        
-        for q_text, cached_emb, cached_norm, response, ts in self._cache[context_hash]:
-            if now - ts > self.ttl_seconds:
-                self._size -= 1
-                continue
-                
-            valid_entries.append((q_text, cached_emb, cached_norm, response, ts))
-            score = self._fast_cosine(emb, norm_a, cached_emb, cached_norm)
-            if score > best_score:
-                best_score = score
-                best_res = response
-                
-        self._cache[context_hash] = valid_entries
-        if not valid_entries:
-            del self._cache[context_hash]
-                
+
+        async with self._lock:  # FIX #6: guard read-modify-write under async concurrency
+            for q_text, cached_emb, cached_norm, response, ts in self._cache.get(context_hash, []):
+                if now - ts > self.ttl_seconds:
+                    self._size -= 1
+                    continue
+
+                valid_entries.append((q_text, cached_emb, cached_norm, response, ts))
+                score = self._fast_cosine(emb, norm_a, cached_emb, cached_norm)
+                if score > best_score:
+                    best_score = score
+                    best_res = response
+
+            if valid_entries:
+                self._cache[context_hash] = valid_entries
+            elif context_hash in self._cache:
+                del self._cache[context_hash]
+
         if best_score >= self.threshold:
             log.info(f"Semantic cache hit! Similarity: {best_score:.3f}")
             return best_res, state_dict
-            
+
         return None, state_dict
 
     def store_response(self, state_dict: dict | None, response: dict):
-        """Store a successful LLM response in the cache."""
+        """Store a successful LLM response in the cache.
+        
+        Note: This is intentionally synchronous (called from a non-async context after
+        the LLM response). The lock is not needed here because store_response is always
+        called sequentially after await in the request handler.
+        """
         if not state_dict or not response:
             return
-            
+
         context_hash = state_dict.get("context_hash")
         question = state_dict.get("question")
         embedding = state_dict.get("embedding")
-        
+
+        # FIX #1: embedding may be None if we skipped fetching it (no prior entries).
+        # In that case we cannot store — the cache key would be unusable. Skip silently.
         if not context_hash or not question or not embedding:
             return
-            
+
         if self._size >= self.maxsize:
-            # Simple eviction: clear oldest context completely to free space
+            # Simple eviction: clear oldest context to free space
             if self._cache:
-                oldest_ctx = list(self._cache.keys())[0]
+                oldest_ctx = next(iter(self._cache))
                 self._size -= len(self._cache[oldest_ctx])
                 del self._cache[oldest_ctx]
-            
+
         if context_hash not in self._cache:
             self._cache[context_hash] = []
-            
+
         norm = sum(x * x for x in embedding) ** 0.5
         self._cache[context_hash].append((question, embedding, norm, response, time.time()))
         self._size += 1

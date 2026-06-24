@@ -29,9 +29,9 @@ Supported strategies:
 
 from __future__ import annotations
 
-import collections
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
@@ -46,7 +46,6 @@ from gcf import (
     encode_generic,
     encode_with_session,
 )
-import re
 
 try:
     from rank_bm25 import BM25Okapi
@@ -85,21 +84,41 @@ ALL_STRATEGIES = [
 
 # ── LRU session cache ──────────────────────────────────────────────────────────
 
+import threading
 from cachetools import TTLCache
 
 class _TTLDict(TTLCache):
-    """TTLCache that silently evicts the oldest entry based on time or size.
-    
-    All per-session dicts in ``TokenOptimizer`` use this so that
-    a long-running server cannot accumulate unbounded session state.
+    """Thread-safe TTLCache that silently evicts the oldest entry based on time or size.
+
+    cachetools.TTLCache is explicitly NOT thread-safe per its documentation.
+    FIX #7: All accesses are protected by a threading.Lock so concurrent FastAPI
+    requests cannot corrupt session state or cause KeyErrors.
     """
     def __init__(self, maxsize: int = 1024, ttl: int = 3600, *args, **kwargs) -> None:
         super().__init__(maxsize=maxsize, ttl=ttl, *args, **kwargs)
+        self._rlock = threading.Lock()
+
+    def __getitem__(self, key):
+        with self._rlock:
+            return super().__getitem__(key)
+
+    def __setitem__(self, key, value):
+        with self._rlock:
+            return super().__setitem__(key, value)
+
+    def __contains__(self, key):
+        with self._rlock:
+            return super().__contains__(key)
+
+    def get(self, key, default=None):
+        with self._rlock:
+            return super().get(key, default)
 
     def setdefault(self, key, default=None):
-        if key not in self:
-            self[key] = default
-        return self[key]
+        with self._rlock:
+            if key not in self:
+                self[key] = default
+            return self[key]
 
 
 # ── Result containers ──────────────────────────────────────────────────────────

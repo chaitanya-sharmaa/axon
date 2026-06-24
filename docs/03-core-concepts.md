@@ -36,28 +36,32 @@ graph TD
 
 ---
 
-## 2. The Stateful Threads API & Multi-Turn Session Deduplication (TOON & TRON)
+## 2. The Stateful Threads API (Network Savings)
 
-The most dramatic token savings (up to 99%+) are theoretically possible during multi-turn LLM conversations when an agent continuously re-sends the same large context.
-
-Standard LLM APIs (OpenAI, Gemini, Anthropic) are **stateless**, which forces you to upload your entire `messages=[...]` array on every single turn.
+The most dramatic latency improvements occur during multi-turn LLM conversations. Standard LLM APIs (OpenAI, Gemini, Anthropic) are **stateless**, which forces you to upload your entire `messages=[...]` array on every single turn. This wastes massive amounts of client-side network bandwidth.
 
 Axon introduces the **Stateful Threads API**. By simply appending the header `X-Axon-Stateful-Thread: true`, Axon's local SQLite/Redis database automatically tracks your conversation history.
-Your application only needs to send the *new* message to Axon. Axon rehydrates the full conversation history and applies its multi-turn compression algorithms:
 
-* **TOON (Token-Oriented Object Notation / "Deltas")**: Tracks the state of each message position across turns. On subsequent turns, replaces unchanged data with `{"__deleted__": true}` markers.
-* **TRON (Token-Reduced Object Notation / "References")**: Remembers long scalar strings seen in previous turns and mathematically replaces them with highly compact **Integer IDs** (e.g., `@ref:1`, `@ref:2`).
+**How it works:**
+1. Your application only sends the *new* message (a tiny delta) to Axon.
+2. Axon rehydrates the full conversation history from its local SQLite memory.
+3. Axon applies safe structural compression (Schema Flattening).
+4. Axon sends the full rehydrated payload to the stateless LLM API.
 
-### ✅ Integration with Provider Caching
-
-For the ultimate token-saving architecture, combine Axon's Stateful Threads API with native provider-side caching. Set `AXON_ENABLE_STATEFUL_COMPRESSION=true` in your `.env`.
-Axon will deduplicate the data using TOON/TRON, and the provider (e.g. Anthropic) will cache the compressed payload on their end!
+**Benefit:** You achieve **99% Network Bandwidth Savings** (because your client didn't upload the history) and **~20% API Token Savings** (from structural schema flattening) with **0% chance of hallucination**.
 
 ---
 
-## 3. Native Provider Prompt Caching
+## 3. Native Provider Prompt Caching & TRON (API Token Savings)
 
-Instead of proxy-level data deletion, Axon uses native provider caching — the provider's servers cache the KV computation of large context blocks and reuse it across turns. The full data is always sent in the payload, so the LLM never loses context.
+> [!WARNING]
+> **Never enable TRON/TOON against stateless APIs (like standard OpenAI or Ollama).**
+> These algorithms physically delete data and replace it with `@ref` pointers. Stateless models have no memory of previous turns, so they will hallucinate when receiving `@ref` pointers.
+
+To achieve **99% API Token Savings**, you must use **Native Provider Caching**. In these setups, the provider's servers cache the physical key-value states, so they can resolve references. When using Anthropic Prompt Caching or paid Gemini `cachedContent`, you can safely enable Axon's destructive deduplication by setting `AXON_ENABLE_STATEFUL_COMPRESSION=true`.
+
+* **TOON (Token-Oriented Object Notation / "Deltas")**: Tracks the state of each message position across turns. On subsequent turns, replaces unchanged data with `{"__deleted__": true}` markers.
+* **TRON (Token-Reduced Object Notation / "References")**: Remembers long scalar strings seen in previous turns and mathematically replaces them with highly compact **Integer IDs** (e.g., `@ref:1`, `@ref:2`).
 
 | Provider | Mechanism | Savings | Configuration |
 |---|---|---|---|
@@ -113,4 +117,3 @@ graph LR
     classDef llm fill:#059669,stroke:#047857,color:#fff
     classDef db fill:#f59e0b,stroke:#d97706,color:#fff
 ```
-

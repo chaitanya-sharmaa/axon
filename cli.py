@@ -73,5 +73,17 @@ def benchmark(
                   f"saving [bold]{result.winner.savings_vs_json_pct:.2f}%[/bold] "
                   f"(${saved_usd:.6f} per request) compared to raw JSON.")
 
+@app.command()
+def serve(
+    host: str = typer.Option("0.0.0.0", help="Host IP to bind to"),
+    port: int = typer.Option(8080, help="Port to bind to")
+):
+    """
+    Start the Axon Bridge server.
+    """
+    import uvicorn
+    console.print(f"[bold green]🚀 Starting Axon Bridge on {host}:{port}...[/bold green]")
+    uvicorn.run("app:app", host=host, port=port, reload=False)
+
 if __name__ == "__main__":
     app()

@@ -1,5 +1,5 @@
 import pytest
-from bridge.integrations.patch import patch
+from integrations.patch import patch
 
 class MockCompletions:
     def create(self, **kwargs):

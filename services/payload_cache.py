@@ -24,6 +24,7 @@ Usage
 from __future__ import annotations
 
 import hashlib
+import threading
 from collections import OrderedDict
 from typing import Optional
 
@@ -36,6 +37,7 @@ class PayloadCache:
         self._store: OrderedDict[str, str] = OrderedDict()
         self._hits = 0
         self._misses = 0
+        self._lock = threading.Lock()
 
     def _key(self, json_text: str) -> str:
         return hashlib.sha256(json_text.encode()).hexdigest()
@@ -43,35 +45,39 @@ class PayloadCache:
     def get(self, json_text: str) -> Optional[str]:
         """Return the cached encoded string, or ``None`` on a miss."""
         key = self._key(json_text)
-        if key in self._store:
-            self._store.move_to_end(key)
-            self._hits += 1
-            return self._store[key]
-        self._misses += 1
+        with self._lock:
+            if key in self._store:
+                self._store.move_to_end(key)
+                self._hits += 1
+                return self._store[key]
+            self._misses += 1
         return None
 
     def set(self, json_text: str, encoded: str) -> None:
         """Store *encoded* against the hash of *json_text*."""
         key = self._key(json_text)
-        if key in self._store:
-            self._store.move_to_end(key)
-        else:
-            if len(self._store) >= self._maxsize:
-                self._store.popitem(last=False)
-        self._store[key] = encoded
+        with self._lock:
+            if key in self._store:
+                self._store.move_to_end(key)
+            else:
+                if len(self._store) >= self._maxsize:
+                    self._store.popitem(last=False)
+            self._store[key] = encoded
 
     def stats(self) -> dict:
-        return {
-            "size": len(self._store),
-            "maxsize": self._maxsize,
-            "hits": self._hits,
-            "misses": self._misses,
-            "hit_rate_pct": round(
-                self._hits / max(1, self._hits + self._misses) * 100, 1
-            ),
-        }
+        with self._lock:
+            return {
+                "size": len(self._store),
+                "maxsize": self._maxsize,
+                "hits": self._hits,
+                "misses": self._misses,
+                "hit_rate_pct": round(
+                    self._hits / max(1, self._hits + self._misses) * 100, 1
+                ),
+            }
 
     def clear(self) -> None:
-        self._store.clear()
-        self._hits = 0
-        self._misses = 0
+        with self._lock:
+            self._store.clear()
+            self._hits = 0
+            self._misses = 0

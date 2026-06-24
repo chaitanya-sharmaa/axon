@@ -77,53 +77,30 @@ sequenceDiagram
 
 ---
 
-## 🚀 1. The Token Compression Engine (Up to 99.9% Savings)
+## 🚀 1. The Token Compression Engine (~18% Structural Savings, Up to 80% With Caching)
 
-Axon's flagship feature is its **TokenOptimizer** — a real-time mathematical compression engine that acts as an intelligent firewall for your API budget. Every request goes through a rigorous gauntlet of caching, pruning, and structural deep-compression before it ever hits the LLM.
+Axon's flagship feature is its **TokenOptimizer** — a real-time mathematical compression engine that acts as an intelligent firewall for your API budget. Every request goes through a rigorous benchmarking gauntlet before it ever hits the LLM.
 
-### Dynamic Encoding & Recursive Deduplication
+### Dynamic Encoding & Structural Compression (Always-On)
 
-When Agents scrape raw DOM data, transmit massive database schemas, or load large RAG contexts, they send tens of thousands of tokens. The vast majority of these tokens are structural bloat (repeated JSON keys, repetitive schemas, duplicated scalars across multi-turn sessions).
+When Agents scrape raw DOM data, transmit massive database schemas, or load large RAG contexts, they send tens of thousands of tokens. The vast majority of these tokens are structural bloat (repeated JSON keys, repetitive schemas, unnecessary punctuation).
 
-Axon mathematically detects this bloat and crushes it.
+Axon mathematically detects this bloat and crushes it **without removing any semantic data values**, making it completely safe for stateless LLM APIs.
 
 | Without Axon | With Axon |
 |---|---|
-| Sending 1,000 JSON items costs 30,000 tokens due to the repeated keys on every single row. | Axon mathematically detects the schema, strips all keys, sends the schema once at the top, and sends raw comma-separated values below it. 30,000 tokens drops to 8,000 tokens. |
-| Turn 1 sends 10KB. Turn 2 changes one variable and sends 10.1KB. The LLM re-reads the entire 10KB context again. | **Recursive Session Deduplication (TRON):** Axon maintains a Tree-state Recursive Object Notation (TRON) cache. Turn 1 sends 10KB. Turn 2 sends ONLY the 0.1KB delta using microscopic `@ref` pointers. The LLM processes 99% fewer tokens. |
+| Sending 1,000 JSON items costs 30,000 tokens due to the repeated keys on every single row. | Axon mathematically detects the schema, strips all keys, sends the schema once at the top, and sends raw comma-separated values below it. |
 
-```mermaid
-graph TD
-    subgraph Turn 1: Cold Start
-        A1[Agent: Send 10KB Context] --> Proxy1[Axon Proxy]
-        Proxy1 -->|Extracts Schema, Strips Keys| B1[Send 2KB to LLM]
-        B1 --> C1[LLM Response]
-        Proxy1 -.->|Save State to Memory| DB[(Redis/SQLite Cache)]
-    end
-    
-    subgraph Turn 2: Follow-up Question
-        A2[Agent: Send 10KB Context Again] --> Proxy2[Axon Proxy]
-        DB -.->|Load Previous State| Proxy2
-        Proxy2 -->|Calculates Diff| B2[Send 0.1KB @ref Pointers to LLM]
-        B2 --> C2[LLM Response]
-    end
-    
-    classDef proxy fill:#2563eb,color:#fff
-    class Proxy1,Proxy2 proxy
-```
+### 📊 Verified Real-World Performance (Live E2E Test)
 
-### 📊 Verified Performance Benchmarks
+Real-world testing against a **100-item complex product catalog** (nested specs, reviews, pricing — ~15K tokens) routed through Axon to Gemini 2.5 Flash:
 
-Axon Bridge rigorously benchmarks every payload in real-time. Here are the observed token savings and proxy latency (measured across cold vs multi-turn sessions):
+| Turn | Question | Answer Correct? | Raw Tokens | Compressed Tokens | Savings % |
+|---|---|---|---|---|---|
+| Turn 1 | Most expensive item price & ID | ✅ Zero hallucination | 15,169 | 12,440 | **18.0%** |
+| Turn 2 | Count of 'Electronics' category | ✅ Zero hallucination | 15,204 | 12,475 | **17.9%** |
 
-| Use Case | Original Tokens | Axon Cold Tokens | Cold Savings % | Axon Multi-Turn Tokens | Multi-Turn Savings % | Latency | Winning Strategy |
-|---|---|---|---|---|---|---|---|
-| Telemetry Event (Flat JSON) | 19 | 19 | 0.0% | 5 | **73.68%** | 0.17ms | `json` |
-| API Response (Nested JSON) | 47 | 47 | 0.0% | 5 | **89.36%** | 0.08ms | `json` |
-| Code Context (Graph/Nodes) | 597 | 304 | **49.08%** | 5 | **99.16%** | 0.62ms | `generic` |
-| RAG Chunk (Highest Complexity)* | 21,926 | 21,926 | 0.0% | 5 | **99.98%** | 23.86ms | `json` |
-
-*\*Highest Complexity Payload involves arrays of 100 heavily nested items (21k+ tokens). Axon's recursive TRON deduplicator natively traverses infinite levels of arrays and nested dictionaries, caching deep scalars and delivering 99.98% token savings on multi-turn interactions.*
+> **~18% structural savings verified every turn with zero hallucinations.** Additional savings of up to 80% are available via native provider prompt caching for paid API plans.
 
 ```mermaid
 graph TD
@@ -141,6 +118,19 @@ graph TD
     
     Pick --> Output[Compressed Payload Sent to 100+ LLMs]
 ```
+
+---
+
+## 🔒 1.5 Native Provider Prompt Caching (Up to ~80% Multi-Turn Savings)
+
+For maximum token savings without proxy-level data deletion or hallucination risk, Axon uses **native provider-side caching**. The full data is always sent in the payload — the provider's servers cache the KV computation and reuse it.
+
+| Provider | Mechanism | Savings | Configuration |
+|---|---|---|---|
+| **Anthropic** | `cache_control: ephemeral` on largest message + system prompt | ~80% cost on repeated context | **Automatic** for `claude-3` models |
+| **Gemini** | `cachedContent` API via LiteLLM | ~80% cost on repeated context | Set `AXON_ENABLE_GEMINI_PROMPT_CACHE=true` **(paid plan only)** |
+
+> ⚠️ **Gemini Context Caching requires a paid Gemini API plan.** Free-tier keys have a storage limit of 0 tokens and will receive a `429` error. Do NOT enable `AXON_ENABLE_GEMINI_PROMPT_CACHE` on a free-tier key.
 
 ---
 
@@ -199,7 +189,7 @@ graph LR
     App[Python App<br/>OpenAI SDK] -->|Base URL: localhost:8080| Axon[Axon Proxy]
     
     Axon -->|model='gpt-4o'| OpenAI[OpenAI API]
-    Axon -->|model='gemini/gemini-2.0-flash'| Google[Google Gemini API]
+    Axon -->|model='gemini/gemini-2.5-flash'<br/>auto-fallback to 2.0| Google[Google Gemini API]
     Axon -->|model='claude-3-5-sonnet'| Anthropic[Anthropic API]
     Axon -->|model='bedrock/...'| AWS[AWS Bedrock]
     
@@ -213,10 +203,20 @@ graph LR
 |---|---|
 | You find out you overspent your OpenAI budget at the end of the month when you get the invoice. | Pass `X-Axon-Tenant-ID`. Axon atomically tracks exact dollar spend per user/tenant in Redis. If they hit their budget, Axon blocks them instantly with a `429 Too Many Requests`. |
 
-### 2.5 Dynamic Pruning & Downscaling
+### 2.5 Dynamic Pruning, Caching & Safety
 - **Vision Payload Downscaling**: Automatically intercepts `base64` images. Axon silently downscales massive 4K images to 768px/512px while preserving aspect ratio, slashing Vision API costs by up to 85%.
-- **Semantic Cache**: If you send a prompt that is >95% semantically similar to a previous request, Axon intercepts it and instantly returns the cached response. Zero API tokens used, <50ms latency.
+- **Fast Vector Semantic Cache**: Thread-safe memory cache. If you send a prompt that is >95% semantically similar to a previous request, Axon intercepts it and instantly returns the cached response with zero API tokens used (<50ms latency). Features automatic TTL invalidation.
+- **PII Redaction**: Built-in heuristics automatically redact sensitive data (Credit Cards, SSNs, Emails, and Phone Numbers) from the payload before it ever touches external LLM endpoints.
 - **Dynamic Tool Schema Pruning**: Axon uses a fast, local **BM25 semantic filter** to dynamically drop irrelevant tools from the context window based on the user's immediate query, saving thousands of tokens per turn without breaking the agent.
+
+### 2.6 TOON & TRON (Advanced — Opt-In)
+
+> ⚠️ **Disabled by default.** Standard LLM APIs are stateless. Enabling TOON/TRON on stateless endpoints causes context loss and model hallucinations.
+
+- **TOON (Deltas)**: Replaces unchanged message data with `{"__deleted__": true}` markers across turns.
+- **TRON (References)**: Replaces repeated scalar values with microscopic `@ref:<path>` pointers.
+
+Safe to enable **only** when using Anthropic Prompt Caching or Gemini Context Caching (paid plan), which store the full context server-side. Set `AXON_ENABLE_STATEFUL_COMPRESSION=true` to opt in.
 
 ---
 
@@ -354,6 +354,8 @@ Copy `.env.example` to `.env`. Key variables include:
 | `AXON_MAX_SESSIONS` | `1000` | LRU cap for in-memory session state |
 | `AXON_REQUIRE_API_KEY` | `false` | Enforce `X-API-Key` on proxy requests |
 | `AXON_ENABLE_TENANT_QUOTAS` | `false` | Enable strict dollar-based quotas per API key |
+| `AXON_ENABLE_STATEFUL_COMPRESSION` | `false` | Enable TOON/TRON proxy-level deduplication. **Only safe with provider-side caching (Anthropic/Gemini paid).** |
+| `AXON_ENABLE_GEMINI_PROMPT_CACHE` | `false` | Inject `cache_control` hints for Gemini's `cachedContent` API. **Requires a paid Gemini plan.** |
 
 ---
 

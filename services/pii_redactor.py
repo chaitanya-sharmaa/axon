@@ -8,6 +8,7 @@ log = logging.getLogger(__name__)
 EMAIL_REGEX = re.compile(r"([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)")
 SSN_REGEX = re.compile(r"\b(?:\d{3}-\d{2}-\d{4})\b")
 CREDIT_CARD_REGEX = re.compile(r"\b(?:\d{4}[ -]?){3}\d{4}\b")
+PHONE_REGEX = re.compile(r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
 
 class PIIRedactor:
     """A lightweight heuristic-based PII Redactor for Axon Bridge."""
@@ -27,6 +28,9 @@ class PIIRedactor:
         
         # Redact Credit Cards
         text = CREDIT_CARD_REGEX.sub("[CREDIT_CARD_REDACTED]", text)
+        
+        # Redact Phones
+        text = PHONE_REGEX.sub("[PHONE_REDACTED]", text)
         
         # Redact Emails
         text = EMAIL_REGEX.sub("[EMAIL_REDACTED]", text)

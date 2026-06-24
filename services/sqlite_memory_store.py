@@ -51,6 +51,8 @@ class SessionMemoryStore(BaseMemoryStore):
             # Enforce FK constraints so ON DELETE CASCADE works correctly.
             await conn.execute("PRAGMA foreign_keys=ON")
             await self._init_schema(conn)
+            # Prevent WAL file from growing indefinitely by checkpointing on startup
+            await conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
             self._conn = conn
         return self._conn
 

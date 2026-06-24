@@ -33,6 +33,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from typing import Any, AsyncIterator
 
 import httpx
@@ -112,7 +113,6 @@ class EmbeddingRequest(BaseModel):
 def _compress_messages(messages: list[ChatMessage], session_id: str | None, model_name: str | None = None) -> tuple[list[dict], dict]:
     """Compress each message's content and return (compressed_messages, savings_metrics)."""
     with tracer.start_as_current_span("compress_messages") as span:
-        import time
         start_t = time.time()
         
         original_tokens = 0
@@ -120,6 +120,7 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
         compressed: list[dict] = []
         
         prune_enabled = os.getenv("AXON_PRUNE_TEXT", "false").lower() == "true"
+        enable_stateful = os.getenv("AXON_ENABLE_STATEFUL_COMPRESSION", "false").lower() == "true"
 
     # Find the largest message for potential prompt caching (Anthropic)
     largest_msg_idx = -1
@@ -154,7 +155,6 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
             if prune_enabled and len(content) > 2000:
                 content = prune_text(content)
 
-            import json
             parsed_content = content
             try:
                 # Attempt to parse as JSON so structural algorithms (schema_values, TRON, etc.) can work
@@ -164,8 +164,10 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
             except Exception:
                 pass
 
-            # Pass a message-specific session ID so the optimizer tracks state independently per message position
-            msg_session_id = f"{session_id}_msg{idx}" if session_id else None
+            # By default, disable destructive stateful compression on stateless endpoints.
+            # Only enable if the user specifically opts in (e.g., they are using a stateful LLM or handle context independently).
+            msg_session_id = f"{session_id}_msg{idx}" if session_id and enable_stateful else None
+            
             result = axon_service._optimizer.optimize(
                 {"role": msg.role, "content": parsed_content},
                 session_id=msg_session_id,
@@ -185,7 +187,9 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
                 
         compressed.append(d)
 
-    # 3. Native Provider Prompt Caching (Anthropic)
+    # 3. Native Provider Prompt Caching
+    # Anthropic: marks the largest message and system prompt with cache_control
+    # so Anthropic's server caches the KV computation and skips re-reading on subsequent turns.
     if model_name and "claude-3" in model_name:
         # Cache the largest message
         if largest_msg_idx != -1:
@@ -193,8 +197,8 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
             if isinstance(target_msg["content"], str):
                 target_msg["content"] = [
                     {
-                        "type": "text", 
-                        "text": target_msg["content"], 
+                        "type": "text",
+                        "text": target_msg["content"],
                         "cache_control": {"type": "ephemeral"}
                     }
                 ]
@@ -203,8 +207,41 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
             if msg["role"] == "system" and idx != largest_msg_idx and isinstance(msg["content"], str) and len(msg["content"]) > 100:
                 msg["content"] = [
                     {
-                        "type": "text", 
-                        "text": msg["content"], 
+                        "type": "text",
+                        "text": msg["content"],
+                        "cache_control": {"type": "ephemeral"}
+                    }
+                ]
+                break
+
+    # Gemini: inject cache_control hints on the largest message so LiteLLM's Gemini
+    # adapter forwards them as a cachedContent TTL. This means Gemini's server
+    # caches the KV state of the large context block and reuses it across turns,
+    # achieving ~80% cost reduction on repeated multi-turn context without the
+    # proxy stripping any data from the payload.
+    # NOTE: Gemini cachedContent API requires a PAID plan (free tier limit=0).
+    # Only enable this when using a paid Gemini API key.
+    gemini_cache_enabled = os.getenv("AXON_ENABLE_GEMINI_PROMPT_CACHE", "false").lower() == "true"
+    if gemini_cache_enabled and model_name and ("gemini-1.5" in model_name or "gemini-2" in model_name):
+        GEMINI_CACHE_MIN_CHARS = 1000  # Gemini requires >=1024 tokens to cache
+        if largest_msg_idx != -1:
+            target_msg = compressed[largest_msg_idx]
+            if isinstance(target_msg["content"], str) and len(target_msg["content"]) >= GEMINI_CACHE_MIN_CHARS:
+                # LiteLLM propagates cache_control to Gemini's cachedContent API
+                target_msg["content"] = [
+                    {
+                        "type": "text",
+                        "text": target_msg["content"],
+                        "cache_control": {"type": "ephemeral"}
+                    }
+                ]
+        # Cache system prompt if it's large and not already cached
+        for idx, msg in enumerate(compressed):
+            if msg["role"] == "system" and idx != largest_msg_idx and isinstance(msg["content"], str) and len(msg["content"]) >= GEMINI_CACHE_MIN_CHARS:
+                msg["content"] = [
+                    {
+                        "type": "text",
+                        "text": msg["content"],
                         "cache_control": {"type": "ephemeral"}
                     }
                 ]
@@ -432,64 +469,22 @@ async def chat_completions(
         )
 
     extra = req.model_extra or {}
-    requires_json = extra.get("response_format", {}).get("type") == "json_object"
+    req_type = extra.get("response_format", {}).get("type")
+    requires_json = req_type in ("json_object", "json_schema")
     json_schema = extra.get("response_format", {}).get("json_schema", {}).get("schema")
     
     async def _execute_post(current_body):
         model = current_body.pop("model")
         messages = current_body.pop("messages")
         try:
-            # For Gemini models we bypass litellm and call the API directly
-            if routed_model.startswith("gemini/"):
-                # Build Gemini request payload
-                gemini_payload = {
-                    "contents": [
-                        {"role": "user", "parts": [{"text": msg["content"]}]} for msg in messages
-                    ]
-                }
-                # Send request to Gemini generateContent endpoint
-                import requests
-                gemini_resp = requests.post(url, json=gemini_payload, headers=upstream_headers)
-                gemini_resp.raise_for_status()
-                gemini_data = gemini_resp.json()
-                
-                # Extract text from Gemini response format
-                candidates = gemini_data.get("candidates", [])
-                text = ""
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        text = parts[0].get("text", "")
-                
-                # Translate back to OpenAI standard format
-                return {
-                    "id": "chatcmpl-gemini",
-                    "object": "chat.completion",
-                    "model": routed_model,
-                    "choices": [{
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": text
-                        },
-                        "finish_reason": "stop"
-                    }],
-                    "usage": {
-                        "prompt_tokens": 0,
-                        "completion_tokens": 0,
-                        "total_tokens": 0
-                    }
-                }
-            else:
-                # OpenAI-compatible fallback using litellm
-                response = await litellm.acompletion(
-                    model=model,
-                    messages=messages,
-                    api_key=api_key,
-                    num_retries=2,
-                    **current_body
-                )
-                return response.model_dump()
+            response = await litellm.acompletion(
+                model=model,
+                messages=messages,
+                api_key=api_key,
+                num_retries=2,
+                **current_body
+            )
+            return response.model_dump()
         finally:
             # Restore them for the healing loop or fallback if needed
             current_body["model"] = model

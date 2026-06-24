@@ -46,6 +46,11 @@ _DEFAULT_PRICES: dict[str, ModelPrice] = {
     "claude-3-opus-20240229":     ModelPrice(input=0.015, output=0.075),
     "claude-3-sonnet-20240229":   ModelPrice(input=0.003, output=0.015),
     "claude-3-haiku-20240307":    ModelPrice(input=0.00025, output=0.00125),
+    # Gemini
+    "gemini/gemini-2.5-flash":  ModelPrice(input=0.00015, output=0.0006),
+    "gemini/gemini-2.0-flash":  ModelPrice(input=0.0001,  output=0.0004),
+    "gemini/gemini-1.5-pro":    ModelPrice(input=0.00125, output=0.005),
+    "gemini/gemini-1.5-flash":  ModelPrice(input=0.000075, output=0.0003),
     # Shorthand aliases
     "gpt-4o-2024-05-13":        ModelPrice(input=0.005,   output=0.015),
     "cl100k_base":              ModelPrice(input=0.0005,  output=0.0015),  # GPT-3.5 proxy

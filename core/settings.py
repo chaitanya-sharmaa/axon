@@ -43,7 +43,7 @@ def _as_list(raw: str | None, default: list[str]) -> list[str]:
     return values if values else list(default)
 
 
-@dataclass(frozen=True)
+@dataclass
 class AppSettings:
     app_title: str
     app_version: str

@@ -4,6 +4,8 @@ import httpx
 import logging
 from typing import Any
 
+from services.pii_redactor import pii_redactor
+
 log = logging.getLogger(__name__)
 
 async def extract_facts_async(session_id: str, message: str, api_key: str, memory_store: Any) -> None:
@@ -20,31 +22,22 @@ async def extract_facts_async(session_id: str, message: str, api_key: str, memor
     if not api_key:
         api_key = os.getenv("OPENAI_API_KEY", "")
 
-    # We enforce JSON mode or strict parsing to get an array of strings
     system_prompt = (
-        "Extract any persistent facts, preferences, or entity properties from the user's message. "
-        "Format your output strictly as a JSON array of very short, dense strings. "
-        "Use key=value or shorthand if possible to save tokens (e.g. ['user_name=alice', 'lang=python']). "
-        "If there are no new facts, output an empty array []."
+        "Extract persistent facts/preferences. Output strictly a JSON object: {\"facts\": [\"user=alice\", \"lang=python\"]}. "
+        "If none, output {\"facts\": []}."
     )
+    
+    safe_message = pii_redactor.redact(message)
 
     payload = {
         "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": message}
+            {"role": "user", "content": safe_message}
         ],
         "temperature": 0.0,
         "response_format": {"type": "json_object"} if "gpt" in model else None
     }
-    
-    # We will just parse the array normally if we can't use json_object for an array.
-    # Actually, json_object requires an object. So we ask for `{"facts": [...]}`.
-    system_prompt = (
-        "Extract persistent facts/preferences. Output strictly a JSON object: {\"facts\": [\"user=alice\", \"lang=python\"]}. "
-        "If none, output {\"facts\": []}."
-    )
-    payload["messages"][0]["content"] = system_prompt
 
     async with httpx.AsyncClient(timeout=30) as client:
         try:

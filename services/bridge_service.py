@@ -118,7 +118,9 @@ class AxonService:
             qualified_name = item.get("qualified_name")
             if not qualified_name:
                 # Fallback: combine module + name
-                name = item.get("name", "unknown")
+                name = item.get("name")
+                if not name:
+                    return None
                 module = item.get("module", "")
                 qualified_name = f"{module}:{name}" if module else name
             
@@ -137,23 +139,25 @@ class AxonService:
 
         edges: list[Edge] = []
         edges_raw = obj.get("edges", [])
-        if isinstance(edges_raw, list):
-            for item in edges_raw:
-                if not isinstance(item, Mapping):
-                    return None
-                # Support both strict format (source/target) and flexible format (from/to)
-                source = item.get("source") or item.get("from")
-                target = item.get("target") or item.get("to")
-                if not isinstance(source, str) or not isinstance(target, str):
-                    return None
-                edges.append(
-                    Edge(
-                        source=source,
-                        target=target,
-                        edge_type=str(item.get("edge_type", item.get("type", "references"))),
-                        status=item.get("status"),
-                    )
+        if not isinstance(edges_raw, list):
+            return None
+        
+        for item in edges_raw:
+            if not isinstance(item, Mapping):
+                return None
+            # Support both strict format (source/target) and flexible format (from/to)
+            source = item.get("source") or item.get("from")
+            target = item.get("target") or item.get("to")
+            if not isinstance(source, str) or not isinstance(target, str):
+                return None
+            edges.append(
+                Edge(
+                    source=source,
+                    target=target,
+                    edge_type=str(item.get("edge_type", item.get("type", "references"))),
+                    status=item.get("status"),
                 )
+            )
 
         return Payload(
             tool=str(obj.get("tool", "bridge")),

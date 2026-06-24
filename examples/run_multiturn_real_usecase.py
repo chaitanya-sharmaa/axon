@@ -64,7 +64,7 @@ def run_multiturn_test():
         messages.append({"role": "user", "content": question})
         
         req_body = {
-            "model": "gemini/gemini-2.5-flash",
+            "model": "ollama/llama3",
             "messages": messages,
             "temperature": 0.0
         }
@@ -94,12 +94,13 @@ def run_multiturn_test():
             orig = m.get('original_tokens', 0)
             comp = m.get('compressed_tokens', 0)
             sav_pct = m.get('savings_pct', 0)
+            strat = m.get('best_strategy', 'Unknown')
             
             total_original += orig
             total_compressed += comp
             
-            print(f"  ✓ LLM Answer: {answer[:80]}...")
-            print(f"  ✓ Tokens: {orig} raw -> {comp} compressed ({sav_pct}% saved) [Latency: {latency:.2f}s]")
+            print(f"  ✓ Tokens: {orig} raw -> {comp} compressed ({sav_pct:.2f}% saved) [Strategy: {strat}] [Latency: {latency:.2f}s]")
+            print(f"  ✓ LLM Answer:\n{answer}\n")
             
         # Append assistant response to maintain conversation history
         messages.append({"role": "assistant", "content": answer})

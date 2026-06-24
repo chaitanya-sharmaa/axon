@@ -20,20 +20,20 @@ def test_load_balanced_key_multiple():
 
 def test_route_model_auto_routing_disabled():
     with patch.dict(os.environ, {"AXON_AUTO_ROUTING": "false"}):
-        assert route_model("gpt-4o", 500) == "gpt-4o"
+        assert route_model("gpt-4o", 500, "hello") == "gpt-4o"
 
 def test_route_model_auto_routing_enabled():
     with patch.dict(os.environ, {"AXON_AUTO_ROUTING": "true"}):
-        # Downgrade triggers
-        assert route_model("gpt-4o", 500) == "gpt-4o-mini"
-        assert route_model("claude-3-5-sonnet", 500) == "claude-3-haiku-20240307"
+        # Downgrade triggers for simple prompts
+        assert route_model("gpt-4o", 500, "hello") == "gpt-4o-mini"
+        assert route_model("claude-3-5-sonnet", 500, "hi") == "claude-3-5-haiku-20241022"
         
-        # Payload too large, shouldn't downgrade
-        assert route_model("gpt-4o", 1500) == "gpt-4o"
-        assert route_model("claude-3-5-sonnet", 1500) == "claude-3-5-sonnet"
+        # Upgrade/Preserve triggers for complex prompts
+        assert route_model("gpt-4o-mini", 500, "think step by step") == "gpt-4o"
+        assert route_model("claude-3-5-haiku", 500, "def run():") == "claude-3-5-sonnet-20241022"
         
         # Unsupported model shouldn't downgrade
-        assert route_model("gpt-3.5-turbo", 500) == "gpt-3.5-turbo"
+        assert route_model("mistral", 500, "hello") == "mistral"
 
 def test_fallback_model():
     assert fallback_model("gpt-4o") == "gpt-4-turbo"

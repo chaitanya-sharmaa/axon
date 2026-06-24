@@ -84,3 +84,13 @@ class BaseMemoryStore(ABC):
     @abstractmethod
     async def get_session_facts(self, session_id: str) -> list[str]:
         pass
+
+    @abstractmethod
+    async def get_thread(self, session_id: str) -> list[dict[str, Any]]:
+        """Retrieve the ordered list of messages for a stateful thread."""
+        pass
+        
+    @abstractmethod
+    async def append_to_thread(self, session_id: str, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Append messages to a stateful thread and return the full updated thread history."""
+        pass

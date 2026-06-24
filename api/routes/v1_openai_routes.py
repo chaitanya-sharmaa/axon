@@ -371,6 +371,7 @@ async def chat_completions(
 
     session_id = request.headers.get("X-Axon-Session-ID") or request.headers.get("X-Session-ID")
     tenant_id = request.headers.get("X-Axon-Tenant-ID")
+    is_stateful_thread = request.headers.get("X-Axon-Stateful-Thread", "false").lower() == "true"
 
     # Quota Enforcement
     if settings.enable_tenant_quotas and tenant_id and memory_store:
@@ -400,15 +401,25 @@ async def chat_completions(
 
     user_text = " ".join(user_text_parts)
 
+    # Stateful Thread Rehydration
+    if session_id and is_stateful_thread and memory_store:
+        new_msg_dicts = [m.model_dump(exclude_none=True) for m in req.messages]
+        # Append incoming messages and fetch full history
+        history = await memory_store.append_to_thread(session_id, new_msg_dicts)
+        # Rehydrate request with full history
+        req.messages = [ChatMessage(**m) for m in history]
+
     # Compress messages
-    compressed_messages, metrics = _compress_messages(req.messages, session_id, req.model)
+    # If stateful thread is enabled, pass session_id=None to disable stateful TRON/TOON 
+    # delta deduplication, forcing safe structural compression (GCF).
+    compress_session_id = None if is_stateful_thread else session_id
+    compressed_messages, metrics = _compress_messages(req.messages, compress_session_id, req.model)
 
     # Semantic Caching
-    text_for_cache = ""
-    emb = None
+    state_dict = None
     if not req.stream and os.getenv("AXON_SEMANTIC_CACHE", "true").lower() == "true":
-        text_for_cache = json.dumps([m.model_dump(exclude_none=True) for m in req.messages])
-        cached_resp, emb = await semantic_cache.check_cache(text_for_cache, api_key)
+        msg_dicts = [m.model_dump(exclude_none=True) for m in req.messages]
+        cached_resp, state_dict = await semantic_cache.check_cache(msg_dicts, api_key)
         if cached_resp:
             # Cache hit
             metrics["savings_pct"] = 100.0  # 100% savings!
@@ -420,8 +431,8 @@ async def chat_completions(
                 headers={"x-axon-metrics": savings_header, "x-axon-cache": "HIT"}
             )
 
-    # Smart Routing
-    routed_model = route_model(req.model, metrics["original_tokens"])
+    # Smart Routing (Prompt Complexity aware)
+    routed_model = route_model(req.model, metrics["original_tokens"], user_text)
     
     # Build the upstream payload
     upstream_body = req.model_dump(exclude_none=True)
@@ -473,7 +484,14 @@ async def chat_completions(
     requires_json = req_type in ("json_object", "json_schema")
     json_schema = extra.get("response_format", {}).get("json_schema", {}).get("schema")
     
+    # Inject logprobs to power Shannon Entropy Hallucination Guard
+    # (Currently only supported on OpenAI models; Gemini rejects top_logprobs/logprobs on some tiers)
+    if not req.stream and (routed_model.startswith("gpt") or routed_model.startswith("openai/")):
+        upstream_body["logprobs"] = True
+        upstream_body["top_logprobs"] = 5
+
     async def _execute_post(current_body):
+        import math
         model = current_body.pop("model")
         messages = current_body.pop("messages")
         try:
@@ -482,29 +500,84 @@ async def chat_completions(
                 messages=messages,
                 api_key=api_key,
                 num_retries=2,
+                drop_params=True,
                 **current_body
             )
-            return response.model_dump()
+            resp_dict = response.model_dump()
+            
+            # Shannon Entropy Calculation
+            if "logprobs" in current_body and resp_dict.get("choices") and resp_dict["choices"][0].get("logprobs"):
+                content_logprobs = resp_dict["choices"][0]["logprobs"].get("content", [])
+                if content_logprobs:
+                    total_entropy = 0.0
+                    for token_data in content_logprobs:
+                        top_lps = token_data.get("top_logprobs", [])
+                        token_entropy = 0.0
+                        for lp_info in top_lps:
+                            lp = lp_info.get("logprob", 0.0)
+                            p = math.exp(lp)
+                            if p > 0:
+                                token_entropy -= p * math.log2(p)
+                        total_entropy += token_entropy
+                    
+                    avg_entropy = total_entropy / len(content_logprobs)
+                    resp_dict["_axon_shannon_entropy"] = avg_entropy
+                    
+                    # If entropy exceeds threshold, raise hallucination error to trigger healing
+                    if avg_entropy > 1.5:  # Configurable threshold
+                        raise ValueError(f"Hallucination detected (Shannon Entropy {avg_entropy:.2f} > 1.5)")
+
+            # Save the assistant's reply to the stateful thread
+            if session_id and is_stateful_thread and memory_store:
+                if resp_dict.get("choices") and len(resp_dict["choices"]) > 0:
+                    assistant_msg = resp_dict["choices"][0].get("message")
+                    if assistant_msg:
+                        await memory_store.append_to_thread(session_id, [assistant_msg])
+
+            return resp_dict
         finally:
             # Restore them for the healing loop or fallback if needed
             current_body["model"] = model
             current_body["messages"] = messages
 
     # JSON Healing Loop
+    resp_json = None
+    last_val_exc = None
     for attempt in range(3):
         try:
             resp_json = await _execute_post(upstream_body)
+        except ValueError as val_exc:
+            # Hallucination detected via Shannon Entropy!
+            log.warning(f"Attempt {attempt+1}: {val_exc}. Falling back to uncompressed raw JSON payload to heal.")
+            upstream_body["messages"] = req.model_dump()["messages"]
+            last_val_exc = val_exc
+            continue
         except (RateLimitError, ServiceUnavailableError, Timeout) as exc:
-            # Smart Fallback
-            fb_model = fallback_model(routed_model)
-            if fb_model != routed_model:
-                upstream_body["model"] = fb_model
+            # Smart Fallback Cascading
+            current_fb_model = routed_model
+            success = False
+            last_exc = exc
+            
+            while True:
+                next_fb_model = fallback_model(current_fb_model)
+                if next_fb_model == current_fb_model:
+                    break
+                    
+                current_fb_model = next_fb_model
+                upstream_body["model"] = current_fb_model
                 try:
                     resp_json = await _execute_post(upstream_body)
+                    success = True
+                    break
+                except (RateLimitError, ServiceUnavailableError, Timeout) as fb_exc:
+                    last_exc = fb_exc
+                    log.warning(f"Fallback model {current_fb_model} failed with RateLimit/Timeout. Trying next...")
+                    continue
                 except Exception as fb_exc:
-                    raise HTTPException(502, f"Fallback connection failed: {fb_exc}") from fb_exc
-            else:
-                raise HTTPException(502, f"Upstream error: {exc}") from exc
+                    raise HTTPException(502, f"Fallback connection failed on {current_fb_model}: {fb_exc}") from fb_exc
+                    
+            if not success:
+                raise HTTPException(502, f"All fallback models failed. Last error: {last_exc}") from last_exc
         except APIError as exc:
             raise HTTPException(502, f"Upstream API Error: {exc}") from exc
         except Exception as exc:
@@ -539,9 +612,14 @@ async def chat_completions(
         else:
             break # Not requiring JSON, exit loop
     
+    if resp_json is None:
+        if last_val_exc:
+            raise HTTPException(502, f"Failed to heal hallucination: {last_val_exc}") from last_val_exc
+        raise HTTPException(502, "Failed to get a valid response from the model.")
+
     # Store successful response in Semantic Cache
-    if not req.stream and emb is not None:
-        semantic_cache.store_response(text_for_cache, emb, resp_json)
+    if not req.stream and state_dict is not None:
+        semantic_cache.store_response(state_dict, resp_json)
 
     # Spawn background fact extraction if we have user text
     if session_id and user_text and memory_store:

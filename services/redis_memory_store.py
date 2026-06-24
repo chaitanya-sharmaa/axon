@@ -145,3 +145,26 @@ class RedisMemoryStore(BaseMemoryStore):
         if cost_usd > 0:
             key = f"axon:tenant:{tenant_id}"
             await self.redis.hincrbyfloat(key, "spend_usd", cost_usd)
+
+    # ── Thread Management ─────────────────────────────────────────────────────
+
+    def _thread_key(self, session_id: str) -> str:
+        return f"axon:thread:{session_id}"
+
+    async def get_thread(self, session_id: str) -> list[dict[str, Any]]:
+        key = self._thread_key(session_id)
+        data = await self.redis.get(key)
+        if data:
+            return json.loads(data)
+        return []
+
+    async def append_to_thread(self, session_id: str, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        key = self._thread_key(session_id)
+        # We need a small transaction/lock to read-append-write safely in Redis
+        # For simplicity in this demo, we'll just get and set
+        data = await self.redis.get(key)
+        history = json.loads(data) if data else []
+        history.extend(messages)
+        await self.redis.set(key, json.dumps(history))
+        await self.redis.expire(key, self.ttl)
+        return history

@@ -42,7 +42,10 @@ def fallback_model(failed_model: str) -> str:
         "gpt-4-turbo": "gpt-4o-mini",
         "gpt-4o-mini": "gpt-3.5-turbo",
         "claude-3-5-sonnet-20240620": "claude-3-haiku-20240307",
-        "claude-3-opus-20240229": "claude-3-5-sonnet-20240620"
+        "claude-3-opus-20240229": "claude-3-5-sonnet-20240620",
+        "gemini/gemini-2.5-flash": "gemini/gemini-2.0-flash",
+        "gemini/gemini-2.0-flash": "gemini/gemini-1.5-flash",
+        "gemini/gemini-1.5-pro": "gemini/gemini-1.5-flash"
     }
     fb = fallbacks.get(failed_model, failed_model)
     if fb != failed_model:

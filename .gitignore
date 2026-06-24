@@ -26,6 +26,8 @@ MANIFEST
 *.db
 *.sqlite
 *.sqlite3
+*-shm
+*-wal
 axon_sessions.db
 /data/
 

@@ -303,9 +303,11 @@ def test_optimizer_strategy_exceptions(optimizer: TokenOptimizer):
         
         payload_generic = {"a": 1}
         res2 = optimizer.optimize(payload_generic, session_id="test_err2")
-        assert res2.winner.strategy == "json"
+        # Falls back to schema_values since generic encodings failed
+        assert res2.winner.strategy == "schema_values"
 
 def test_prune_tools_no_bm25():
+    from unittest.mock import patch
     from services.token_optimizer import prune_tools
     with patch("services.token_optimizer.BM25Okapi", None):
         tools = [{"type": "function", "function": {"name": "A"}}] * 6

@@ -72,6 +72,17 @@ def create_app() -> FastAPI:
     meter_provider = MeterProvider(metric_readers=[metric_reader])
     metrics.set_meter_provider(meter_provider)
 
+    # ── Lifecycle ─────────────────────────────────────────────────────────────
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        log.info("Axon Bridge %s starting up", settings.app_version)
+        if hasattr(memory_store, "initialize"):
+            await memory_store.initialize()
+        yield
+        log.info("Axon Bridge shutting down — closing connections")
+        if hasattr(memory_store, "close"):
+            await memory_store.close()
+
     # ── FastAPI ───────────────────────────────────────────────────────────────
     app = FastAPI(
         title=settings.app_title,
@@ -80,6 +91,7 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
+        lifespan=lifespan,
     )
 
     # Instrument the FastAPI app
@@ -91,25 +103,14 @@ def create_app() -> FastAPI:
 
     # ── Middleware ────────────────────────────────────────────────────────────
     app.add_middleware(RequestIDMiddleware)
+    
+    cors_origins = os.getenv("AXON_CORS_ORIGINS", "")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=os.getenv("AXON_CORS_ORIGINS", "*").split(","),
+        allow_origins=cors_origins.split(",") if cors_origins else [],
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    # ── Lifecycle ─────────────────────────────────────────────────────────────
-    @app.on_event("startup")
-    async def _startup() -> None:
-        log.info("Axon Bridge %s starting up", settings.app_version)
-        if hasattr(memory_store, "initialize"):
-            await memory_store.initialize()
-
-    @app.on_event("shutdown")
-    async def _shutdown() -> None:
-        log.info("Axon Bridge shutting down — closing connections")
-        if hasattr(memory_store, "close"):
-            await memory_store.close()
 
     # ── Routers ───────────────────────────────────────────────────────────────
     if settings.enable_core_routes:
@@ -134,8 +135,7 @@ def create_app() -> FastAPI:
     app.include_router(batch_router)
 
     # Admin Quotas
-    if settings.admin_api_key:
-        app.include_router(admin_router)
+    app.include_router(admin_router)
 
     # Dashboard
     app.include_router(dashboard_router)

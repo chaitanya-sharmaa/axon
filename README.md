@@ -70,6 +70,23 @@ Standard LLM operations are stateless. When operating normally, Axon applies non
   Instead of uploading your massive `messages=[...]` history on every turn, your client only sends the newest message. Axon's **SQLite database** rehydrates the full history from local memory, runs safe Schema Flattening, and forwards it to the LLM. 
   **Result:** 99% Network Bandwidth reduction. ~20% API Token reduction. 0% chance of hallucination.
 
+```mermaid
+sequenceDiagram
+    participant App as Python SDK Client
+    participant Axon as Axon Proxy (SQLite)
+    participant LLM as Stateless LLM (OpenAI)
+
+    App->>Axon: X-Axon-Stateful-Thread: true
+    Note over Axon: Turn 1: Stores full history to SQLite
+    Axon->>LLM: Send structured payload
+    
+    App->>Axon: Turn 2: Send ONLY follow up (5 tokens)
+    Note over Axon: Rehydrates 10k token history from SQLite.<br/>Applies Safe Schema Flattening.
+    Axon->>LLM: Send full flattened payload
+    Note over LLM: Retains full context without hallucination.
+    LLM-->>App: Perfect answer.
+```
+
 ### 2. Provider-Side Caching (Anthropic & Paid Gemini)
 > ⚠️ **WARNING:** Never use TRON/TOON against stateless APIs (like standard OpenAI or Ollama). Because these algorithms physically delete data and replace it with `@ref` pointers, stateless models will hallucinate.
 
@@ -78,6 +95,24 @@ If you are using Anthropic Prompt Caching or Gemini `cachedContent` (paid plan),
 * **TOON (Deltas)**: Replaces unchanged data across turns with `{"__deleted__": true}` markers.
 * **TRON (References)**: Mathematically replaces long scalar strings with compact **Integer IDs** (e.g., `@ref:1`, `@ref:2`).
 **Result:** Because the provider remembers the state, you achieve **99% API Token Savings** with zero hallucinations.
+
+```mermaid
+graph TD
+    App[Client] -->|Turn 2 Request| Axon
+    Axon -->|TRON Deduplication| Proxy[Replace strings with @ref]
+    Proxy -->|Sends highly compressed @refs| Provider[Anthropic / Gemini]
+    Provider -->|Reads Server Cache| Cache[(Provider KV Cache)]
+    Cache -->|Resolves @refs| Provider
+    Provider -->|Perfect Answer| App
+    
+    classDef axon fill:#2563eb,stroke:#1d4ed8,color:#fff
+    classDef provider fill:#8b5cf6,stroke:#7c3aed,color:#fff
+    classDef cache fill:#f59e0b,stroke:#d97706,color:#fff
+    
+    class Axon,Proxy axon
+    class Provider provider
+    class Cache cache
+```
 
 ### 🛡️ Agentic Protections
 * **JSON Healing**: Intercepts malformed JSON syntax errors, asks the LLM to fix it silently, and returns a clean response to your Agent.

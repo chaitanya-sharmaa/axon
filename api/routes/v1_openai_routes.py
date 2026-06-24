@@ -484,29 +484,47 @@ async def chat_completions(
     requires_json = req_type in ("json_object", "json_schema")
     json_schema = extra.get("response_format", {}).get("json_schema", {}).get("schema")
     
-    # Inject logprobs to power Shannon Entropy Hallucination Guard
-    # (Currently only supported on OpenAI models; Gemini rejects top_logprobs/logprobs on some tiers)
-    if not req.stream and (routed_model.startswith("gpt") or routed_model.startswith("openai/")):
+    # Inject logprobs to power Shannon Entropy Hallucination Guard.
+    # logprobs is a native OpenAI API feature. It is reliably supported by models
+    # served via the OpenAI API or locally via Ollama (which mirrors the OpenAI spec).
+    # Gemini and Anthropic either reject it or return incompatible formats, so we
+    # gate it to known-good providers.
+    _LOGPROB_PROVIDERS = ("gpt", "openai/", "ollama/", "ollama_chat/")
+    _logprobs_enabled = (
+        not req.stream
+        and any(routed_model.startswith(p) for p in _LOGPROB_PROVIDERS)
+    )
+    if _logprobs_enabled:
         upstream_body["logprobs"] = True
         upstream_body["top_logprobs"] = 5
+        log.debug(f"Shannon Entropy Guard enabled for model: {routed_model}")
 
     async def _execute_post(current_body):
         import math
         model = current_body.pop("model")
         messages = current_body.pop("messages")
+        # BUG FIX: Capture the logprobs intent *before* popping from the body,
+        # so the entropy check below is not fooled by a mutated dict.
+        # BUG FIX: Only use drop_params for providers that don't support logprobs.
+        # For logprob-capable providers, we must NOT drop the param or LiteLLM
+        # will silently strip it and the entropy guard will never fire.
+        _request_logprobs = current_body.get("logprobs", False)
+        _should_drop = not _request_logprobs
         try:
             response = await litellm.acompletion(
                 model=model,
                 messages=messages,
                 api_key=api_key,
                 num_retries=2,
-                drop_params=True,
+                drop_params=_should_drop,
                 **current_body
             )
             resp_dict = response.model_dump()
-            
+
             # Shannon Entropy Calculation
-            if "logprobs" in current_body and resp_dict.get("choices") and resp_dict["choices"][0].get("logprobs"):
+            # BUG FIX: Use dedicated _request_logprobs boolean captured before the
+            # dict was mutated, not "logprobs" in current_body (which may be gone).
+            if _request_logprobs and resp_dict.get("choices") and resp_dict["choices"][0].get("logprobs"):
                 content_logprobs = resp_dict["choices"][0]["logprobs"].get("content", [])
                 if content_logprobs:
                     total_entropy = 0.0
@@ -519,13 +537,17 @@ async def chat_completions(
                             if p > 0:
                                 token_entropy -= p * math.log2(p)
                         total_entropy += token_entropy
-                    
+
                     avg_entropy = total_entropy / len(content_logprobs)
                     resp_dict["_axon_shannon_entropy"] = avg_entropy
-                    
-                    # If entropy exceeds threshold, raise hallucination error to trigger healing
-                    if avg_entropy > 1.5:  # Configurable threshold
-                        raise ValueError(f"Hallucination detected (Shannon Entropy {avg_entropy:.2f} > 1.5)")
+                    log.debug(f"Shannon Entropy: {avg_entropy:.4f}")
+
+                    # Configurable threshold via env var (default 1.5)
+                    entropy_threshold = float(os.getenv("AXON_ENTROPY_THRESHOLD", "1.5"))
+                    if avg_entropy > entropy_threshold:
+                        raise ValueError(
+                            f"Hallucination detected (Shannon Entropy {avg_entropy:.2f} > {entropy_threshold})"
+                        )
 
             # Save the assistant's reply to the stateful thread
             if session_id and is_stateful_thread and memory_store:

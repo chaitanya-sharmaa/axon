@@ -45,24 +45,31 @@ class SemanticCache:
         return context_hash, question
 
     async def get_embedding(self, text: str, api_key: str) -> list[float] | None:
-        """Fetch an embedding from the upstream provider."""
+        """Fetch an embedding from the upstream provider using LiteLLM."""
         if not text.strip():
             return None
-        base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         if not api_key:
             api_key = os.getenv("OPENAI_API_KEY", "")
             
-        async with httpx.AsyncClient() as client:
-            try:
-                resp = await client.post(
-                    f"{base_url}/embeddings",
-                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                    json={"input": text, "model": "text-embedding-3-small"}
-                )
-                if resp.status_code == 200:
-                    return resp.json()["data"][0]["embedding"]
-            except Exception as e:
-                log.warning(f"Failed to get embedding for cache: {e}")
+        import litellm
+        
+        # Select appropriate embedding model based on API key type
+        embed_model = "text-embedding-3-small"
+        if api_key.startswith("AQ.") or os.getenv("OPENAI_BASE_URL", "").startswith("https://generativelanguage"):
+            embed_model = "gemini/text-embedding-004"
+            
+        try:
+            resp = await litellm.aembedding(
+                model=embed_model,
+                input=text,
+                api_key=api_key,
+                num_retries=2
+            )
+            # litellm returns a Pydantic-like object compatible with OpenAI format
+            if resp and hasattr(resp, "data") and len(resp.data) > 0:
+                return resp.data[0]["embedding"]
+        except Exception as e:
+            log.warning(f"Failed to get embedding for cache: {e}")
         return None
 
     async def check_cache(self, messages: list[dict], api_key: str) -> Tuple[dict | None, dict | None]:

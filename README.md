@@ -47,14 +47,42 @@ Before your request ever hits an external server, Axon intercepts it, mathematic
 
 We rigorously test Axon's token compression against highly complex, real-world data payloads to guarantee zero hallucinations. All **220/220** tests in our continuous integration suite are currently passing with 100% reliability.
 
-### Scenario: E-Commerce Product Catalog (Multi-Turn Thread)
-*Payload: A massive JSON array of heavily nested products.*
+### Scenario: Codebase Context for AI Agents (AST / Dependency Graph)
+*Payload: A massive 4,800+ token JSON graph representing a React codebase's Abstract Syntax Tree and symbol dependencies, typical of payloads sent by AI coding agents.*
 
 | Turn | Action | Axon Strategy | Result |
 |---|---|---|---|
-| **Turn 1** | Identify cheapest item | *Schema Flattening* | ✅ **29.6% API Token Savings** |
-| **Turn 2** | Follow-up question | *Network Delta* | ✅ **99.9% Network Bandwidth Saved** (Client uploads 5 tokens instead of 10,000). Proxy rehydrates and maintains ~17% API savings. |
-| **Turn 3** | Exact repeat of Turn 1 | *Exact-Match KV Cache* | ✅ **100% API Token Savings** ($0 cost, zero latency). |
+| **Turn 1** | Ask question about architecture | *Axon Graph Compression* | ✅ **39.3% API Token Savings** (Strips JSON syntax and builds a dense math-reference graph). |
+| **Turn 2** | Identical repeated question | *Exact-Match KV Cache* | ✅ **100% API Token Savings** ($0 cost, 0.005s latency). |
+| **Turn 3** | Follow-up question | *Stateful Threads* | ✅ **99.9% Network Bandwidth Saved** (Client uploads 10 tokens instead of 4,800). Proxy rehydrates context and maintains **39.1% API Savings**. |
+
+```mermaid
+graph TD
+    Client[AI Coding Agent] -->|Turn 1: Sends 4,800 Token AST Graph| AxonProxy
+    
+    subgraph Axon Proxy Core
+        AxonProxy --> Optimizer{Token Optimizer}
+        Optimizer -->|Schema Flattening failed| Fallback[Detects Graph Shape]
+        Fallback --> GCF[Applies Axon Graph Compression]
+        GCF -->|Reduces keys to @integer refs| Compressed[2,957 Tokens]
+    end
+    
+    Compressed -->|Forwards Condensed Payload| LLM[Google Gemini / OpenAI]
+    LLM -->|Semantics Preserved| AxonProxy
+    AxonProxy -->|Returns Perfect Answer| Client
+
+    Client -->|Turn 3: Sends 10 Token Delta Question| AxonProxy
+    AxonProxy -->|Stateful Thread Rehydration| DB[(SQLite Thread History)]
+    DB -->|Loads prior 4,800 tokens| Optimizer
+    
+    classDef axon fill:#2563eb,stroke:#1d4ed8,color:#fff
+    classDef cache fill:#10b981,stroke:#059669,color:#fff
+    classDef db fill:#f59e0b,stroke:#d97706,color:#fff
+    classDef default fill:#1e1e1e,stroke:#333,color:#fff
+    
+    class AxonProxy,Optimizer,Fallback,GCF,Compressed axon
+    class DB db
+```
 
 ---
 

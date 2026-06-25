@@ -89,3 +89,86 @@ def get_cache_entries():
     return semantic_cache.get_all_entries()
 
 
+# ── Security Events ───────────────────────────────────────────────────────────
+
+from services.event_logger import event_logger
+
+
+@router.get("/admin/events/firewall", dependencies=[Depends(require_admin)])
+def get_firewall_events():
+    """Get prompt injection / jailbreak events."""
+    return event_logger.get_firewall_events(limit=100)
+
+
+@router.get("/admin/events/pii", dependencies=[Depends(require_admin)])
+def get_pii_events():
+    """Get PII redaction events and type counts."""
+    return {
+        "events": event_logger.get_pii_events(limit=100),
+        "counts": event_logger.pii_type_counts(),
+    }
+
+
+@router.get("/admin/events/entropy", dependencies=[Depends(require_admin)])
+def get_entropy_events():
+    """Get Shannon entropy / hallucination guard events."""
+    return event_logger.get_entropy_events(limit=100)
+
+
+# ── Health ────────────────────────────────────────────────────────────────────
+
+import time as _time
+import os as _os
+_start_time = _time.time()
+
+
+@router.get("/admin/health")
+def get_health():
+    """System health and uptime."""
+    logs = request_logger.get_logs(limit=500)
+    uptime_s = _time.time() - _start_time
+    req_per_min = len([l for l in logs if _time.time() - l["timestamp"] < 60])
+    errors = len([l for l in logs if l["status_code"] >= 400])
+    total_cost = sum(l.get("cost", 0) for l in logs)
+    return {
+        "status": "ok",
+        "version": "0.3.0",
+        "uptime_seconds": int(uptime_s),
+        "uptime_human": f"{int(uptime_s // 3600)}h {int((uptime_s % 3600) // 60)}m",
+        "requests_last_minute": req_per_min,
+        "total_requests": len(logs),
+        "error_count": errors,
+        "total_cost_usd": round(total_cost, 6),
+    }
+
+
+# ── Tenants ───────────────────────────────────────────────────────────────────
+
+from core.app_config import memory_store
+
+
+@router.get("/admin/tenants", dependencies=[Depends(require_admin)])
+async def get_tenants():
+    """List all tenants with quota and spend info."""
+    if not memory_store or not hasattr(memory_store, "list_all_tenants"):
+        return []
+    try:
+        return await memory_store.list_all_tenants()
+    except Exception:
+        return []
+
+
+# ── Sessions ──────────────────────────────────────────────────────────────────
+
+@router.get("/admin/sessions", dependencies=[Depends(require_admin)])
+async def get_sessions():
+    """List active memory sessions."""
+    if not memory_store or not hasattr(memory_store, "list_all_sessions"):
+        return []
+    try:
+        return await memory_store.list_all_sessions()
+    except Exception:
+        return []
+
+
+

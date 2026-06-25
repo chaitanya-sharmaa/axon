@@ -246,39 +246,48 @@ Access the built-in dashboard at **`http://localhost:8080/dashboard`**.
 cd dashboard && npm install && npm run build
 ```
 
-The dashboard has 4 tabs:
+The dashboard now has **9 tabs** for complete observability and control:
 
-### Metrics Tab
-- **Token savings counter** (cumulative, live)
-- **Estimated cost saved** in USD
-- **Cache hit rate** chart
-- **Latency over time** area chart
+### 1. Metrics Tab
+- **Tokens & Cost Saved** counters (cumulative, live)
+- **Latency Percentiles** (p50, p95, p99)
+- **Error Rate** and **Cache Hit Rate**
+- **Token savings over time** area chart
 
-### Live Request Firehose Tab
-A real-time table of the last 100 requests through Axon:
+### 2. Analytics Tab
+- **Model Distribution** pie chart (shows actual smart-routed breakdown)
+- **Compression Strategy** bar chart (which strategies save the most tokens)
+- **Cost Projection** (session, daily, monthly burn rate)
 
-| Column | Description |
-|---|---|
-| Time | Exact timestamp |
-| Model | Which model was actually used (may differ from requested due to smart routing) |
-| Latency | End-to-end response time in ms |
-| Tokens (P/C/T) | Prompt / Completion / Total token counts |
-| Cost | Estimated USD cost |
-| Cache Hit | Whether this was served from cache (HIT = $0 cost) |
-| Status | HTTP status code |
+### 3. Live Request Firehose Tab
+Real-time stream of intercepted LLM traffic: timestamp, routed model, latency, tokens (P/C/T), cost, cache status, and HTTP status code.
 
-### Cache Explorer Tab
-Browse all entries in the live Semantic Cache — see which prompts are cached, their hashed context keys, and when they were stored.
+### 4. Cache Explorer Tab
+Browse all entries in the live Semantic Cache — see which prompts are cached and their context hashes.
 
-### Feature Flags Tab
+### 5. Security Tab
+- **Prompt Firewall Log:** Blocked jailbreak and prompt injection attempts.
+- **PII Redactions:** Emails, SSNs, phones, and credit cards detected and masked.
+- **Hallucination Guard:** Shannon entropy violations (healed vs blocked).
+
+### 6. Tenants Tab
+Per-tenant quota dashboard showing current spend vs allowed quota, with visual progress bars.
+
+### 7. Sessions Tab
+Active Stateful Thread memory sessions, including message counts and facts extracted by the semantic router.
+
+### 8. API Playground Tab
+A built-in chat UI that routes requests *through* your local Axon instance. Instantly see:
+- Real-time token savings and cache hits
+- End-to-end latency
+- Which model the Smart Router actually selected
+
+### 9. Feature Flags Tab
 Toggle all Axon features on/off at runtime **without restarting the server**:
-
-| Flag | What disabling it does |
-|---|---|
-| **Semantic Routing** | All requests use the exact model you specified — no smart tier switching |
-| **Exact-Match Cache** | Every request hits the LLM — no KV cache short-circuiting |
-| **Tool Compression** | Tool/function definitions sent verbatim (full token cost) |
-| **RAG Context** | File attachments not searched; no document context injected |
+- **Semantic Routing** (Lite/Pro tier switching)
+- **Exact-Match Cache**
+- **Tool Schema Compression**
+- **Local Vector RAG**
 
 > **Security:** If `AXON_ADMIN_API_KEY` is set in `.env`, all admin endpoints (`/admin/*`) require a `Bearer <key>` authorization header. Without it, all admin access is blocked.
 

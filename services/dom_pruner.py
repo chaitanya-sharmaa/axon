@@ -19,7 +19,8 @@ def compress_html_to_markdown(html_content: str) -> str:
             
         # 2. Remove hidden elements
         for tag in soup.find_all(style=True):
-            style_str = tag["style"].lower()
+            style_val = tag["style"]
+            style_str = " ".join(style_val).lower() if isinstance(style_val, list) else str(style_val).lower()
             if "display: none" in style_str or "visibility: hidden" in style_str or "display:none" in style_str:
                 tag.decompose()
                 

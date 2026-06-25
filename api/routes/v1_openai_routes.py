@@ -55,6 +55,7 @@ from services.text_pruner import prune_text
 from services.prompt_firewall import prompt_firewall
 from services.pii_redactor import pii_redactor
 from services.schema_validator import schema_validator
+from services.kv_cache import kv_cache
 
 from opentelemetry import trace, metrics
 
@@ -154,7 +155,7 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
                 if prune_enabled and len(content) > 2000:
                     content = prune_text(content)
 
-                parsed_content = content
+                parsed_content: Any = content
                 try:
                     parsed = json.loads(content)
                     if isinstance(parsed, (dict, list)):
@@ -189,10 +190,10 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
                     target_msg["content"] = [
                         {"type": "text", "text": target_msg["content"], "cache_control": {"type": "ephemeral"}}
                     ]
-            for idx, msg in enumerate(compressed):
-                if msg["role"] == "system" and idx != largest_msg_idx and isinstance(msg["content"], str) and len(msg["content"]) > 100:
-                    msg["content"] = [
-                        {"type": "text", "text": msg["content"], "cache_control": {"type": "ephemeral"}}
+            for idx, msg_dict in enumerate(compressed):
+                if msg_dict["role"] == "system" and idx != largest_msg_idx and isinstance(msg_dict["content"], str) and len(msg_dict["content"]) > 100:
+                    msg_dict["content"] = [
+                        {"type": "text", "text": msg_dict["content"], "cache_control": {"type": "ephemeral"}}
                     ]
                     break
 
@@ -207,10 +208,10 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
                     target_msg["content"] = [
                         {"type": "text", "text": target_msg["content"], "cache_control": {"type": "ephemeral"}}
                     ]
-            for idx, msg in enumerate(compressed):
-                if msg["role"] == "system" and idx != largest_msg_idx and isinstance(msg["content"], str) and len(msg["content"]) >= GEMINI_CACHE_MIN_CHARS:
-                    msg["content"] = [
-                        {"type": "text", "text": msg["content"], "cache_control": {"type": "ephemeral"}}
+            for idx, msg_dict in enumerate(compressed):
+                if msg_dict["role"] == "system" and idx != largest_msg_idx and isinstance(msg_dict["content"], str) and len(msg_dict["content"]) >= GEMINI_CACHE_MIN_CHARS:
+                    msg_dict["content"] = [
+                        {"type": "text", "text": msg_dict["content"], "cache_control": {"type": "ephemeral"}}
                     ]
                     break
 
@@ -375,6 +376,19 @@ async def chat_completions(
         history = await memory_store.append_to_thread(session_id, new_msg_dicts)
         # Rehydrate request with full history
         req.messages = [ChatMessage(**m) for m in history]
+
+    # Exact-Match KV Caching (100% token savings, $0 cost)
+    kv_req_body = req.model_dump(exclude_none=True)
+    if not req.stream:
+        cached_exact = await kv_cache.get(kv_req_body)
+        if cached_exact:
+            # Inject HIT header and return immediately
+            metrics_header = json.dumps({"strategy": "exact_match", "original_tokens": 0, "compressed_tokens": 0, "savings_pct": 100.0})
+            return JSONResponse(
+                status_code=200, 
+                content=cached_exact,
+                headers={"x-axon-metrics": metrics_header, "x-axon-cache": "HIT"}
+            )
 
     # Compress messages
     # If stateful thread is enabled, pass session_id=None to disable stateful TRON/TOON 
@@ -573,7 +587,11 @@ async def chat_completions(
             raise HTTPException(500, f"Unexpected error: {exc}") from exc
         
         if requires_json:
-            content = resp_json.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if not resp_json:
+                resp_dict: dict[str, Any] = {}
+            else:
+                resp_dict = resp_json if isinstance(resp_json, dict) else (resp_json.model_dump() if hasattr(resp_json, "model_dump") else {})
+            content = resp_dict.get("choices", [{}])[0].get("message", {}).get("content", "")
             if content:
                 try:
                     json.loads(content)
@@ -628,6 +646,10 @@ async def chat_completions(
 
     if savings_usd is not None:
         response.headers["x-axon-cost-saved-usd"] = str(savings_usd)
+
+    # Cache successful non-streaming responses
+    if not req.stream and response.status_code == 200:
+        await kv_cache.set(kv_req_body, resp_json)
 
     return response
 

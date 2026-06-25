@@ -23,7 +23,7 @@ def get_tokenizer_for_model(model_name: str):
         # Anthropic models: import and instantiate only on demand.
         from anthropic import Anthropic  # noqa: PLC0415
         client = Anthropic()
-        return client.get_tokenizer()
+        return client.get_tokenizer()  # type: ignore
 
     # Unknown model — fall back to the GPT-4 / GPT-3.5-turbo encoding
     import logging  # noqa: PLC0415

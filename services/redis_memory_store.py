@@ -34,7 +34,7 @@ class RedisMemoryStore(BaseMemoryStore):
             "last_accessed": datetime.now(timezone.utc).isoformat(),
             "metadata": json.dumps(metadata or {})
         }
-        await self.redis.hset(key, mapping=data)
+        await self.redis.hset(key, mapping=data)  # type: ignore
         await self.redis.expire(key, self.ttl)
 
     async def get_session_symbols(self, session_id: str) -> list[dict[str, Any]]:
@@ -112,7 +112,14 @@ class RedisMemoryStore(BaseMemoryStore):
         sessions = []
         for k in keys:
             data = await self.redis.hgetall(k)
-            sessions.append({"session_id": k.replace("axon:session:", ""), **data})
+            k_str = k.decode('utf-8') if isinstance(k, bytes) else k
+            # Decode values in data to match the expected dict[str, Any]
+            decoded_data = {
+                (k_attr.decode('utf-8') if isinstance(k_attr, bytes) else k_attr): 
+                (v_attr.decode('utf-8') if isinstance(v_attr, bytes) else v_attr)
+                for k_attr, v_attr in data.items()
+            }
+            sessions.append({"session_id": k_str.replace("axon:session:", ""), **decoded_data})
         return sessions
 
     async def add_session_fact(self, session_id: str, fact: str) -> None:
@@ -124,7 +131,7 @@ class RedisMemoryStore(BaseMemoryStore):
     async def get_session_facts(self, session_id: str) -> list[str]:
         key = self._facts_key(session_id)
         facts = await self.redis.smembers(key)
-        return list(facts)
+        return [f.decode('utf-8') if isinstance(f, bytes) else f for f in facts]
 
     # ── Tenant Quotas ─────────────────────────────────────────────────────────
 

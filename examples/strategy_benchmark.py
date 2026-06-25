@@ -28,6 +28,7 @@ from gcf import (
     encode_delta,
     encode_generic,
     encode_with_session,
+    Session,
 )
 
 NUMBER_OF_RUNS = 1000

@@ -74,17 +74,6 @@ class SemanticCache:
         if not question:
             return None, None
 
-        # FIX #1: Only fetch an embedding if there are actual cached entries for this
-        # context to compare against. Without this guard, we pay for an embedding API
-        # call on every single unique first request, even though we immediately return
-        # None (cache miss) — wasting tokens with zero benefit.
-        async with self._lock:
-            has_entries = bool(self._cache.get(context_hash))
-
-        if not has_entries:
-            # No entries yet — store a cheap sentinel so the next call can embed and store.
-            return None, {"context_hash": context_hash, "question": question, "embedding": None}
-
         emb = await self.get_embedding(question, api_key)
         state_dict = {"context_hash": context_hash, "question": question, "embedding": emb}
         if not emb:

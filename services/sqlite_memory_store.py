@@ -31,18 +31,25 @@ class SessionMemoryStore(BaseMemoryStore):
 
     def __init__(self, db_path: str = ":memory:") -> None:
         self.db_path = db_path
-        self.lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
         self._conn: aiosqlite.Connection | None = None
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._ensure_conn())
-        except RuntimeError:
-            asyncio.run(self._ensure_conn())
+
+    @property
+    def lock(self) -> asyncio.Lock:
+        assert self._lock is not None, "MemoryStore not initialized"
+        return self._lock
 
     # ── Connection management ──────────────────────────────────────────────────
 
+    async def initialize(self) -> None:
+        """Explicitly open the database connection on the current event loop."""
+        await self._ensure_conn()
+
     async def _ensure_conn(self) -> aiosqlite.Connection:
         """Return (or lazily create) the shared persistent connection."""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        
         if self._conn is None:
             conn = await aiosqlite.connect(self.db_path)
             conn.row_factory = aiosqlite.Row

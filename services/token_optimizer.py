@@ -593,7 +593,13 @@ class TokenOptimizer:
                         if isinstance(v, dict):
                             items.extend(_flatten_dict(v, new_key, sep=sep).items())
                         elif isinstance(v, list):
-                            items.append((new_key, str(v)))
+                            for i, item in enumerate(v):
+                                if isinstance(item, dict):
+                                    items.extend(_flatten_dict(item, f"{new_key}[{i}]", sep=sep).items())
+                                elif isinstance(item, list):
+                                    items.append((f"{new_key}[{i}]", str(item)))
+                                else:
+                                    items.append((f"{new_key}[{i}]", item))
                         else:
                             items.append((new_key, v))
                     return dict(items)

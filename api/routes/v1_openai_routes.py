@@ -56,6 +56,8 @@ from services.prompt_firewall import prompt_firewall
 from services.pii_redactor import pii_redactor
 from services.schema_validator import schema_validator
 from services.kv_cache import kv_cache
+from services.tool_compressor import compress_tools_to_prompt, reconstruct_tool_calls
+from services.request_logger import request_logger
 
 from opentelemetry import trace, metrics
 
@@ -98,6 +100,7 @@ class ChatCompletionRequest(BaseModel):
     temperature: float | None = None
     max_tokens: int | None = None
     stream: bool = False
+    tools: list[dict[str, Any]] | None = None
     # Pass-through: any extra fields forwarded as-is
     model_config = {"extra": "allow"}
 
@@ -112,6 +115,12 @@ class EmbeddingRequest(BaseModel):
 
 def _compress_messages(messages: list[ChatMessage], session_id: str | None, model_name: str | None = None) -> tuple[list[dict], dict]:
     """Compress each message's content and return (compressed_messages, savings_metrics)."""
+    if not settings.enable_tool_compression:
+        return [m.model_dump(exclude_none=True) for m in messages], {
+            "original_tokens": 0,
+            "compressed_tokens": 0,
+            "savings_pct": 0.0,
+        }
     # FIX #5: The entire compression loop must run *inside* the span so that the
     # axon.optimization.latency histogram actually captures the true compression time.
     # Previously the span exited after 8 lines of setup, recording ~0ms every time.
@@ -263,6 +272,7 @@ async def _stream_openai(
     body.pop("stream", None) # Prevent duplicate keyword error
     
     try:
+        start_t = time.time()
         response = await litellm.acompletion(
             model=current_model,
             messages=messages,
@@ -295,11 +305,25 @@ async def _stream_openai(
         yield "data: [DONE]\n\n"
         
     finally:
+        latency_ms = (time.time() - start_t) * 1000 if 'start_t' in locals() else 0
+        output_cost = 0.0
         if settings.enable_tenant_quotas and tenant_id and memory_store:
             output_cost = estimate_cost_usd(accumulated_tokens, current_model, direction="output") or 0.0
             total_cost = input_cost + output_cost
             if total_cost > 0:
                 asyncio.create_task(memory_store.increment_tenant_spend(tenant_id, total_cost))
+                
+        request_logger.log_request(
+            model=current_model,
+            latency_ms=latency_ms,
+            prompt_tokens=0, # Unknown in stream
+            completion_tokens=accumulated_tokens,
+            total_tokens=accumulated_tokens,
+            cache_hit=False,
+            tenant_id=tenant_id or "default",
+            cost=input_cost + output_cost,
+            status_code=200
+        )
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -331,6 +355,7 @@ async def chat_completions(
     Supports both streaming (``stream=true``) and non-streaming responses.
     Token savings are reported in the ``x-axon-metrics`` response header.
     """
+    start_t = time.time()
     api_key = (authorization or "").removeprefix("Bearer ").strip()
     if not api_key:
         api_key = os.getenv("OPENAI_API_KEY", "")
@@ -384,6 +409,19 @@ async def chat_completions(
         if cached_exact:
             # Inject HIT header and return immediately
             metrics_header = json.dumps({"strategy": "exact_match", "original_tokens": 0, "compressed_tokens": 0, "savings_pct": 100.0})
+            
+            request_logger.log_request(
+                model=req.model,
+                latency_ms=(time.time() - start_t) * 1000,
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                cache_hit=True,
+                tenant_id=tenant_id or "default",
+                cost=0.0,
+                status_code=200
+            )
+
             return JSONResponse(
                 status_code=200, 
                 content=cached_exact,
@@ -396,9 +434,18 @@ async def chat_completions(
     compress_session_id = None if is_stateful_thread else session_id
     compressed_messages, metrics = _compress_messages(req.messages, compress_session_id, req.model)
 
+    # Tool Compression (Phase 2)
+    has_tools = False
+    if req.tools:
+        has_tools = True
+        tools_system_prompt = compress_tools_to_prompt(req.tools)
+        if tools_system_prompt:
+            # Inject into compressed_messages
+            compressed_messages.insert(0, ChatMessage(role="system", content=tools_system_prompt))
+            
     # Semantic Caching
     state_dict = None
-    if not req.stream and os.getenv("AXON_SEMANTIC_CACHE", "true").lower() == "true":
+    if not req.stream and settings.enable_exact_match_cache and os.getenv("AXON_SEMANTIC_CACHE", "true").lower() == "true":
         msg_dicts = [m.model_dump(exclude_none=True) for m in req.messages]
         cached_resp, state_dict = await semantic_cache.check_cache(msg_dicts, api_key)
         if cached_resp:
@@ -406,9 +453,37 @@ async def chat_completions(
             metrics["savings_pct"] = 100.0  # 100% savings!
             metrics["compressed_tokens"] = 0
             savings_header = json.dumps(metrics)
+            
+            resp_dict = cached_resp
+            
+            # Reconstruct tool_calls from simulated XML format
+            if has_tools and resp_dict.get("choices") and len(resp_dict["choices"]) > 0:
+                assistant_msg = resp_dict["choices"][0].get("message", {})
+                content_str = assistant_msg.get("content") or ""
+                reconstructed = reconstruct_tool_calls(content_str)
+                
+                if reconstructed:
+                    # Override the text content with the tool_calls object
+                    # to maintain 100% OpenAI SDK compatibility
+                    assistant_msg["content"] = None
+                    assistant_msg["tool_calls"] = reconstructed
+                    resp_dict["choices"][0]["finish_reason"] = "tool_calls"
+                    
+            request_logger.log_request(
+                model=req.model,
+                latency_ms=(time.time() - start_t) * 1000,
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                cache_hit=True,
+                tenant_id=tenant_id or "default",
+                cost=0.0,
+                status_code=200
+            )
+
             return JSONResponse(
                 status_code=200, 
-                content=cached_resp,
+                content=resp_dict,
                 headers={"x-axon-metrics": savings_header, "x-axon-cache": "HIT"}
             )
 
@@ -419,6 +494,11 @@ async def chat_completions(
     upstream_body = req.model_dump(exclude_none=True)
     upstream_body["messages"] = compressed_messages
     upstream_body["model"] = routed_model
+    if has_tools and "tools" in upstream_body:
+        # Drop the verbose tools array from the payload sent to LiteLLM,
+        # saving massive amounts of tokens because we already injected the
+        # compressed python signature into the system prompt!
+        del upstream_body["tools"]
 
     # Use the appropriate header based on key format
     if api_key.startswith("AQ."):
@@ -470,7 +550,7 @@ async def chat_completions(
     # served via the OpenAI API or locally via Ollama (which mirrors the OpenAI spec).
     # Gemini and Anthropic either reject it or return incompatible formats, so we
     # gate it to known-good providers.
-    _LOGPROB_PROVIDERS = ("gpt", "openai/", "ollama/", "ollama_chat/")
+    _LOGPROB_PROVIDERS = ("gpt", "openai/")
     _logprobs_enabled = (
         not req.stream
         and any(routed_model.startswith(p) for p in _LOGPROB_PROVIDERS)
@@ -632,14 +712,19 @@ async def chat_completions(
     if session_id and user_text and memory_store:
         background_tasks.add_task(extract_facts_async, session_id, user_text, api_key, memory_store)
 
-    # Track Spend
-    if settings.enable_tenant_quotas and tenant_id and memory_store:
-        completion_tokens = resp_json.get("usage", {}).get("completion_tokens", 0)
-        input_cost = estimate_cost_usd(metrics["compressed_tokens"], routed_model, direction="input") or 0.0
-        output_cost = estimate_cost_usd(completion_tokens, routed_model, direction="output") or 0.0
-        total_cost = input_cost + output_cost
-        if total_cost > 0:
-            background_tasks.add_task(memory_store.increment_tenant_spend, tenant_id, total_cost)
+
+    # Reconstruct tool_calls from simulated XML format
+    if has_tools and resp_json.get("choices") and len(resp_json["choices"]) > 0:
+        assistant_msg = resp_json["choices"][0].get("message", {})
+        content_str = assistant_msg.get("content") or ""
+        reconstructed = reconstruct_tool_calls(content_str)
+        
+        if reconstructed:
+            # Override the text content with the tool_calls object
+            # to maintain 100% OpenAI SDK compatibility
+            assistant_msg["content"] = None
+            assistant_msg["tool_calls"] = reconstructed
+            resp_json["choices"][0]["finish_reason"] = "tool_calls"
 
     response = JSONResponse(status_code=200, content=resp_json)
     response.headers["x-axon-metrics"] = savings_header
@@ -650,6 +735,31 @@ async def chat_completions(
     # Cache successful non-streaming responses
     if not req.stream and response.status_code == 200:
         await kv_cache.set(kv_req_body, resp_json)
+
+    # ── Logging & Spend Tracking ─────────────────────────────────────────────
+    latency_ms = (time.time() - start_t) * 1000
+    usage = resp_json.get("usage", {})
+    prompt_tokens = usage.get("prompt_tokens", metrics.get("original_tokens", 0))
+    completion_tokens = usage.get("completion_tokens", 0)
+    input_cost = estimate_cost_usd(metrics["compressed_tokens"], routed_model, direction="input") or 0.0
+    output_cost = estimate_cost_usd(completion_tokens, routed_model, direction="output") or 0.0
+    total_cost = input_cost + output_cost
+
+    # Track tenant spend
+    if settings.enable_tenant_quotas and tenant_id and memory_store and total_cost > 0:
+        background_tasks.add_task(memory_store.increment_tenant_spend, tenant_id, total_cost)
+
+    request_logger.log_request(
+        model=routed_model,
+        latency_ms=latency_ms,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=prompt_tokens + completion_tokens,
+        cache_hit=False,
+        tenant_id=tenant_id or "default",
+        cost=total_cost,
+        status_code=response.status_code
+    )
 
     return response
 

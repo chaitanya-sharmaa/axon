@@ -50,3 +50,6 @@ litellm>=1.40.0        # Universal proxy routing
 # LangChain:      pip install "axon-bridge[langchain]" → langchain-core>=0.2.0
 cachetools>=5.3.0
 gcf-python>=1.0.0
+sentence-transformers>=3.0.0
+PyPDF2>=3.0.0
+python-multipart>=0.0.9

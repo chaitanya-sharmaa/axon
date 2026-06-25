@@ -148,5 +148,24 @@ class SemanticCache:
         self._cache[context_hash].append((question, embedding, norm, response, time.time()))
         self._size += 1
 
+    def get_all_entries(self) -> list[dict]:
+        """Return a snapshot of all cache entries (non-async, safe to call from sync endpoints).
+        
+        Note: This does a shallow copy of keys under the GIL — sufficient for read-only dashboard display.
+        Not suitable for mutations.
+        """
+        entries = []
+        now = __import__('time').time()
+        for ctx_hash, items in list(self._cache.items()):
+            for item in items:
+                q_text, _emb, _norm, _resp, ts = item
+                if now - ts <= self.ttl_seconds:
+                    entries.append({
+                        "context_hash": ctx_hash,
+                        "question": q_text,
+                        "timestamp": ts,
+                    })
+        return sorted(entries, key=lambda x: x["timestamp"], reverse=True)
+
 # Global singleton
 semantic_cache = SemanticCache()

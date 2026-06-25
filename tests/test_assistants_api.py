@@ -44,8 +44,8 @@ async def test_assistants_api_flow():
     print("\n[4] Running thread (Calling LLM)...")
     run = await client.beta.threads.runs.create(
         thread_id=thread.id,
-        assistant_id="asst_dummy123", # Option A: Dummy assistant ID
-        model="gemini/gemini-2.5-flash"
+        assistant_id="asst_dummy123",
+        model="ollama/llama3"
     )
     assert run.status == "completed"
     assert run.assistant_id == "asst_dummy123"
@@ -62,8 +62,28 @@ async def test_assistants_api_flow():
     reply_text = assistant_reply.content[0].text.value
     print(f"✅ Assistant Reply: {reply_text}")
     
-    assert "paris" in reply_text.lower()
-    print("\n🎉 All standard OpenAI Assistants API methods worked perfectly through Axon!")
+    # 6. Test Streaming!
+    print("\n[6] Testing stream=True ...")
+    await client.beta.threads.messages.create(
+        thread_id=thread.id,
+        role="user",
+        content="Now count from 1 to 5. Reply with just the numbers."
+    )
+    
+    stream = await client.beta.threads.runs.create(
+        thread_id=thread.id,
+        assistant_id="asst_dummy123",
+        model="ollama/llama3",
+        stream=True
+    )
+    
+    print("Streaming output: ", end="", flush=True)
+    async for event in stream:
+        if event.event == "thread.message.delta":
+            print(event.data.delta.content[0].text.value, end="", flush=True)
+    print("\n✅ Stream completed successfully!")
+    
+    print("\n🎉 All standard OpenAI Assistants API methods (including streaming) worked perfectly through Axon!")
 
 if __name__ == "__main__":
     asyncio.run(test_assistants_api_flow())

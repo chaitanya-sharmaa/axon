@@ -42,6 +42,7 @@ from api.routes import (
     assistants_router,
     batch_router,
     admin_router,
+    files_router,
 )
 from api.routes.dashboard_routes import router as dashboard_router
 from api.routes.v1_swarm_routes import router as swarm_router
@@ -132,6 +133,7 @@ def create_app() -> FastAPI:
         app.include_router(openai_router)
         app.include_router(assistants_router)
         app.include_router(swarm_router)
+        app.include_router(files_router)
 
     # Batch processing
     app.include_router(batch_router)
@@ -141,6 +143,11 @@ def create_app() -> FastAPI:
 
     # Dashboard
     app.include_router(dashboard_router)
+    
+    from fastapi.staticfiles import StaticFiles
+    DASHBOARD_BUILD_DIR = os.path.join(os.path.dirname(__file__), "dashboard", "dist")
+    if os.path.exists(DASHBOARD_BUILD_DIR):
+        app.mount("/assets", StaticFiles(directory=os.path.join(DASHBOARD_BUILD_DIR, "assets")), name="dashboard_assets")
 
     # Metrics
     @app.get("/metrics", tags=["Ops"])

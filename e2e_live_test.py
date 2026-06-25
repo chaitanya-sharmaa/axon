@@ -2,12 +2,15 @@ import httpx
 import json
 import time
 import os
+from dotenv import load_dotenv
 
-BASE_URL = "http://127.0.0.1:8080/proxy/v1/chat/completions"
+load_dotenv()
+BASE_URL = "http://127.0.0.1:8080/v1/chat/completions"
 
 # For our dummy LLM setup, the authorization header can be anything,
 # but it must match what the proxy allows. We use the real key format so Axon doesn't block it.
-API_KEY = os.getenv("OPENAI_API_KEY", "dummy-key-for-local-testing")
+API_KEY = os.environ.get("GEMINI_API_KEY", os.environ.get("OPENAI_API_KEY", "dummy-key"))
+print(f"DEBUG: Using API Key starting with {API_KEY[:5]}...")
 HEADERS_STATELESS = {
     "Content-Type": "application/json",
     "Authorization": f"Bearer {API_KEY}"
@@ -85,7 +88,7 @@ def run_e2e_tests():
         }
         
         req_turn1 = {
-            "model": "gemini/gemini-2.5-flash",
+            "model": "ollama/llama3",
             "messages": [
                 {"role": "system", "content": "You are an AI Coding Assistant. Analyze the provided codebase dependency graph."},
                 {"role": "user", "content": json.dumps(real_code_graph)},
@@ -108,7 +111,7 @@ def run_e2e_tests():
         # TEST 3: Stateful Threads (Network Bandwidth Savings)
         # ---------------------------------------------------------
         req_turn3 = {
-            "model": "gemini/gemini-2.5-flash",
+            "model": "ollama/llama3",
             "messages": [
                 {"role": "user", "content": "What is the exact name of the middleware function that instantiates it?"}
             ]
@@ -134,7 +137,7 @@ def run_e2e_tests():
         ) * 50 # Simulate a large 30-page context window
 
         req_turn4 = {
-            "model": "gemini/gemini-2.5-flash",
+            "model": "ollama/llama3",
             "messages": [
                 {"role": "system", "content": "You are a corporate paralegal reviewing an MSA."},
                 {"role": "user", "content": f"Context: {legal_contract_chunk}\n\nQuestion: Does the Service Provider have to indemnify the Customer for IP infringement?"}
@@ -148,7 +151,7 @@ def run_e2e_tests():
         # ---------------------------------------------------------
         # Enterprise Example: Extracting unstructured financial data into structured JSON for an ETL pipeline
         req_turn5 = {
-            "model": "gemini/gemini-2.5-flash",
+            "model": "ollama/llama3",
             "messages": [
                 {"role": "system", "content": "You are a financial ETL pipeline parser."},
                 {"role": "user", "content": "Extract the Q3 revenue ($45.2M) and net income ($12.1M) for Acme Corp into a JSON object with keys 'revenue' and 'net_income'."}
@@ -164,7 +167,7 @@ def run_e2e_tests():
         # Semantic Cache requires identical structure but fuzzy natural language.
         # We ask the exact same intent as Test 5, but rephrase it!
         req_turn6 = {
-            "model": "gemini/gemini-2.5-flash",
+            "model": "ollama/llama3",
             "messages": [
                 {"role": "system", "content": "You are a financial ETL pipeline parser."},
                 {"role": "user", "content": "Can you pull the Q3 revenue ($45.2M) and the net income ($12.1M) for Acme Corp into a JSON output with 'revenue' and 'net_income'?"}

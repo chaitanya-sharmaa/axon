@@ -25,6 +25,8 @@ def get_load_balanced_key(api_key: str) -> str:
 
     return next(_key_iterators[key_hash])
 
+from services.intent_classifier import classify_intent
+
 def analyze_complexity(text: str) -> str:
     """Returns 'high' or 'low' based on keyword heuristics and reasoning triggers."""
     if not text:
@@ -53,12 +55,15 @@ def analyze_complexity(text: str) -> str:
         
     return "low"
 
+from core.settings import settings
+
 def route_model(original_model: str, payload_tokens: int, prompt_text: str = "") -> str:
-    """Intelligently route to Lite or Pro models within the same family based on prompt complexity."""
-    if os.getenv("AXON_AUTO_ROUTING", "true").lower() != "true":
+    """Intelligently route to Lite or Pro models within the same family based on semantic ML intent."""
+    if not settings.enable_semantic_routing:
         return original_model
 
-    complexity = analyze_complexity(prompt_text)
+    # Use our new ML-based Semantic Intent Classifier
+    complexity = classify_intent(prompt_text)
 
     # FIX #2: Correct model tier mapping.
     # - gpt: 4o-mini (lite) vs 4o (pro)
@@ -94,14 +99,20 @@ def route_model(original_model: str, payload_tokens: int, prompt_text: str = "")
 def fallback_model(failed_model: str) -> str:
     """Provide a fallback model for 429s/503s."""
     fallbacks = {
-        "gpt-4o": "gpt-4-turbo",
-        "gpt-4-turbo": "gpt-4o-mini",
-        "gpt-4o-mini": "gpt-3.5-turbo",
-        "claude-3-5-sonnet-20240620": "claude-3-haiku-20240307",
-        "claude-3-opus-20240229": "claude-3-5-sonnet-20240620",
-        "gemini/gemini-2.5-flash": "gemini/gemini-2.0-flash",
-        "gemini/gemini-2.0-flash": "gemini/gemini-1.5-flash",
-        "gemini/gemini-1.5-pro": "gemini/gemini-1.5-flash"
+        # OpenAI
+        "gpt-4o":                        "gpt-4-turbo",
+        "gpt-4-turbo":                   "gpt-4o-mini",
+        "gpt-4o-mini":                   "gpt-3.5-turbo",
+        # Anthropic — keep both date variants so either smart-routed or explicit model falls back correctly
+        "claude-3-5-sonnet-20241022":    "claude-3-5-haiku-20241022",
+        "claude-3-5-sonnet-20240620":    "claude-3-5-haiku-20241022",
+        "claude-3-5-haiku-20241022":     "claude-3-haiku-20240307",
+        "claude-3-opus-20240229":        "claude-3-5-sonnet-20241022",
+        # Gemini
+        "gemini/gemini-2.5-pro":         "gemini/gemini-2.5-flash",
+        "gemini/gemini-2.5-flash":       "gemini/gemini-2.0-flash",
+        "gemini/gemini-2.0-flash":       "gemini/gemini-1.5-flash-latest",
+        "gemini/gemini-1.5-pro":         "gemini/gemini-1.5-flash-latest",
     }
     fb = fallbacks.get(failed_model, failed_model)
     if fb != failed_model:

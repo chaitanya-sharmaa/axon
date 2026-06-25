@@ -45,24 +45,31 @@ class SemanticCache:
         return context_hash, question
 
     async def get_embedding(self, text: str, api_key: str) -> list[float] | None:
-        """Fetch an embedding from the upstream provider."""
+        """Fetch an embedding from the upstream provider using LiteLLM."""
         if not text.strip():
             return None
-        base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         if not api_key:
             api_key = os.getenv("OPENAI_API_KEY", "")
             
-        async with httpx.AsyncClient() as client:
-            try:
-                resp = await client.post(
-                    f"{base_url}/embeddings",
-                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                    json={"input": text, "model": "text-embedding-3-small"}
-                )
-                if resp.status_code == 200:
-                    return resp.json()["data"][0]["embedding"]
-            except Exception as e:
-                log.warning(f"Failed to get embedding for cache: {e}")
+        import litellm
+        
+        # Select appropriate embedding model based on API key type
+        embed_model = "text-embedding-3-small"
+        if api_key.startswith("AQ.") or os.getenv("OPENAI_BASE_URL", "").startswith("https://generativelanguage"):
+            embed_model = "gemini/text-embedding-004"
+            
+        try:
+            resp = await litellm.aembedding(
+                model=embed_model,
+                input=text,
+                api_key=api_key,
+                num_retries=2
+            )
+            # litellm returns a Pydantic-like object compatible with OpenAI format
+            if resp and hasattr(resp, "data") and len(resp.data) > 0:
+                return resp.data[0]["embedding"]
+        except Exception as e:
+            log.warning(f"Failed to get embedding for cache: {e}")
         return None
 
     async def check_cache(self, messages: list[dict], api_key: str) -> Tuple[dict | None, dict | None]:
@@ -73,17 +80,6 @@ class SemanticCache:
         context_hash, question = self._extract_context_and_question(messages)
         if not question:
             return None, None
-
-        # FIX #1: Only fetch an embedding if there are actual cached entries for this
-        # context to compare against. Without this guard, we pay for an embedding API
-        # call on every single unique first request, even though we immediately return
-        # None (cache miss) — wasting tokens with zero benefit.
-        async with self._lock:
-            has_entries = bool(self._cache.get(context_hash))
-
-        if not has_entries:
-            # No entries yet — store a cheap sentinel so the next call can embed and store.
-            return None, {"context_hash": context_hash, "question": question, "embedding": None}
 
         emb = await self.get_embedding(question, api_key)
         state_dict = {"context_hash": context_hash, "question": question, "embedding": emb}
@@ -151,6 +147,25 @@ class SemanticCache:
         norm = sum(x * x for x in embedding) ** 0.5
         self._cache[context_hash].append((question, embedding, norm, response, time.time()))
         self._size += 1
+
+    def get_all_entries(self) -> list[dict]:
+        """Return a snapshot of all cache entries (non-async, safe to call from sync endpoints).
+        
+        Note: This does a shallow copy of keys under the GIL — sufficient for read-only dashboard display.
+        Not suitable for mutations.
+        """
+        entries = []
+        now = __import__('time').time()
+        for ctx_hash, items in list(self._cache.items()):
+            for item in items:
+                q_text, _emb, _norm, _resp, ts = item
+                if now - ts <= self.ttl_seconds:
+                    entries.append({
+                        "context_hash": ctx_hash,
+                        "question": q_text,
+                        "timestamp": ts,
+                    })
+        return sorted(entries, key=lambda x: x["timestamp"], reverse=True)
 
 # Global singleton
 semantic_cache = SemanticCache()

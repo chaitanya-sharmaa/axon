@@ -56,7 +56,7 @@ class AxonService:
         return None
 
     def _normalize_object(self, value: Any) -> Any:
-        if is_dataclass(value):
+        if is_dataclass(value) and not isinstance(value, type):
             return self._normalize_object(asdict(value))
 
         if hasattr(value, "model_dump") and callable(value.model_dump):

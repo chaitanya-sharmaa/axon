@@ -31,18 +31,25 @@ class SessionMemoryStore(BaseMemoryStore):
 
     def __init__(self, db_path: str = ":memory:") -> None:
         self.db_path = db_path
-        self.lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
         self._conn: aiosqlite.Connection | None = None
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._ensure_conn())
-        except RuntimeError:
-            asyncio.run(self._ensure_conn())
+
+    @property
+    def lock(self) -> asyncio.Lock:
+        assert self._lock is not None, "MemoryStore not initialized"
+        return self._lock
 
     # ── Connection management ──────────────────────────────────────────────────
 
+    async def initialize(self) -> None:
+        """Explicitly open the database connection on the current event loop."""
+        await self._ensure_conn()
+
     async def _ensure_conn(self) -> aiosqlite.Connection:
         """Return (or lazily create) the shared persistent connection."""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        
         if self._conn is None:
             conn = await aiosqlite.connect(self.db_path)
             conn.row_factory = aiosqlite.Row
@@ -230,6 +237,40 @@ class SessionMemoryStore(BaseMemoryStore):
         if row and row["messages_json"]:
             return json.loads(row["messages_json"])
         return []
+
+    async def get_messages(self, session_id: str) -> list[dict[str, Any]]:
+        """Return thread history formatted as OpenAI Message objects."""
+        history = await self.get_thread(session_id)
+        messages = []
+        for i, msg in enumerate(history):
+            content_val = msg.get("content", "")
+            if isinstance(content_val, list):
+                # Simple extraction if it's already a complex array
+                text_parts = []
+                for part in content_val:
+                    if isinstance(part, dict) and "text" in part:
+                        text_parts.append(part["text"])
+                    elif isinstance(part, str):
+                        text_parts.append(part)
+                content_val = " ".join(text_parts)
+                
+            messages.append({
+                "id": f"msg_{session_id}_{i}",
+                "object": "thread.message",
+                "created_at": int(datetime.now(timezone.utc).timestamp()),
+                "thread_id": session_id,
+                "role": msg.get("role", "user"),
+                "content": [
+                    {
+                        "type": "text",
+                        "text": {
+                            "value": str(content_val),
+                            "annotations": []
+                        }
+                    }
+                ]
+            })
+        return messages
 
     async def append_to_thread(self, session_id: str, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         conn = await self._ensure_conn()

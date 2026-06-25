@@ -7,6 +7,8 @@ from .memory_routes import router as memory_router
 from .security_routes import router as security_router
 from .agent_routes import router as agent_router
 from .v1_openai_routes import router as openai_router
+from .v1_assistants_routes import router as assistants_router
+from .v1_files_routes import router as files_router
 from .batch_routes import router as batch_router
 from .admin_routes import router as admin_router
 
@@ -19,6 +21,7 @@ __all__ = [
     "security_router",
     "agent_router",
     "openai_router",
+    "assistants_router",
     "batch_router",
     "admin_router",
 ]

@@ -85,6 +85,8 @@ Axon natively includes interceptors designed to protect autonomous agent workflo
 5. **BM25 Semantic Graph Pruning**: Axon uses the `rank_bm25` search algorithm to dynamically score and drop the bottom 25% of irrelevant context symbols and tools based on the user's immediate query, saving thousands of tokens per turn while keeping the agent fully informed.
 6. **Schema Flattening**: Axon converts deeply nested multi-dimensional JSON objects into flat dot-notation structures before applying compression, guaranteeing structural bloat removal on complex payloads.
 7. **JSON Healing**: If the LLM returns malformed JSON, Axon intercepts the error, appends it to the message history, and automatically asks the LLM to fix it before returning the response to your agent.
+8. **Exact-Match KV Cache**: Immediately intercepts repeated deterministic payloads (via SHA-256) and returns the exact prior response. **$0 API cost and zero network latency.**
+9. **Shannon Entropy Hallucination Guard**: Automatically parses `logprobs` from OpenAI/Ollama streams. Computes the probability distribution entropy ($E = -\sum p \log_2 p$) and surgically blocks responses if the LLM's confidence is too low (entropy > 1.5).
 
 ---
 

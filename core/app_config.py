@@ -36,6 +36,9 @@ axon_service = AxonService(
 )
 
 # ── Persistent event log (SQLite) ──────────────────────────────────────────────
+from services.memory_store import BaseMemoryStore
+memory_store: BaseMemoryStore
+
 if settings.memory_type == "redis":
     from services.redis_memory_store import RedisMemoryStore
     memory_store = RedisMemoryStore(redis_url=settings.redis_url)

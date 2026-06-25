@@ -77,6 +77,12 @@ class AppSettings:
     enable_security_routes: bool
     enable_agent_routes: bool
     enable_openai_routes: bool
+    
+    # Feature Flags
+    enable_semantic_routing: bool
+    enable_exact_match_cache: bool
+    enable_tool_compression: bool
+    enable_rag_context: bool
 
     # Admin & Quotas
     enable_tenant_quotas: bool
@@ -116,7 +122,7 @@ def load_settings() -> AppSettings:
         host=os.getenv("AXON_HOST", "127.0.0.1"),
         port=port,
         include_json_fallback=_as_bool(os.getenv("AXON_INCLUDE_JSON_FALLBACK"), True),
-        memory_db_path=os.getenv("AXON_MEMORY_DB_PATH", "/tmp/axon_sessions.db"),
+        memory_db_path=os.getenv("AXON_MEMORY_DB_PATH", "./axon_sessions.db"),
         memory_type=os.getenv("AXON_MEMORY_TYPE", "sqlite").lower(),
         redis_url=os.getenv("AXON_REDIS_URL", "redis://localhost:6379/0"),
         require_api_key=_as_bool(os.getenv("AXON_REQUIRE_API_KEY"), False),
@@ -135,6 +141,10 @@ def load_settings() -> AppSettings:
         enable_security_routes=_as_bool(os.getenv("AXON_ENABLE_SECURITY_ROUTES"), True),
         enable_agent_routes=_as_bool(os.getenv("AXON_ENABLE_AGENT_ROUTES"), True),
         enable_openai_routes=_as_bool(os.getenv("AXON_ENABLE_OPENAI_ROUTES"), True),
+        enable_semantic_routing=_as_bool(os.getenv("AXON_ENABLE_SEMANTIC_ROUTING"), True),
+        enable_exact_match_cache=_as_bool(os.getenv("AXON_ENABLE_EXACT_MATCH_CACHE"), True),
+        enable_tool_compression=_as_bool(os.getenv("AXON_ENABLE_TOOL_COMPRESSION"), True),
+        enable_rag_context=_as_bool(os.getenv("AXON_ENABLE_RAG_CONTEXT"), True),
         enable_tenant_quotas=_as_bool(os.getenv("AXON_ENABLE_TENANT_QUOTAS"), False),
         admin_api_key=os.getenv("AXON_ADMIN_API_KEY"),
         log_format=os.getenv("AXON_LOG_FORMAT", "text"),

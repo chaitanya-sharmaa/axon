@@ -58,6 +58,11 @@ class BaseMemoryStore(ABC):
         pass
 
     @abstractmethod
+    async def list_all_sessions(self) -> list[dict[str, Any]]:
+        """List all active sessions with metadata."""
+        pass
+
+    @abstractmethod
     async def get_tenant_quota(self, tenant_id: str) -> tuple[float, float]:
         """Get the (monthly_quota_usd, current_spend_usd) for a tenant.
         

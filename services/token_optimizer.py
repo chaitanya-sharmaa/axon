@@ -33,7 +33,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Mapping, Callable
 
 from gcf import (
     DeltaPayload,
@@ -94,9 +94,9 @@ class _TTLDict(TTLCache):
     FIX #7: All accesses are protected by a threading.Lock so concurrent FastAPI
     requests cannot corrupt session state or cause KeyErrors.
     """
-    def __init__(self, maxsize: int = 1024, ttl: int = 3600, *args, **kwargs) -> None:
-        super().__init__(maxsize=maxsize, ttl=ttl, *args, **kwargs)
-        self._rlock = threading.Lock()
+    def __init__(self, maxsize: int = 1024, ttl: int = 3600) -> None:
+        super().__init__(maxsize=maxsize, ttl=ttl)
+        self._rlock = threading.RLock()
 
     def __getitem__(self, key):
         with self._rlock:
@@ -456,7 +456,8 @@ class TokenOptimizer:
 
         # Detect payload type
         payload: Payload | None = None
-        is_graph = isinstance(obj, Mapping) and isinstance(obj.get("symbols"), list) and len(obj.get("symbols")) > 0
+        symbols_list = obj.get("symbols") if isinstance(obj, Mapping) else None
+        is_graph = isinstance(symbols_list, list) and len(symbols_list) > 0
         payload_type = "graph" if is_graph else "generic"
         if is_graph:
             payload = _build_payload(obj)
@@ -481,110 +482,9 @@ class TokenOptimizer:
                 savings_vs_json_pct=_savings(json_tokens, t),
             ))
 
-        # ── Axon graph ──────────────────────────────────────────────────────────
-        if STRATEGY_AXON_GRAPH in active and payload is not None:
-            try:
-                _add(STRATEGY_AXON_GRAPH, encode(payload))
-            except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_AXON_GRAPH} failed: {e}", exc_info=False)
-
-        # ── Axon session (TRON-style multi-turn dedup) ──────────────────────────
-        if STRATEGY_AXON_SESSION in active and payload is not None and session_id:
-            try:
-                sess = self._get_session(session_id)
-                _add(STRATEGY_AXON_SESSION, encode_with_session(payload, sess))
-            except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_AXON_SESSION} failed: {e}", exc_info=False)
-
-        # ── Axon delta (TOON-style change-only encoding) ───────────────────────
-        if STRATEGY_AXON_DELTA in active and payload is not None and session_id:
-            try:
-                prev = self._get_prev_symbols(session_id)
-                delta = _build_delta(payload, prev)
-                if delta is not None:
-                    _add(STRATEGY_AXON_DELTA, encode_delta(delta))
-            except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_AXON_DELTA} failed: {e}", exc_info=False)
-
-        # ── Axon generic (universal fallback) ──────────────────────────────────
-        if STRATEGY_AXON_GENERIC in active:
-            try:
-                _add(STRATEGY_AXON_GENERIC, encode_generic(obj))
-            except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_AXON_GENERIC} failed: {e}", exc_info=False)
-
-        # ── Axon generic delta / TOON for non-graph ────────────────────────────
-        if STRATEGY_AXON_GENERIC_DELTA in active and session_id and not is_graph:
-            try:
-                prev = self._prev_generic.get(session_id)
-                delta_obj = _build_generic_delta(obj, prev)
-                _add(STRATEGY_AXON_GENERIC_DELTA, encode_generic(delta_obj))
-            except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_AXON_GENERIC_DELTA} failed: {e}", exc_info=False)
-
-        # ── Axon generic session / TRON for non-graph ──────────────────────────
-        if STRATEGY_AXON_GENERIC_SESSION in active or STRATEGY_TRON in active:
-            if session_id and not is_graph:
-                try:
-                    seen = self._seen_values.setdefault(session_id, {})
-                    session_obj = _build_generic_session(obj, seen)
-                    
-                    strat_name = STRATEGY_TRON if STRATEGY_TRON in active else STRATEGY_AXON_GENERIC_SESSION
-                    _add(strat_name, encode_generic(session_obj))
-                except Exception as e:
-                    logging.warning(f"Strategy {STRATEGY_TRON} failed: {e}", exc_info=False)
-
-        # ── GCF (Graph Configuration Format) ───────────────────────────────────
-        if STRATEGY_GCF in active:
-            try:
-                _add(STRATEGY_GCF, encode_generic(obj))
-            except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_GCF} failed: {e}", exc_info=False)
-
-        # ── TOON (Delta Protocol) ──────────────────────────────────────────────
-        if STRATEGY_TOON in active and session_id:
-            try:
-                if is_graph:
-                    prev = self._get_prev_symbols(session_id)
-                    delta = _build_delta(payload, prev)
-                    if delta is not None:
-                        _add(STRATEGY_TOON, encode_delta(delta))
-                else:
-                    prev = self._prev_generic.get(session_id)
-                    delta_obj = _build_generic_delta(obj, prev)
-                    _add(STRATEGY_TOON, encode_generic(delta_obj))
-            except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_TOON} failed: {e}", exc_info=False)
-
-        # ── Schema values ───────────────────────────────────────────────────────
-        if STRATEGY_SCHEMA_VALUES in active and session_id and not is_graph and isinstance(obj, dict):
-            try:
-                def _flatten_dict(d: dict, parent_key: str = '', sep: str = '.') -> dict:
-                    items = []
-                    for k, v in d.items():
-                        new_key = f"{parent_key}{sep}{k}" if parent_key else k
-                        if isinstance(v, dict):
-                            items.extend(_flatten_dict(v, new_key, sep=sep).items())
-                        elif isinstance(v, list):
-                            items.append((new_key, str(v)))
-                        else:
-                            items.append((new_key, v))
-                    return dict(items)
-
-                flat_obj = _flatten_dict(obj)
-                current_keys = tuple(flat_obj.keys())
-                prev_keys = self._schema_keys.get(session_id)
-                if prev_keys == current_keys:
-                    # Keys match exactly, send only values
-                    encoded = ",".join(str(v) for v in flat_obj.values())
-                else:
-                    # First turn or keys changed, send key=value
-                    encoded = ",".join(f"{k}={v}" for k, v in flat_obj.items())
-                _add(STRATEGY_SCHEMA_VALUES, encoded)
-                
-                self._schema_keys[session_id] = current_keys
-            except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_SCHEMA_VALUES} failed: {e}", exc_info=False)
+        self._eval_graph_strategies(active, payload, session_id, _add)
+        self._eval_generic_strategies(active, obj, is_graph, session_id, _add)
+        self._eval_schema_strategies(active, obj, is_graph, session_id, _add)
 
         # ── JSON baseline ──────────────────────────────────────────────────────
         if STRATEGY_JSON in active:
@@ -619,6 +519,103 @@ class TokenOptimizer:
         if cache_key is not None:
             self._payload_cache[cache_key] = result
         return result
+
+    def _eval_graph_strategies(self, active: set[str], payload: Payload | None, session_id: str | None, _add: Callable[[str, str], None]) -> None:
+        if STRATEGY_AXON_GRAPH in active and payload is not None:
+            try:
+                _add(STRATEGY_AXON_GRAPH, encode(payload))
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_AXON_GRAPH} failed: {e}", exc_info=False)
+        if STRATEGY_AXON_SESSION in active and payload is not None and session_id:
+            try:
+                sess = self._get_session(session_id)
+                _add(STRATEGY_AXON_SESSION, encode_with_session(payload, sess))
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_AXON_SESSION} failed: {e}", exc_info=False)
+        if STRATEGY_AXON_DELTA in active and payload is not None and session_id:
+            try:
+                prev = self._get_prev_symbols(session_id)
+                delta = _build_delta(payload, prev)
+                if delta is not None:
+                    _add(STRATEGY_AXON_DELTA, encode_delta(delta))
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_AXON_DELTA} failed: {e}", exc_info=False)
+        if STRATEGY_TOON in active and session_id and payload is not None:
+            try:
+                prev = self._get_prev_symbols(session_id)
+                delta = _build_delta(payload, prev)
+                if delta is not None:
+                    _add(STRATEGY_TOON, encode_delta(delta))
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_TOON} failed: {e}", exc_info=False)
+
+    def _eval_generic_strategies(self, active: set[str], obj: Any, is_graph: bool, session_id: str | None, _add: Callable[[str, str], None]) -> None:
+        if STRATEGY_AXON_GENERIC in active:
+            try:
+                _add(STRATEGY_AXON_GENERIC, encode_generic(obj))
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_AXON_GENERIC} failed: {e}", exc_info=False)
+        if STRATEGY_AXON_GENERIC_DELTA in active and session_id and not is_graph:
+            try:
+                prev = self._prev_generic.get(session_id)
+                delta_obj = _build_generic_delta(obj, prev)
+                _add(STRATEGY_AXON_GENERIC_DELTA, encode_generic(delta_obj))
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_AXON_GENERIC_DELTA} failed: {e}", exc_info=False)
+        if (STRATEGY_AXON_GENERIC_SESSION in active or STRATEGY_TRON in active) and session_id and not is_graph:
+            try:
+                seen = self._seen_values.setdefault(session_id, {})
+                session_obj = _build_generic_session(obj, seen)
+                strat_name = STRATEGY_TRON if STRATEGY_TRON in active else STRATEGY_AXON_GENERIC_SESSION
+                _add(strat_name, encode_generic(session_obj))
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_TRON} failed: {e}", exc_info=False)
+        if STRATEGY_GCF in active:
+            try:
+                _add(STRATEGY_GCF, encode_generic(obj))
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_GCF} failed: {e}", exc_info=False)
+        if STRATEGY_TOON in active and session_id and not is_graph:
+            try:
+                prev = self._prev_generic.get(session_id)
+                delta_obj = _build_generic_delta(obj, prev)
+                _add(STRATEGY_TOON, encode_generic(delta_obj))
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_TOON} failed: {e}", exc_info=False)
+
+    def _eval_schema_strategies(self, active: set[str], obj: Any, is_graph: bool, session_id: str | None, _add: Callable[[str, str], None]) -> None:
+        if STRATEGY_SCHEMA_VALUES in active and session_id and not is_graph and isinstance(obj, dict):
+            try:
+                def _flatten_dict(d: dict, parent_key: str = '', sep: str = '.') -> dict:
+                    items: list[tuple[str, Any]] = []
+                    for k, v in d.items():
+                        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+                        if isinstance(v, dict):
+                            items.extend(_flatten_dict(v, new_key, sep=sep).items())
+                        elif isinstance(v, list):
+                            for i, item in enumerate(v):
+                                if isinstance(item, dict):
+                                    items.extend(_flatten_dict(item, f"{new_key}[{i}]", sep=sep).items())
+                                elif isinstance(item, list):
+                                    items.append((f"{new_key}[{i}]", str(item)))
+                                else:
+                                    items.append((f"{new_key}[{i}]", item))
+                        else:
+                            items.append((new_key, v))
+                    return dict(items)
+
+                flat_obj = _flatten_dict(obj)
+                current_keys = tuple(flat_obj.keys())
+                prev_keys = self._schema_keys.get(session_id)
+                if prev_keys == current_keys:
+                    encoded = ",".join(str(v) for v in flat_obj.values())
+                else:
+                    encoded = ",".join(f"{k}={v}" for k, v in flat_obj.items())
+                _add(STRATEGY_SCHEMA_VALUES, encoded)
+                self._schema_keys[session_id] = current_keys
+            except Exception as e:
+                logging.warning(f"Strategy {STRATEGY_SCHEMA_VALUES} failed: {e}", exc_info=False)
+
 
 # ── Agentic Feature Suite ──────────────────────────────────────────────────────
 

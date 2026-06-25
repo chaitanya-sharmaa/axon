@@ -101,11 +101,12 @@ def test_chat_completions_stream(client):
         assert "data:" in content
         assert "x-axon-metrics" in res.headers
 
-def test_embeddings(client, mock_litellm_acompletion):
+@patch("api.routes.v1_openai_routes.litellm.aembedding", new_callable=AsyncMock)
+def test_embeddings(mock_aembedding, client):
     class MockResponse:
         def model_dump(self):
             return {"data": [{"embedding": []}]}
-    mock_litellm_acompletion.return_value = MockResponse()
+    mock_aembedding.return_value = MockResponse()
 
     req = {
         "model": "text-embedding-3-small",
@@ -115,8 +116,9 @@ def test_embeddings(client, mock_litellm_acompletion):
     assert res.status_code == 200
     assert "data" in res.json()
 
-def test_embeddings_error(client, mock_litellm_acompletion):
-    mock_litellm_acompletion.side_effect = Exception("Error")
+@patch("api.routes.v1_openai_routes.litellm.aembedding", new_callable=AsyncMock)
+def test_embeddings_error(mock_aembedding, client):
+    mock_aembedding.side_effect = Exception("Error")
     req = {"model": "text-embedding-3", "input": "test"}
     res = client.post("/v1/embeddings", json=req)
     assert res.status_code == 502

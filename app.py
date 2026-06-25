@@ -39,6 +39,7 @@ from api.routes import (
     security_router,
     agent_router,
     openai_router,
+    assistants_router,
     batch_router,
     admin_router,
 )
@@ -129,6 +130,7 @@ def create_app() -> FastAPI:
     # OpenAI-compatible routes (always at /v1)
     if settings.enable_openai_routes:
         app.include_router(openai_router)
+        app.include_router(assistants_router)
         app.include_router(swarm_router)
 
     # Batch processing

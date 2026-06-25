@@ -238,6 +238,40 @@ class SessionMemoryStore(BaseMemoryStore):
             return json.loads(row["messages_json"])
         return []
 
+    async def get_messages(self, session_id: str) -> list[dict[str, Any]]:
+        """Return thread history formatted as OpenAI Message objects."""
+        history = await self.get_thread(session_id)
+        messages = []
+        for i, msg in enumerate(history):
+            content_val = msg.get("content", "")
+            if isinstance(content_val, list):
+                # Simple extraction if it's already a complex array
+                text_parts = []
+                for part in content_val:
+                    if isinstance(part, dict) and "text" in part:
+                        text_parts.append(part["text"])
+                    elif isinstance(part, str):
+                        text_parts.append(part)
+                content_val = " ".join(text_parts)
+                
+            messages.append({
+                "id": f"msg_{session_id}_{i}",
+                "object": "thread.message",
+                "created_at": int(datetime.now(timezone.utc).timestamp()),
+                "thread_id": session_id,
+                "role": msg.get("role", "user"),
+                "content": [
+                    {
+                        "type": "text",
+                        "text": {
+                            "value": str(content_val),
+                            "annotations": []
+                        }
+                    }
+                ]
+            })
+        return messages
+
     async def append_to_thread(self, session_id: str, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         conn = await self._ensure_conn()
         async with self.lock:

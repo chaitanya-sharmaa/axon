@@ -30,7 +30,7 @@ class PromptFirewall:
     def __init__(self, enable_firewall: bool = True):
         self.enable_firewall = enable_firewall
         
-    def scan(self, text: str) -> bool:
+    def scan(self, text: str, tenant_id: str = "default") -> bool:
         """
         Scan text for prompt injection.
         Returns True if SAFE, False if INJECTION DETECTED.
@@ -42,6 +42,11 @@ class PromptFirewall:
         for phrase in self.BLACKLIST_PHRASES:
             if phrase in text_lower:
                 log.warning(f"Prompt Firewall: Detected jailbreak attempt with phrase: '{phrase}'")
+                try:
+                    from services.event_logger import event_logger
+                    event_logger.log_firewall_block(phrase, tenant_id=tenant_id)
+                except Exception:
+                    pass
                 return False
                 
         return True

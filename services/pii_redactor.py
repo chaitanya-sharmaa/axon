@@ -27,27 +27,41 @@ class PIIRedactor:
     def __init__(self, enable_redaction: bool = True):
         self.enable_redaction = enable_redaction
         
-    def redact(self, text: str) -> str:
+    def redact(self, text: str, tenant_id: str = "default") -> str:
         """Replace detected PII with tokens (e.g. [EMAIL_REDACTED])."""
         if not self.enable_redaction or not text:
             return text
             
         original_text = text
+        hit_types = []
         
         # Redact SSNs
-        text = SSN_REGEX.sub("[SSN_REDACTED]", text)
+        new_text = SSN_REGEX.sub("[SSN_REDACTED]", text)
+        if new_text != text: hit_types.append("ssn")
+        text = new_text
         
         # Redact Credit Cards
-        text = CREDIT_CARD_REGEX.sub("[CREDIT_CARD_REDACTED]", text)
+        new_text = CREDIT_CARD_REGEX.sub("[CREDIT_CARD_REDACTED]", text)
+        if new_text != text: hit_types.append("credit_card")
+        text = new_text
         
         # Redact Phones
-        text = PHONE_REGEX.sub("[PHONE_REDACTED]", text)
+        new_text = PHONE_REGEX.sub("[PHONE_REDACTED]", text)
+        if new_text != text: hit_types.append("phone")
+        text = new_text
         
         # Redact Emails
-        text = EMAIL_REGEX.sub("[EMAIL_REDACTED]", text)
+        new_text = EMAIL_REGEX.sub("[EMAIL_REDACTED]", text)
+        if new_text != text: hit_types.append("email")
+        text = new_text
         
         if text != original_text:
-            log.info("PII Redactor: Detected and masked sensitive information.")
+            log.info(f"PII Redactor: Detected and masked: {hit_types}")
+            try:
+                from services.event_logger import event_logger
+                event_logger.log_pii_hit(hit_types, tenant_id=tenant_id)
+            except Exception:
+                pass
             
         return text
 

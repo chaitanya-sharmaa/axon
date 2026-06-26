@@ -489,11 +489,6 @@ graph TD
     classDef cache fill:#10b981,stroke:#059669,color:#fff
     classDef guard fill:#ef4444,stroke:#b91c1c,color:#fff
     classDef llm fill:#7c3aed,stroke:#6d28d9,color:#fff
-
-    classDef axon fill:#2563eb,stroke:#1d4ed8,color:#fff
-    classDef cache fill:#10b981,stroke:#059669,color:#fff
-    classDef guard fill:#ef4444,stroke:#b91c1c,color:#fff
-    classDef llm fill:#7c3aed,stroke:#6d28d9,color:#fff
     classDef agentic fill:#f59e0b,stroke:#d97706,color:#fff
 
     class Router,Compress,Firewall axon

@@ -86,7 +86,7 @@ const TABS = [
   { id: 'security',   label: 'Security',      Icon: Shield },
   { id: 'tenants',    label: 'Tenants',       Icon: Users },
   { id: 'sessions',   label: 'Sessions',      Icon: MessageSquare },
-  { id: 'playground', label: 'Playground',    Icon: Terminal },
+  { id: 'agentic',    label: 'Agentic',       Icon: BrainCircuit },
   { id: 'settings',   label: 'Feature Flags', Icon: Settings },
 ];
 
@@ -95,7 +95,10 @@ export default function App() {
   const [chartData, setChartData] = useState(MOCK_DATA);
   const [health, setHealth] = useState(null);
   const [metrics, setMetrics] = useState({ tokensSaved: 0, costSaved: 0, cacheHits: 0 });
-  const [flags, setFlags] = useState({ enable_semantic_routing: true, enable_exact_match_cache: true, enable_tool_compression: true, enable_rag_context: true });
+  const [flags, setFlags] = useState({ 
+    enable_semantic_routing: true, enable_exact_match_cache: true, enable_tool_compression: true, enable_rag_context: true,
+    enable_agentic_optimizations: true, enable_agentic_schema_diff: true, enable_agentic_scratchpad: true, enable_agentic_observation_window: true, enable_agentic_loop_detection: true 
+  });
   const [firehoseLogs, setFirehoseLogs] = useState([]);
   const [cacheEntries, setCacheEntries] = useState([]);
   const [firewallEvents, setFirewallEvents] = useState([]);
@@ -103,6 +106,7 @@ export default function App() {
   const [entropyEvents, setEntropyEvents] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [sessions, setSessions] = useState([]);
+  const [agenticStats, setAgenticStats] = useState(null);
   const [playPrompt, setPlayPrompt] = useState('');
   const [playModel, setPlayModel] = useState('gpt-4o');
   const [playLoading, setPlayLoading] = useState(false);
@@ -113,7 +117,7 @@ export default function App() {
     const safe = async (url, fallback) => {
       try { const r = await fetch(url); return r.ok ? r.json() : fallback; } catch { return fallback; }
     };
-    const [healthData, logs, cache, fwEvents, piiResp, entropyResp, tenantsResp, sessionsResp, flagsData] = await Promise.all([
+    const [healthData, logs, cache, fwEvents, piiResp, entropyResp, tenantsResp, sessionsResp, flagsData, agenticData] = await Promise.all([
       safe(`${BASE}/admin/health`, null),
       safe(`${BASE}/admin/requests`, []),
       safe(`${BASE}/admin/cache`, []),
@@ -123,6 +127,7 @@ export default function App() {
       safe(`${BASE}/admin/tenants`, []),
       safe(`${BASE}/admin/sessions`, []),
       safe(`${BASE}/admin/features`, null),
+      safe(`${BASE}/admin/agentic`, null),
     ]);
     if (healthData) setHealth(healthData);
     setFirehoseLogs(logs);
@@ -133,6 +138,7 @@ export default function App() {
     setTenants(tenantsResp);
     setSessions(sessionsResp);
     if (flagsData) setFlags(flagsData);
+    if (agenticData) setAgenticStats(agenticData);
     const cost = logs.reduce((s, l) => s + (l.cost || 0), 0);
     const hits = logs.filter(l => l.cache_hit).length;
     const totalTokens = logs.reduce((s, l) => s + (l.total_tokens || 0), 0);
@@ -558,6 +564,45 @@ export default function App() {
         </div>
       )}
 
+      {/* ─── AGENTIC PIPELINE ─── */}
+      {activeTab === 'agentic' && (
+        <div className="glass-panel">
+          <SectionHeader title="Agentic Pipeline Analytics" sub="Lossless mathematical token compression for agentic loops" />
+          
+          {agenticStats ? (
+            <>
+              <div className="layout-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '2rem' }}>
+                <MetricCard title="Total Tokens Saved" value={agenticStats.total_agentic_tokens_saved.toLocaleString()} icon={Zap} colorClass="accent-primary" sub="Across all active pipeline passes" />
+                <MetricCard title="Active Sessions" value={agenticStats.active_sessions} icon={Activity} colorClass="success" sub="Tracked by state manager" />
+                <MetricCard title="Pipeline Status" value={agenticStats.pipeline_enabled ? 'Active' : 'Disabled'} icon={BrainCircuit} colorClass={agenticStats.pipeline_enabled ? 'success' : 'error'} sub="Master switch" />
+              </div>
+              
+              <SectionHeader title="Savings Breakdown" sub="Tokens saved per module" />
+              <div className="table-container" style={{ marginBottom: '2rem' }}>
+                <table className="data-table">
+                  <thead><tr><th>Optimization Module</th><th>Tokens Saved</th><th>Status</th></tr></thead>
+                  <tbody>
+                    <tr><td>Error Truncation</td><td>{agenticStats.breakdown_totals?.error_truncation?.toLocaleString() || 0}</td><td><StatusChip ok label="Always On" /></td></tr>
+                    <tr><td>Whitespace Normalization</td><td>{agenticStats.breakdown_totals?.whitespace?.toLocaleString() || 0}</td><td><StatusChip ok label="Always On" /></td></tr>
+                    <tr><td>Scratchpad Compression</td><td>{agenticStats.breakdown_totals?.scratchpad?.toLocaleString() || 0}</td><td><StatusChip ok={agenticStats.flags?.scratchpad_compression} label={agenticStats.flags?.scratchpad_compression ? "Active" : "Disabled"} /></td></tr>
+                    <tr><td>Parallel Deduplication</td><td>{agenticStats.breakdown_totals?.parallel_dedup?.toLocaleString() || 0}</td><td><StatusChip ok label="Always On" /></td></tr>
+                    <tr><td>Provider Prefix Caching</td><td>{agenticStats.breakdown_totals?.prefix_caching?.toLocaleString() || 0}</td><td><StatusChip ok label="Session Aware" /></td></tr>
+                    <tr><td>Schema Differential</td><td>{agenticStats.breakdown_totals?.schema_differential?.toLocaleString() || 0}</td><td><StatusChip ok={agenticStats.flags?.schema_differential} label={agenticStats.flags?.schema_differential ? "Session Aware" : "Disabled"} /></td></tr>
+                    <tr><td>Observation Window</td><td>{agenticStats.breakdown_totals?.observation_window?.toLocaleString() || 0}</td><td><StatusChip ok={agenticStats.flags?.observation_window} label={agenticStats.flags?.observation_window ? "Session Aware" : "Disabled"} /></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              <BrainCircuit size={40} opacity={0.3} style={{ margin: '0 auto 1rem' }} />
+              <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>No agentic stats available</div>
+              <div style={{ fontSize: '0.875rem' }}>Ensure the backend is running and pipeline is enabled.</div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ─── FEATURE FLAGS ─── */}
       {activeTab === 'settings' && (
         <div className="glass-panel">
@@ -568,6 +613,29 @@ export default function App() {
               { key: 'enable_exact_match_cache', label: 'Exact-Match Cache', on: 'Identical payloads instantly return cached responses — 100% token savings.', off: 'All requests hit the upstream LLM, even duplicates.' },
               { key: 'enable_tool_compression', label: 'Tool Schema Compression', on: 'Verbose JSON tool definitions compressed to Python signatures (~90% savings).', off: 'Raw JSON tool schemas sent to the LLM unmodified.' },
               { key: 'enable_rag_context', label: 'Local Vector RAG', on: 'File attachments vectorized locally; relevant chunks auto-injected as context.', off: 'Context injection bypassed for all file attachments.' },
+            ].map(({ key, label, on, off }) => (
+              <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', gap: '2rem' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{label}</div>
+                  <div style={{ fontSize: '0.85rem', color: flags[key] ? 'var(--text-secondary)' : 'var(--error)', opacity: 0.9 }}>{flags[key] ? on : off}</div>
+                </div>
+                <label className="toggle-switch">
+                  <input type="checkbox" checked={!!flags[key]} onChange={() => toggleFlag(key)} />
+                  <span className="toggle-slider" />
+                </label>
+              </div>
+            ))}
+          </div>
+          
+          <SectionHeader title="Agentic Pipeline Features" sub="Advanced mathematically lossless middleware for agentic workflows." />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+            {[
+              { key: 'enable_agentic_optimizations', label: 'Master Pipeline Switch', on: 'Agentic optimizations are running.', off: 'Entire agentic pipeline is bypassed.' },
+              { key: 'enable_agentic_schema_diff', label: 'Differential Schema Transmission', on: 'Omit schemas for unused tools after turn 2.', off: 'Resend all tool schemas on every turn.' },
+              { key: 'enable_agentic_scratchpad', label: 'Scratchpad Compression', on: 'ReAct reasoning blocks compressed by deduping and removing filler.', off: 'Reasoning blocks sent verbatim.' },
+              { key: 'enable_agentic_observation_window', label: 'Observation Window Pruning', on: 'Old, low-entropy tool results pruned dynamically.', off: 'Context window grows unbounded.' },
+              { key: 'enable_agentic_loop_detection', label: 'Infinite Loop Circuit Breaker', on: 'Detect and break infinite tool loops returning cached results.', off: 'Allow agents to loop infinitely.' },
+
             ].map(({ key, label, on, off }) => (
               <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', gap: '2rem' }}>
                 <div style={{ flex: 1 }}>

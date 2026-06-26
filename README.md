@@ -263,44 +263,36 @@ In our verified end-to-end benchmark of a 4-turn autonomous coding agent loop, A
 
 ```mermaid
 sequenceDiagram
-    autonumber
     participant Agent as Autonomous Agent
     participant Axon as Axon Bridge
     participant LLM as Upstream LLM
 
-    %% Turn 1
-    rect rgb(30, 41, 59)
-    Agent->>Axon: Turn 1: Verbose <thinking> + Call search_web()
-    Note over Axon: Scratchpad Compressor<br/>removes filler words
-    Axon->>LLM: Compressed prompt
+    Note over Agent,LLM: Turn 1: Initial Reasoning (Scratchpad Compression)
+    Agent->>Axon: Verbose <thinking> block & search_web() call
+    Axon->>Axon: Strips filler words & normalizes whitespace
+    Axon->>LLM: 📉 Compressed prompt
     LLM-->>Axon: Output
-    Axon-->>Agent: LLM Result (8% tokens saved)
-    end
+    Axon-->>Agent: Result (8% tokens saved)
 
-    %% Turn 2
-    rect rgb(30, 41, 59)
-    Agent->>Axon: Turn 2: Call execute_python()
-    Note over Axon: Tool fails with<br/>50-line Stack Trace
-    Axon->>Agent: Error Truncator strips Traceback<br/>Returns only actionable Exception
-    Note over Axon: 217 tokens saved!
-    end
+    Note over Agent,LLM: Turn 2: Tool Failure (Error Truncation)
+    Agent->>Axon: Calls execute_python()
+    Axon->>Axon: Upstream tool fails with 50-line Stack Trace
+    Axon->>Axon: Truncates trace to single Exception line
+    Axon-->>Agent: 📉 Returns truncated error (217 tokens saved)
 
-    %% Turn 3
-    rect rgb(88, 28, 34)
-    Agent->>Axon: Turn 3: Infinite Loop Failure!<br/>Calls execute_python() with exact same args
-    Note over Axon: Loop Circuit Breaker<br/>detects exact duplicate
-    Axon-->>Agent: 🛑 [AXON LOOP GUARD]<br/>Returned Cached Error
-    Note over Axon: 100% LLM Bypass!<br/>98% Total tokens saved
-    end
+    Note over Agent,LLM: Turn 3: Infinite Loop Circuit Breaker
+    Agent->>Axon: Calls execute_python() with exact same failed args
+    Axon->>Axon: Detects exact duplicate call
+    Axon-->>Agent: 🛑 [AXON LOOP GUARD] Returns cached error
+    Note right of Axon: 100% LLM Bypass!<br/>98% Total tokens saved
 
-    %% Turn 4
-    rect rgb(30, 41, 59)
-    Agent->>Axon: Turn 4: Fixes bug, returns answer
-    Note over Axon: Schema Diff drops unused tools.<br/>Observation Window prunes old scrape.
-    Axon->>LLM: Highly compressed history
+    Note over Agent,LLM: Turn 4: Context Pruning (Schema Diff & Observation Window)
+    Agent->>Axon: Fixes bug, returns final answer
+    Axon->>Axon: Drops unused tool schemas
+    Axon->>Axon: Prunes old search_web data
+    Axon->>LLM: 📉 Highly compressed history
     LLM-->>Axon: Final Answer
-    Axon-->>Agent: LLM Result (97.6% tokens saved)
-    end
+    Axon-->>Agent: Result (97.6% tokens saved)
 ```
 
 ---

@@ -58,6 +58,7 @@ from services.schema_validator import schema_validator
 from services.kv_cache import kv_cache
 from services.tool_compressor import compress_tools_to_prompt, reconstruct_tool_calls
 from services.request_logger import request_logger
+from services.agentic.pipeline import optimize_request as agentic_optimize, update_after_response as agentic_post
 
 from opentelemetry import trace, metrics
 
@@ -428,6 +429,23 @@ async def chat_completions(
                 headers={"x-axon-metrics": metrics_header, "x-axon-cache": "HIT"}
             )
 
+    # ── Agentic Optimization Pipeline ─────────────────────────────────────────
+    # Runs 7 passes (error truncation, whitespace, scratchpad compression,
+    # parallel dedup, prefix caching, schema differential, observation window)
+    # before Axon's structural compression. Stateless passes always run;
+    # session-aware passes activate when session_id is present.
+    agentic_result = agentic_optimize(
+        messages=[m.model_dump(exclude_none=True) for m in req.messages],
+        tools=req.tools,
+        model=req.model,
+        session_id=session_id,
+    )
+    # Rebuild req.messages from the optimized payload
+    req.messages = [ChatMessage(**m) for m in agentic_result.messages]
+    if agentic_result.tools is not None:
+        req.tools = agentic_result.tools
+    agentic_tokens_saved = agentic_result.tokens_saved
+
     # Compress messages
     # If stateful thread is enabled, pass session_id=None to disable stateful TRON/TOON 
     # delta deduplication, forcing safe structural compression (GCF).
@@ -513,6 +531,10 @@ async def chat_completions(
     savings_usd = estimate_savings_usd(
         metrics["original_tokens"], metrics["compressed_tokens"], req.model
     )
+
+    # Merge agentic savings into the metrics header
+    metrics["agentic_tokens_saved"] = agentic_tokens_saved
+    metrics["agentic_breakdown"] = agentic_result.savings_breakdown
 
     savings_header = json.dumps(metrics)
     # Choose the correct endpoint based on the model type
@@ -712,6 +734,16 @@ async def chat_completions(
     if session_id and user_text and memory_store:
         background_tasks.add_task(extract_facts_async, session_id, user_text, api_key, memory_store)
 
+    # Update agentic session state with which tools the LLM called this turn
+    if session_id and resp_json:
+        tool_calls_made = []
+        for choice in resp_json.get("choices", []):
+            for tc in choice.get("message", {}).get("tool_calls") or []:
+                name = tc.get("function", {}).get("name")
+                if name:
+                    tool_calls_made.append(name)
+        if tool_calls_made:
+            background_tasks.add_task(agentic_post, session_id, tool_calls_made)
 
     # Reconstruct tool_calls from simulated XML format
     if has_tools and resp_json.get("choices") and len(resp_json["choices"]) > 0:

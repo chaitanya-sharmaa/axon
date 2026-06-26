@@ -40,22 +40,35 @@ class FeatureFlagsUpdate(BaseModel):
     enable_exact_match_cache: bool | None = None
     enable_tool_compression: bool | None = None
     enable_rag_context: bool | None = None
+    # Agentic pipeline flags
+    enable_agentic_optimizations: bool | None = None
+    enable_agentic_schema_diff: bool | None = None
+    enable_agentic_scratchpad: bool | None = None
+    enable_agentic_observation_window: bool | None = None
+    enable_agentic_loop_detection: bool | None = None
 
 
 @router.get("/admin/features", dependencies=[Depends(require_admin)])
 def get_features():
-    """Get the current state of feature flags."""
+    """Get the current state of all feature flags (core + agentic)."""
     return {
+        # Core flags
         "enable_semantic_routing": settings.enable_semantic_routing,
         "enable_exact_match_cache": settings.enable_exact_match_cache,
         "enable_tool_compression": settings.enable_tool_compression,
         "enable_rag_context": settings.enable_rag_context,
+        # Agentic pipeline flags
+        "enable_agentic_optimizations": settings.enable_agentic_optimizations,
+        "enable_agentic_schema_diff": settings.enable_agentic_schema_diff,
+        "enable_agentic_scratchpad": settings.enable_agentic_scratchpad,
+        "enable_agentic_observation_window": settings.enable_agentic_observation_window,
+        "enable_agentic_loop_detection": settings.enable_agentic_loop_detection,
     }
 
 
 @router.post("/admin/features", dependencies=[Depends(require_admin)])
 def update_features(flags: FeatureFlagsUpdate):
-    """Dynamically update feature flags at runtime."""
+    """Dynamically update feature flags at runtime (no restart needed)."""
     if flags.enable_semantic_routing is not None:
         settings.enable_semantic_routing = flags.enable_semantic_routing
     if flags.enable_exact_match_cache is not None:
@@ -64,6 +77,17 @@ def update_features(flags: FeatureFlagsUpdate):
         settings.enable_tool_compression = flags.enable_tool_compression
     if flags.enable_rag_context is not None:
         settings.enable_rag_context = flags.enable_rag_context
+    # Agentic flags
+    if flags.enable_agentic_optimizations is not None:
+        settings.enable_agentic_optimizations = flags.enable_agentic_optimizations
+    if flags.enable_agentic_schema_diff is not None:
+        settings.enable_agentic_schema_diff = flags.enable_agentic_schema_diff
+    if flags.enable_agentic_scratchpad is not None:
+        settings.enable_agentic_scratchpad = flags.enable_agentic_scratchpad
+    if flags.enable_agentic_observation_window is not None:
+        settings.enable_agentic_observation_window = flags.enable_agentic_observation_window
+    if flags.enable_agentic_loop_detection is not None:
+        settings.enable_agentic_loop_detection = flags.enable_agentic_loop_detection
     return get_features()
 
 
@@ -171,4 +195,35 @@ async def get_sessions():
         return []
 
 
+# ── Agentic Pipeline Stats ────────────────────────────────────────────────────
 
+from services.agentic.session_state import agentic_state_manager
+
+
+@router.get("/admin/agentic", dependencies=[Depends(require_admin)])
+def get_agentic_stats():
+    """Live stats from the agentic optimization pipeline."""
+    logs = request_logger.get_logs(limit=500)
+
+    # Sum per-module breakdowns across all logged requests
+    agentic_saved = 0
+    breakdown_totals: dict = {}
+    for log_entry in logs:
+        agentic_saved += log_entry.get("agentic_tokens_saved", 0) or 0
+        bd = log_entry.get("agentic_breakdown", {}) or {}
+        for k, v in bd.items():
+            breakdown_totals[k] = breakdown_totals.get(k, 0) + (v or 0)
+
+    state_stats = agentic_state_manager.stats()
+    return {
+        "pipeline_enabled": settings.enable_agentic_optimizations,
+        "active_sessions": state_stats["active_sessions"],
+        "total_agentic_tokens_saved": agentic_saved,
+        "breakdown_totals": breakdown_totals,
+        "flags": {
+            "schema_differential": settings.enable_agentic_schema_diff,
+            "scratchpad_compression": settings.enable_agentic_scratchpad,
+            "observation_window": settings.enable_agentic_observation_window,
+            "loop_detection": settings.enable_agentic_loop_detection,
+        },
+    }

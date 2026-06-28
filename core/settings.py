@@ -84,6 +84,13 @@ class AppSettings:
     enable_tool_compression: bool
     enable_rag_context: bool
 
+    # Agentic Optimization Pipeline Feature Flags
+    enable_agentic_optimizations: bool     # Master switch for the whole pipeline
+    enable_agentic_schema_diff: bool       # Tool schema differential transmission
+    enable_agentic_scratchpad: bool        # ReAct scratchpad compression
+    enable_agentic_observation_window: bool # Entropy-based observation pruning
+    enable_agentic_loop_detection: bool    # Tool loop circuit breaker
+
     # Admin & Quotas
     enable_tenant_quotas: bool
     admin_api_key: str | None
@@ -145,6 +152,11 @@ def load_settings() -> AppSettings:
         enable_exact_match_cache=_as_bool(os.getenv("AXON_ENABLE_EXACT_MATCH_CACHE"), True),
         enable_tool_compression=_as_bool(os.getenv("AXON_ENABLE_TOOL_COMPRESSION"), True),
         enable_rag_context=_as_bool(os.getenv("AXON_ENABLE_RAG_CONTEXT"), True),
+        enable_agentic_optimizations=_as_bool(os.getenv("AXON_ENABLE_AGENTIC_OPTIMIZATIONS"), True),
+        enable_agentic_schema_diff=_as_bool(os.getenv("AXON_ENABLE_AGENTIC_SCHEMA_DIFF"), True),
+        enable_agentic_scratchpad=_as_bool(os.getenv("AXON_ENABLE_AGENTIC_SCRATCHPAD"), True),
+        enable_agentic_observation_window=_as_bool(os.getenv("AXON_ENABLE_AGENTIC_OBSERVATION_WINDOW"), True),
+        enable_agentic_loop_detection=_as_bool(os.getenv("AXON_ENABLE_AGENTIC_LOOP_DETECTION"), True),
         enable_tenant_quotas=_as_bool(os.getenv("AXON_ENABLE_TENANT_QUOTAS"), False),
         admin_api_key=os.getenv("AXON_ADMIN_API_KEY"),
         log_format=os.getenv("AXON_LOG_FORMAT", "text"),

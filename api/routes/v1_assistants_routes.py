@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 import litellm
 from core.app_config import axon_service, memory_store
+from core.settings import settings
 from services.pricing import estimate_savings_usd, estimate_cost_usd
 from services.vector_store import vector_store
 from api.routes.v1_openai_routes import _compress_messages, ChatMessage
@@ -76,6 +77,37 @@ async def get_thread(thread_id: str, authorization: str | None = Header(None)) -
         "metadata": {}
     })
 
+def _format_as_assistant_messages(history: list[dict], session_id: str) -> list[dict]:
+    messages = []
+    for i, msg in enumerate(history):
+        content_val = msg.get("content", "")
+        if isinstance(content_val, list):
+            text_parts = []
+            for part in content_val:
+                if isinstance(part, dict) and "text" in part:
+                    text_parts.append(part["text"])
+                elif isinstance(part, str):
+                    text_parts.append(part)
+            content_val = " ".join(text_parts)
+            
+        messages.append({
+            "id": f"msg_{session_id}_{i}",
+            "object": "thread.message",
+            "created_at": int(datetime.now(timezone.utc).timestamp()),
+            "thread_id": session_id,
+            "role": msg.get("role", "user"),
+            "content": [
+                {
+                    "type": "text",
+                    "text": {
+                        "value": str(content_val),
+                        "annotations": []
+                    }
+                }
+            ]
+        })
+    return messages
+
 @router.post("/v1/threads/{thread_id}/messages")
 async def create_message(
     thread_id: str, 
@@ -96,9 +128,10 @@ async def create_message(
     await memory_store.append_to_thread(thread_id, [new_msg])
     
     # Get the latest message formatted properly
-    msgs = await memory_store.get_messages(thread_id)
-    if not msgs:
+    raw_msgs = await memory_store.get_thread(thread_id)
+    if not raw_msgs:
         raise HTTPException(500, "Failed to retrieve saved message")
+    msgs = _format_as_assistant_messages(raw_msgs, thread_id)
         
     return JSONResponse(status_code=200, content=msgs[-1])
 
@@ -112,7 +145,8 @@ async def list_messages(thread_id: str, authorization: str | None = Header(None)
     if not exists:
         raise HTTPException(404, f"Thread {thread_id} not found")
         
-    messages = await memory_store.get_messages(thread_id)
+    raw_messages = await memory_store.get_thread(thread_id)
+    messages = _format_as_assistant_messages(raw_messages, thread_id)
     # The official API returns messages in descending order by default
     messages.reverse()
     

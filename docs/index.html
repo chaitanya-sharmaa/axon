@@ -287,6 +287,89 @@ response = client.chat.completions.create(
     </div>
   </section>
 
+  <!-- CONFIGURATION -->
+  <section class="section section-dark" id="configuration" style="background: var(--bg-alt); padding: 5rem 0;">
+    <div class="container">
+      <p class="eyebrow">Configuration</p>
+      <h2 class="section-h2">Token compression is always on. The rest is up to you.</h2>
+      <p class="section-p" style="max-width: 800px;">Axon Bridge is a token-compression-first proxy. All compression features are <b>enabled by default</b>. Security, routing, and memory features are <b>disabled by default</b> and must be explicitly opted-in via your <code>.env</code> file.</p>
+      
+      <div class="bench-table-wrap" style="margin-top: 3rem;">
+        <table class="bench-table" style="text-align: left;">
+          <thead><tr><th>Feature Category</th><th>Feature</th><th>Default State</th><th>.env Variable to Enable</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="chip">Token Compression</span></td>
+              <td>Token Compression Engine (8 strategies)</td>
+              <td><span class="win">✅ Always On</span></td>
+              <td><code>-</code></td>
+            </tr>
+            <tr>
+              <td><span class="chip">Token Compression</span></td>
+              <td>L1 Exact-Match & L2 Semantic Cache</td>
+              <td><span class="win">✅ Enabled</span></td>
+              <td><code>AXON_ENABLE_EXACT_MATCH_CACHE</code>, <code>AXON_ENABLE_SEMANTIC_CACHE</code></td>
+            </tr>
+            <tr>
+              <td><span class="chip">Token Compression</span></td>
+              <td>Agentic Pipeline (8 passes)</td>
+              <td><span class="win">✅ Enabled</span></td>
+              <td><code>AXON_ENABLE_AGENTIC_OPTIMIZATIONS</code></td>
+            </tr>
+            <tr>
+              <td><span class="chip">Token Compression</span></td>
+              <td>Tool Call Compression</td>
+              <td><span class="win">✅ Enabled</span></td>
+              <td><code>AXON_ENABLE_TOOL_COMPRESSION</code></td>
+            </tr>
+            <tr>
+              <td><span class="chip">Token Compression</span></td>
+              <td>Vision Optimizer (Downscaler)</td>
+              <td><span class="win">✅ Enabled</span></td>
+              <td><code>AXON_ENABLE_VISION_OPTIMIZER</code></td>
+            </tr>
+            <tr>
+              <td style="border-top: 2px solid var(--border);"><span class="chip" style="background: rgba(255,255,255,0.05); color: #888;">Security</span></td>
+              <td style="border-top: 2px solid var(--border);">Prompt Firewall & Jailbreak Protection</td>
+              <td style="border-top: 2px solid var(--border);"><span style="color: #888;">❌ Disabled</span></td>
+              <td style="border-top: 2px solid var(--border);"><code>AXON_ENABLE_PROMPT_FIREWALL=true</code></td>
+            </tr>
+            <tr>
+              <td><span class="chip" style="background: rgba(255,255,255,0.05); color: #888;">Security</span></td>
+              <td>PII Redactor</td>
+              <td><span style="color: #888;">❌ Disabled</span></td>
+              <td><code>AXON_ENABLE_PII_REDACTION=true</code></td>
+            </tr>
+            <tr>
+              <td><span class="chip" style="background: rgba(255,255,255,0.05); color: #888;">Security</span></td>
+              <td>Shannon Entropy Hallucination Guard</td>
+              <td><span style="color: #888;">❌ Disabled</span></td>
+              <td><code>AXON_ENABLE_HALLUCINATION_GUARD=true</code></td>
+            </tr>
+            <tr>
+              <td><span class="chip" style="background: rgba(255,255,255,0.05); color: #888;">Intelligence</span></td>
+              <td>ML Smart Router (Local sentence-transformer)</td>
+              <td><span style="color: #888;">❌ Disabled</span></td>
+              <td><code>AXON_ENABLE_SEMANTIC_ROUTING=true</code></td>
+            </tr>
+            <tr>
+              <td><span class="chip" style="background: rgba(255,255,255,0.05); color: #888;">Intelligence</span></td>
+              <td>Fact Extraction & Session Memory</td>
+              <td><span style="color: #888;">❌ Disabled</span></td>
+              <td><code>AXON_ENABLE_FACT_EXTRACTION=true</code></td>
+            </tr>
+            <tr>
+              <td><span class="chip" style="background: rgba(255,255,255,0.05); color: #888;">Compatibility</span></td>
+              <td>Assistants API (beta.threads.*), Swarm, Files</td>
+              <td><span style="color: #888;">❌ Disabled</span></td>
+              <td><code>AXON_ENABLE_ASSISTANTS_ROUTES=true</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <!-- PIPELINE -->
   <section class="section section-dark" id="pipeline">
     <div class="container">

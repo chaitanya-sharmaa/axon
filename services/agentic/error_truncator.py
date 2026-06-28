@@ -57,15 +57,12 @@ _EXTRACTORS = [
 
 def _extract_final_error(text: str) -> str:
     """Extract the most meaningful single-line error from a stack trace."""
-    # Try each extractor; the last match wins (most specific error)
-    best = None
+    # Try each extractor; the first match wins (most specific error)
     for pattern in _EXTRACTORS:
         matches = pattern.findall(text)
         if matches:
             best = matches[-1].strip()
-
-    if best:
-        return f"[Tool Error] {best}"
+            return f"[Tool Error] {best}"
 
     # Fallback: last non-blank line
     for line in reversed(text.splitlines()):

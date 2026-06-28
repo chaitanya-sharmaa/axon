@@ -22,6 +22,15 @@ os.environ["AXON_REQUIRE_API_KEY"] = "false"
 os.environ["AXON_API_KEY"] = "test-key"
 os.environ["AXON_ALLOW_ALL_DOMAINS"] = "true"
 
+# Enable all opt-in features for tests
+os.environ["AXON_ENABLE_SEMANTIC_ROUTING"] = "true"
+os.environ["AXON_ENABLE_PROMPT_FIREWALL"] = "true"
+os.environ["AXON_ENABLE_PII_REDACTION"] = "true"
+os.environ["AXON_ENABLE_HALLUCINATION_GUARD"] = "true"
+os.environ["AXON_ENABLE_FACT_EXTRACTION"] = "true"
+os.environ["AXON_ENABLE_ASSISTANTS_ROUTES"] = "true"
+os.environ["AXON_ENABLE_TENANT_QUOTAS"] = "true"
+
 
 @pytest.fixture
 def client():

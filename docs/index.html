@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Axon Bridge — Reduce LLM Costs by 70%</title>
+  <meta name="description" content="Production-grade, drop-in OpenAI proxy with autonomous token compression, multi-provider routing, agentic protections, and real-time observability. Reduce LLM API costs by up to 70%." />
+  <meta property="og:title" content="Axon Bridge — LLM Cost Reduction Middleware" />
+  <meta property="og:description" content="Drop-in OpenAI proxy. Automatic token savings, ML smart routing, agentic protections. One command to install." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..900;1,14..32,300..900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav id="navbar">
+    <div class="nav-inner">
+      <a class="nav-logo" href="#">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="14" fill="url(#lg1)"/><path d="M9 19l5-10 5 10" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 16h7" stroke="#fff" stroke-width="2" stroke-linecap="round"/><defs><linearGradient id="lg1" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg>
+        Axon Bridge
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#benchmarks">Benchmarks</a>
+        <a href="#pipeline">Pipeline</a>
+        <a href="#quickstart">Quickstart</a>
+        <a href="https://github.com/chaitanya-sharmaa/axon" target="_blank" class="nav-github">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+      <a href="#quickstart" class="btn btn-primary nav-cta">Get Started</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-bg">
+      <div class="orb orb1"></div>
+      <div class="orb orb2"></div>
+      <div class="orb orb3"></div>
+      <canvas id="gridCanvas"></canvas>
+    </div>
+    <div class="container hero-content">
+      <div class="pill">
+        <span class="pill-dot"></span>
+        v0.3.0 &nbsp;·&nbsp; 215 Tests Passing &nbsp;·&nbsp; MIT License
+      </div>
+      <h1 class="hero-h1">
+        Cut your LLM API costs<br/>
+        <span class="gradient-text">by up to 70%</span><br/>
+        with one command.
+      </h1>
+      <p class="hero-p">
+        Axon Bridge is a production-grade, drop-in OpenAI proxy that automatically compresses tokens, routes to cheaper models, blocks jailbreaks, and gives you real-time observability — all transparently.
+      </p>
+      <div class="hero-btns">
+        <a href="#quickstart" class="btn btn-primary btn-lg">Install Axon Bridge →</a>
+        <a href="https://github.com/chaitanya-sharmaa/axon" target="_blank" class="btn btn-ghost btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+          View on GitHub
+        </a>
+      </div>
+      <div class="install-strip">
+        <span class="dollar">$</span>
+        <span id="icode">pip install axon-bridge &amp;&amp; axon serve</span>
+        <button id="copyBtn" onclick="copyCmd()" title="Copy">
+          <svg id="copyIco" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        </button>
+      </div>
+      <div class="hero-flow">
+        <div class="flow-node node-app">
+          <div class="flow-icon">🖥️</div>
+          <div class="flow-label">Your App</div>
+          <div class="flow-sub">OpenAI SDK</div>
+        </div>
+        <div class="flow-connector">
+          <div class="connector-line"></div>
+          <svg class="connector-arrow" width="10" height="16" viewBox="0 0 10 16"><path d="M0 8h8M4 2l6 6-6 6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+        </div>
+        <div class="flow-node node-axon">
+          <div class="flow-icon">⚡</div>
+          <div class="flow-label">Axon Bridge</div>
+          <div class="flow-sub">8 compression layers</div>
+        </div>
+        <div class="flow-connector">
+          <div class="connector-line"></div>
+          <svg class="connector-arrow" width="10" height="16" viewBox="0 0 10 16"><path d="M0 8h8M4 2l6 6-6 6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+        </div>
+        <div class="flow-node node-llm">
+          <div class="flow-icon">🤖</div>
+          <div class="flow-label">LLM Provider</div>
+          <div class="flow-sub">100+ providers</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="stats">
+    <div class="container stats-inner">
+      <div class="stat"><span class="stat-n" data-target="70">0</span><span class="stat-unit">%</span><div class="stat-l">Cost Reduction</div></div>
+      <div class="stat-div"></div>
+      <div class="stat"><span class="stat-n" data-target="100">0</span><span class="stat-unit">%</span><div class="stat-l">KV Cache Savings</div></div>
+      <div class="stat-div"></div>
+      <div class="stat"><span class="stat-n">100+</span><div class="stat-l">LLM Providers</div></div>
+      <div class="stat-div"></div>
+      <div class="stat"><span class="stat-n">8</span><div class="stat-l">Compression Strategies</div></div>
+      <div class="stat-div"></div>
+      <div class="stat"><span class="stat-n" data-target="215">0</span><div class="stat-l">Tests Passing</div></div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="section" id="how">
+    <div class="container">
+      <p class="eyebrow">How it works</p>
+      <h2 class="section-h2">One line. Zero code changes.</h2>
+      <p class="section-p">Change only <code>base_url</code>. Everything else — compression, caching, routing, and protection — happens automatically.</p>
+      <div class="code-compare">
+        <div class="code-pane">
+          <div class="code-header">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">Before Axon</span>
+          </div>
+          <pre><code class="lang-python"><span class="kw">import</span> openai
+
+client = openai.OpenAI(
+    api_key=<span class="st">"sk-..."</span>
+)
+
+response = client.chat.completions.create(
+    model=<span class="st">"gpt-4o"</span>,
+    messages=[{<span class="st">"role"</span>: <span class="st">"user"</span>,
+               <span class="st">"content"</span>: <span class="st">"Hello!"</span>}]
+)</code></pre>
+        </div>
+        <div class="code-vs-badge">VS</div>
+        <div class="code-pane code-pane-after">
+          <div class="code-header">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">After Axon</span>
+            <span class="savings-tag">↓ 70% cost</span>
+          </div>
+          <pre><code class="lang-python"><span class="kw">import</span> openai
+
+client = openai.OpenAI(
+    api_key=<span class="st">"sk-..."</span>,
+    base_url=<span class="hl">"http://localhost:8080/v1"</span>
+)
+
+response = client.chat.completions.create(
+    model=<span class="st">"gpt-4o"</span>,
+    messages=[{<span class="st">"role"</span>: <span class="st">"user"</span>,
+               <span class="st">"content"</span>: <span class="st">"Hello!"</span>}]
+)
+<span class="cm"># x-axon-metrics: {"savings_pct": 39.3, "cost_saved_usd": 0.0021}</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BENCHMARKS -->
+  <section class="section section-dark" id="benchmarks">
+    <div class="container">
+      <p class="eyebrow">Verified Results</p>
+      <h2 class="section-h2">Real benchmarks. Real savings.</h2>
+      <p class="section-p">Tested against a 4,800+ token AST graph payload — typical of AI coding agents. 215/215 CI tests passing.</p>
+      <div class="bench-table-wrap">
+        <table class="bench-table">
+          <thead><tr><th>Turn</th><th>Scenario</th><th>Strategy</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="turn">Turn 1</span></td>
+              <td>Architecture question on large AST graph</td>
+              <td><span class="chip">Axon Graph Compression</span></td>
+              <td><span class="win">✅ 39.3% Token Savings</span></td>
+            </tr>
+            <tr>
+              <td><span class="turn">Turn 2</span></td>
+              <td>Identical repeated question</td>
+              <td><span class="chip">Exact-Match KV Cache</span></td>
+              <td><span class="win win-gold">✅ 100% Savings — $0, 5ms</span></td>
+            </tr>
+            <tr>
+              <td><span class="turn">Turn 3</span></td>
+              <td>Follow-up question (stateful)</td>
+              <td><span class="chip">Stateful Threads</span></td>
+              <td><span class="win">✅ 99.9% Bandwidth + 39.1% API</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="strategy-section">
+        <h3 class="sub-h3">8 Auto-Selected Compression Strategies</h3>
+        <div class="strategy-grid">
+          <div class="s-card"><div class="s-name">graph</div><div class="s-for">AST / dependency graphs</div><div class="s-pct">~39%</div><div class="s-bar"><div class="s-fill" style="width:78%"></div></div></div>
+          <div class="s-card"><div class="s-name">graph_delta</div><div class="s-for">Repeated graph context</div><div class="s-pct">~35%</div><div class="s-bar"><div class="s-fill" style="width:70%"></div></div></div>
+          <div class="s-card"><div class="s-name">generic_delta</div><div class="s-for">Repeated JSON across turns</div><div class="s-pct">~30%</div><div class="s-bar"><div class="s-fill" style="width:60%"></div></div></div>
+          <div class="s-card"><div class="s-name">graph_session</div><div class="s-for">Stateful graph sessions</div><div class="s-pct">~30%</div><div class="s-bar"><div class="s-fill" style="width:60%"></div></div></div>
+          <div class="s-card"><div class="s-name">schema_values</div><div class="s-for">Database schemas</div><div class="s-pct">~25%</div><div class="s-bar"><div class="s-fill" style="width:50%"></div></div></div>
+          <div class="s-card"><div class="s-name">generic_session</div><div class="s-for">Multi-turn sessions</div><div class="s-pct">~25%</div><div class="s-bar"><div class="s-fill" style="width:50%"></div></div></div>
+          <div class="s-card"><div class="s-name">generic</div><div class="s-for">General-purpose JSON</div><div class="s-pct">~20%</div><div class="s-bar"><div class="s-fill" style="width:40%"></div></div></div>
+          <div class="s-card s-card-muted"><div class="s-name">json</div><div class="s-for">Pass-through baseline</div><div class="s-pct">0%</div><div class="s-bar"><div class="s-fill" style="width:1%"></div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section" id="features">
+    <div class="container">
+      <p class="eyebrow">Features</p>
+      <h2 class="section-h2">11 production features. Zero configuration.</h2>
+      <p class="section-p">Everything ships out of the box and activates automatically on every request.</p>
+      <div class="feat-grid">
+        <div class="feat feat-wide">
+          <div class="feat-ico">🗜️</div>
+          <h3>Token Compression Engine</h3>
+          <p>Benchmarks 8 structural encoding strategies per-request and auto-selects the winner. Zero semantic loss — purely structural compression removes JSON syntax and flattens nesting.</p>
+          <span class="feat-tag">Core</span>
+        </div>
+        <div class="feat">
+          <div class="feat-ico">🤖</div>
+          <h3>ML Smart Router</h3>
+          <p>Local sentence-transformer classifies prompt intent and routes casual queries to 75%-cheaper lite models automatically.</p>
+          <span class="feat-tag">AI Powered</span>
+        </div>
+        <div class="feat">
+          <div class="feat-ico">⚡</div>
+          <h3>Multi-Layer Caching</h3>
+          <p>L1 SHA-256 exact-match cache (100% savings, 5ms) + L2 semantic vector cache for paraphrased questions.</p>
+          <span class="feat-tag">Performance</span>
+        </div>
+        <div class="feat">
+          <div class="feat-ico">🛡️</div>
+          <h3>Agentic Protections</h3>
+          <p>Prompt Firewall (25+ jailbreak patterns), PII Redactor, Shannon Entropy Hallucination Guard, JSON Healing Loop, Streaming Budget Circuit Breaker.</p>
+          <span class="feat-tag">Security</span>
+        </div>
+        <div class="feat">
+          <div class="feat-ico">💬</div>
+          <h3>Stateful Threads</h3>
+          <p>Client sends only the new message. Axon rehydrates full history from local storage. 99% network bandwidth reduction.</p>
+          <span class="feat-tag">Efficiency</span>
+        </div>
+        <div class="feat">
+          <div class="feat-ico">🧠</div>
+          <h3>Memory & Fact Extraction</h3>
+          <p>Auto-extracts semantic facts from conversations and injects them into future turns. Persistent user memory across sessions.</p>
+          <span class="feat-tag">Intelligence</span>
+        </div>
+        <div class="feat">
+          <div class="feat-ico">📁</div>
+          <h3>Native RAG & File Attachments</h3>
+          <p>Upload PDFs, embed with sentence-transformers, search with cosine similarity — fully local, no external vector DB.</p>
+          <span class="feat-tag">RAG</span>
+        </div>
+        <div class="feat">
+          <div class="feat-ico">🔧</div>
+          <h3>Tool Call Compression</h3>
+          <p>Converts verbose JSON Schema tool definitions (~400 tokens) to compact Python signatures (~30 tokens).</p>
+          <span class="feat-tag">Agents</span>
+        </div>
+        <div class="feat">
+          <div class="feat-ico">👥</div>
+          <h3>Multi-Tenant Quotas</h3>
+          <p>Enforce per-tenant USD spend limits atomically. SQLite or Redis backed. Round-robin API key load balancing.</p>
+          <span class="feat-tag">Enterprise</span>
+        </div>
+        <div class="feat">
+          <div class="feat-ico">🤝</div>
+          <h3>Assistants API Compatibility</h3>
+          <p>Full drop-in <code>client.beta.threads.*</code> support. Streaming, tool use, and file attachments all work.</p>
+          <span class="feat-tag">Compatibility</span>
+        </div>
+        <div class="feat feat-wide">
+          <div class="feat-ico">📊</div>
+          <h3>Real-Time Observability Dashboard</h3>
+          <p>10-tab React dashboard at <code>/dashboard</code> — Metrics, Analytics, Live Firehose, Cache Explorer, Security Log, Tenants, Sessions, API Playground, Agentic Pipeline, and Feature Flags (toggle features at runtime without restart).</p>
+          <span class="feat-tag">Observability</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PIPELINE -->
+  <section class="section section-dark" id="pipeline">
+    <div class="container">
+      <p class="eyebrow">Agentic Pipeline</p>
+      <h2 class="section-h2">98% reduction on agentic token loops.</h2>
+      <p class="section-p">8 mathematical compression passes run before any structural compression, specifically designed for ReAct, Plan-Execute, and tool-calling agent workflows.</p>
+      <div class="pipeline-grid">
+        <div class="pipe-card"><div class="pipe-pass">Pass 1</div><h4>Error Truncation</h4><p>Compresses 50-line stack traces to the single error headline.</p><div class="pipe-savings">~90% on failed tools</div></div>
+        <div class="pipe-card"><div class="pipe-pass">Pass 2</div><h4>Whitespace Normalization</h4><p>Strips invisible Unicode, normalizes line endings, collapses spacing.</p><div class="pipe-savings">5–15% savings</div></div>
+        <div class="pipe-card"><div class="pipe-pass">Pass 3</div><h4>Scratchpad Compression</h4><p>Deduplicates sentences and strips filler from &lt;thinking&gt; / ReAct blocks.</p><div class="pipe-savings">30–50% on reasoning</div></div>
+        <div class="pipe-card"><div class="pipe-pass">Pass 4</div><h4>Parallel Deduplication</h4><p>Removes duplicate fields across overlapping tool results in the same turn.</p><div class="pipe-savings">15–40% savings</div></div>
+        <div class="pipe-card"><div class="pipe-pass">Pass 5</div><h4>Prefix Caching</h4><p>Auto-injects provider-native <code>cache_control</code> on stable system prompts.</p><div class="pipe-savings">85–90% on prefixes</div></div>
+        <div class="pipe-card"><div class="pipe-pass">Pass 6</div><h4>Schema Differential</h4><p>Omits JSON schemas for tools the agent hasn't used recently.</p><div class="pipe-savings">80% on schemas</div></div>
+        <div class="pipe-card"><div class="pipe-pass">Pass 7</div><h4>Observation Window</h4><p>Shannon entropy × recency to prune old, low-information tool results.</p><div class="pipe-savings">40–70% on history</div></div>
+        <div class="pipe-card pipe-highlight"><div class="pipe-pass">Pass 8</div><h4>Loop Circuit Breaker</h4><p>Detects duplicate tool calls with identical args. Returns cached result, bypasses LLM entirely.</p><div class="pipe-savings">100% LLM bypass!</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROVIDERS -->
+  <section class="section" id="providers">
+    <div class="container">
+      <p class="eyebrow">Provider Support</p>
+      <h2 class="section-h2">100+ providers. One proxy.</h2>
+      <p class="section-p">Powered by LiteLLM. The Smart Router automatically pairs lite/pro tiers per provider family — with automatic fallback cascading on 429/503.</p>
+      <div class="prov-grid">
+        <div class="prov-card"><div class="prov-logo logo-openai">GPT</div><div class="prov-name">OpenAI</div><div class="prov-models">gpt-4o ↔ gpt-4o-mini</div></div>
+        <div class="prov-card"><div class="prov-logo logo-gemini">G</div><div class="prov-name">Google Gemini</div><div class="prov-models">2.5-pro ↔ flash</div></div>
+        <div class="prov-card"><div class="prov-logo logo-anthropic">A</div><div class="prov-name">Anthropic</div><div class="prov-models">sonnet ↔ haiku</div></div>
+        <div class="prov-card"><div class="prov-logo logo-aws">AWS</div><div class="prov-name">AWS Bedrock</div><div class="prov-models">Any Bedrock model</div></div>
+        <div class="prov-card"><div class="prov-logo logo-ollama">Ol</div><div class="prov-name">Ollama</div><div class="prov-models">Any local model</div></div>
+        <div class="prov-card prov-more"><div class="prov-logo logo-more">+95</div><div class="prov-name">More providers</div><div class="prov-models">Via LiteLLM</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUICKSTART -->
+  <section class="section section-dark" id="quickstart">
+    <div class="container">
+      <p class="eyebrow">Quick Start</p>
+      <h2 class="section-h2">Running in 60 seconds.</h2>
+      <div class="qs-grid">
+        <div class="qs-step"><div class="qs-n">1</div><div class="qs-body"><h3>Install</h3><pre><code>pip install axon-bridge</code></pre></div></div>
+        <div class="qs-step"><div class="qs-n">2</div><div class="qs-body"><h3>Configure</h3><pre><code>cp .env.example .env
+<span class="cm"># Set OPENAI_API_KEY=your-key</span></code></pre></div></div>
+        <div class="qs-step"><div class="qs-n">3</div><div class="qs-body"><h3>Serve</h3><pre><code>axon serve
+<span class="cm"># Dashboard → http://localhost:8080/dashboard</span></code></pre></div></div>
+        <div class="qs-step"><div class="qs-n">4</div><div class="qs-body"><h3>Point your SDK at Axon</h3><pre><code><span class="kw">import</span> openai
+client = openai.OpenAI(
+    base_url=<span class="st">"http://localhost:8080/v1"</span>,
+    api_key=<span class="st">"any-value"</span>  <span class="cm"># Axon uses your .env key</span>
+)
+response = client.chat.completions.create(
+    model=<span class="st">"gpt-4o"</span>,
+    messages=[{<span class="st">"role"</span>: <span class="st">"user"</span>, <span class="st">"content"</span>: <span class="st">"Hello!"</span>}]
+)
+<span class="cm"># Token savings start immediately.</span></code></pre></div></div>
+      </div>
+      <div class="docker-box">
+        <p>Or run with Docker:</p>
+        <pre><code>docker-compose up
+<span class="cm"># Axon → http://localhost:8080 · Dashboard → /dashboard</span></code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- HEADERS -->
+  <section class="section" id="headers">
+    <div class="container">
+      <p class="eyebrow">Custom Headers</p>
+      <h2 class="section-h2">Unlock advanced features with one header.</h2>
+      <div class="headers-grid">
+        <div class="hdr-card"><code class="hdr-key">X-Axon-Session-ID</code><p>Enable session memory, fact extraction, and the full agentic pipeline.</p></div>
+        <div class="hdr-card"><code class="hdr-key">X-Axon-Stateful-Thread: true</code><p>Send only the new message. Axon rehydrates the full history from local storage — 99% bandwidth saved.</p></div>
+        <div class="hdr-card"><code class="hdr-key">X-Axon-Tenant-ID</code><p>Identify your tenant for per-tenant USD quota tracking and enforcement.</p></div>
+        <div class="hdr-card"><code class="hdr-key">X-Axon-Max-Spend: 0.05</code><p>Per-request USD budget. Axon kills the streaming connection if the agent exceeds it.</p></div>
+      </div>
+      <div class="resp-hdrs">
+        <h3>Axon response headers</h3>
+        <div class="rhdr"><code>x-axon-metrics</code><span><code>{"original_tokens": 4800, "compressed_tokens": 2900, "savings_pct": 39.3}</code></span></div>
+        <div class="rhdr"><code>x-axon-cost-saved-usd</code><span>Estimated dollar savings for this request</span></div>
+        <div class="rhdr"><code>x-axon-cache</code><span><code>HIT</code> if response served from L1 or L2 cache</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="section cta-wrap">
+    <div class="container">
+      <div class="cta-card">
+        <div class="cta-glow"></div>
+        <h2>Start saving on every LLM call.</h2>
+        <p>Open source, MIT licensed. Runs entirely on your infrastructure. No vendor lock-in.</p>
+        <div class="cta-btns">
+          <a href="#quickstart" class="btn btn-primary btn-lg">Get Started Free →</a>
+          <a href="https://github.com/chaitanya-sharmaa/axon" target="_blank" class="btn btn-ghost btn-lg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+            View on GitHub
+          </a>
+        </div>
+        <p class="cta-by">Built by <a href="https://github.com/chaitanya-sharmaa" target="_blank">Chaitanya Sharma</a></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="container footer-inner">
+      <div class="foot-logo">
+        <svg width="22" height="22" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="14" fill="url(#lg2)"/><path d="M9 19l5-10 5 10" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 16h7" stroke="#fff" stroke-width="2" stroke-linecap="round"/><defs><linearGradient id="lg2" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg>
+        Axon Bridge
+      </div>
+      <div class="foot-links">
+        <a href="#features">Features</a>
+        <a href="#benchmarks">Benchmarks</a>
+        <a href="#quickstart">Quick Start</a>
+        <a href="https://github.com/chaitanya-sharmaa/axon" target="_blank">GitHub</a>
+        <a href="https://github.com/chaitanya-sharmaa/axon/issues" target="_blank">Issues</a>
+      </div>
+      <div class="foot-copy">© 2026 Chaitanya Sharma · MIT License</div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

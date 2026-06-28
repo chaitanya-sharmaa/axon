@@ -143,8 +143,8 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
             d = msg.model_dump(exclude_none=True)
             content = msg.content
 
-            # 1. Vision Downscaling
-            if isinstance(content, list):
+            # 1. Vision Downscaling (token-compression, ON by default)
+            if isinstance(content, list) and settings.enable_vision_optimizer:
                 for item in content:
                     if isinstance(item, dict) and item.get("type") == "image_url":
                         url_obj = item.get("image_url", {})
@@ -373,25 +373,24 @@ async def chat_completions(
         if quota > 0 and spend >= quota:
             raise HTTPException(429, f"Tenant quota exceeded. Spend: ${spend:.4f}, Quota: ${quota:.4f}")
 
-    # Memory Injection
-    if session_id and memory_store:
+    # Memory Injection (opt-in: AXON_ENABLE_FACT_EXTRACTION)
+    if settings.enable_fact_extraction and session_id and memory_store:
         facts = await memory_store.get_session_facts(session_id)
         if facts:
-            # Inject facts into the system prompt securely
             fact_str = ",".join(facts)
             mem_msg = ChatMessage(role="system", content=f"Memory: [{fact_str}]")
             req.messages.insert(0, mem_msg)
-            
-    # Firewall & PII Redaction
+
+    # Firewall & PII Redaction (opt-in: AXON_ENABLE_PROMPT_FIREWALL / AXON_ENABLE_PII_REDACTION)
     user_text_parts = []
     for msg in req.messages:
         if isinstance(msg.content, str):
             if msg.role == "user":
-                if not prompt_firewall.scan(msg.content):
+                if settings.enable_prompt_firewall and not prompt_firewall.scan(msg.content):
                     raise HTTPException(400, "Prompt Injection Detected. Request blocked.")
                 user_text_parts.append(msg.content)
-            # Apply PII redaction to all messages sent to LLM
-            msg.content = pii_redactor.redact(msg.content)
+            if settings.enable_pii_redaction:
+                msg.content = pii_redactor.redact(msg.content)
 
     user_text = " ".join(user_text_parts)
 
@@ -459,11 +458,11 @@ async def chat_completions(
         tools_system_prompt = compress_tools_to_prompt(req.tools)
         if tools_system_prompt:
             # Inject into compressed_messages
-            compressed_messages.insert(0, ChatMessage(role="system", content=tools_system_prompt))
+            compressed_messages.insert(0, {"role": "system", "content": tools_system_prompt})
             
-    # Semantic Caching
+    # Semantic Caching (token-compression, ON by default: AXON_ENABLE_SEMANTIC_CACHE)
     state_dict = None
-    if not req.stream and settings.enable_exact_match_cache and os.getenv("AXON_SEMANTIC_CACHE", "true").lower() == "true":
+    if not req.stream and settings.enable_semantic_cache:
         msg_dicts = [m.model_dump(exclude_none=True) for m in req.messages]
         cached_resp, state_dict = await semantic_cache.check_cache(msg_dicts, api_key)
         if cached_resp:
@@ -572,7 +571,7 @@ async def chat_completions(
     # served via the OpenAI API or locally via Ollama (which mirrors the OpenAI spec).
     # Gemini and Anthropic either reject it or return incompatible formats, so we
     # gate it to known-good providers.
-    _LOGPROB_PROVIDERS = ("gpt", "openai/")
+    _LOGPROB_PROVIDERS = ("gpt", "openai/", "ollama/")
     _logprobs_enabled = (
         not req.stream
         and any(routed_model.startswith(p) for p in _LOGPROB_PROVIDERS)
@@ -727,11 +726,11 @@ async def chat_completions(
         raise HTTPException(502, "Failed to get a valid response from the model.")
 
     # Store successful response in Semantic Cache
-    if not req.stream and state_dict is not None:
+    if not req.stream and settings.enable_semantic_cache and state_dict is not None:
         semantic_cache.store_response(state_dict, resp_json)
 
-    # Spawn background fact extraction if we have user text
-    if session_id and user_text and memory_store:
+    # Spawn background fact extraction (opt-in: AXON_ENABLE_FACT_EXTRACTION)
+    if settings.enable_fact_extraction and session_id and user_text and memory_store:
         background_tasks.add_task(extract_facts_async, session_id, user_text, api_key, memory_store)
 
     # Update agentic session state with which tools the LLM called this turn

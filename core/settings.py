@@ -78,18 +78,27 @@ class AppSettings:
     enable_agent_routes: bool
     enable_openai_routes: bool
     
-    # Feature Flags
-    enable_semantic_routing: bool
-    enable_exact_match_cache: bool
-    enable_tool_compression: bool
-    enable_rag_context: bool
+    # ── Token-Compression Feature Flags (ON by default) ──────────────────────
+    enable_exact_match_cache: bool       # L1 KV cache — 100% savings on repeated requests
+    enable_semantic_cache: bool          # L2 semantic vector cache — catches paraphrased questions
+    enable_tool_compression: bool        # Compress JSON Schema tool defs to Python signatures
+    enable_vision_optimizer: bool        # Downscale 4K images to 768px (reduces vision tokens)
 
-    # Agentic Optimization Pipeline Feature Flags
+    # Agentic Optimization Pipeline Feature Flags (all ON by default)
     enable_agentic_optimizations: bool     # Master switch for the whole pipeline
     enable_agentic_schema_diff: bool       # Tool schema differential transmission
     enable_agentic_scratchpad: bool        # ReAct scratchpad compression
     enable_agentic_observation_window: bool # Entropy-based observation pruning
     enable_agentic_loop_detection: bool    # Tool loop circuit breaker
+
+    # ── Non-Compression Feature Flags (OFF by default — opt-in via .env) ─────
+    enable_semantic_routing: bool        # ML Smart Router: auto-switch lite/pro model tiers
+    enable_rag_context: bool             # RAG context injection from uploaded files
+    enable_prompt_firewall: bool         # Block 25+ jailbreak/prompt-injection patterns
+    enable_pii_redaction: bool           # Auto-redact emails, SSNs, credit cards, phones
+    enable_hallucination_guard: bool     # Shannon entropy guard on logprobs (blocks low-confidence)
+    enable_fact_extraction: bool         # Extract & store semantic facts from conversations
+    enable_assistants_routes: bool       # OpenAI Assistants API (beta.threads.*)
 
     # Admin & Quotas
     enable_tenant_quotas: bool
@@ -143,20 +152,29 @@ def load_settings() -> AppSettings:
         route_prefix_security=os.getenv("AXON_ROUTE_PREFIX_SECURITY", "/security"),
         enable_core_routes=_as_bool(os.getenv("AXON_ENABLE_CORE_ROUTES"), True),
         enable_process_routes=_as_bool(os.getenv("AXON_ENABLE_PROCESS_ROUTES"), True),
-        enable_proxy_routes=_as_bool(os.getenv("AXON_ENABLE_PROXY_ROUTES"), True),
-        enable_memory_routes=_as_bool(os.getenv("AXON_ENABLE_MEMORY_ROUTES"), True),
-        enable_security_routes=_as_bool(os.getenv("AXON_ENABLE_SECURITY_ROUTES"), True),
-        enable_agent_routes=_as_bool(os.getenv("AXON_ENABLE_AGENT_ROUTES"), True),
+        enable_proxy_routes=_as_bool(os.getenv("AXON_ENABLE_PROXY_ROUTES"), False),
+        enable_memory_routes=_as_bool(os.getenv("AXON_ENABLE_MEMORY_ROUTES"), False),
+        enable_security_routes=_as_bool(os.getenv("AXON_ENABLE_SECURITY_ROUTES"), False),
+        enable_agent_routes=_as_bool(os.getenv("AXON_ENABLE_AGENT_ROUTES"), False),
         enable_openai_routes=_as_bool(os.getenv("AXON_ENABLE_OPENAI_ROUTES"), True),
-        enable_semantic_routing=_as_bool(os.getenv("AXON_ENABLE_SEMANTIC_ROUTING"), True),
+        # Token-compression features — ON by default
         enable_exact_match_cache=_as_bool(os.getenv("AXON_ENABLE_EXACT_MATCH_CACHE"), True),
+        enable_semantic_cache=_as_bool(os.getenv("AXON_ENABLE_SEMANTIC_CACHE"), True),
         enable_tool_compression=_as_bool(os.getenv("AXON_ENABLE_TOOL_COMPRESSION"), True),
-        enable_rag_context=_as_bool(os.getenv("AXON_ENABLE_RAG_CONTEXT"), True),
+        enable_vision_optimizer=_as_bool(os.getenv("AXON_ENABLE_VISION_OPTIMIZER"), True),
         enable_agentic_optimizations=_as_bool(os.getenv("AXON_ENABLE_AGENTIC_OPTIMIZATIONS"), True),
         enable_agentic_schema_diff=_as_bool(os.getenv("AXON_ENABLE_AGENTIC_SCHEMA_DIFF"), True),
         enable_agentic_scratchpad=_as_bool(os.getenv("AXON_ENABLE_AGENTIC_SCRATCHPAD"), True),
         enable_agentic_observation_window=_as_bool(os.getenv("AXON_ENABLE_AGENTIC_OBSERVATION_WINDOW"), True),
         enable_agentic_loop_detection=_as_bool(os.getenv("AXON_ENABLE_AGENTIC_LOOP_DETECTION"), True),
+        # Non-compression features — OFF by default (opt-in)
+        enable_semantic_routing=_as_bool(os.getenv("AXON_ENABLE_SEMANTIC_ROUTING"), False),
+        enable_rag_context=_as_bool(os.getenv("AXON_ENABLE_RAG_CONTEXT"), False),
+        enable_prompt_firewall=_as_bool(os.getenv("AXON_ENABLE_PROMPT_FIREWALL"), False),
+        enable_pii_redaction=_as_bool(os.getenv("AXON_ENABLE_PII_REDACTION"), False),
+        enable_hallucination_guard=_as_bool(os.getenv("AXON_ENABLE_HALLUCINATION_GUARD"), False),
+        enable_fact_extraction=_as_bool(os.getenv("AXON_ENABLE_FACT_EXTRACTION"), False),
+        enable_assistants_routes=_as_bool(os.getenv("AXON_ENABLE_ASSISTANTS_ROUTES"), False),
         enable_tenant_quotas=_as_bool(os.getenv("AXON_ENABLE_TENANT_QUOTAS"), False),
         admin_api_key=os.getenv("AXON_ADMIN_API_KEY"),
         log_format=os.getenv("AXON_LOG_FORMAT", "text"),

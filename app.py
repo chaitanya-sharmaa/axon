@@ -131,9 +131,11 @@ def create_app() -> FastAPI:
     # OpenAI-compatible routes (always at /v1)
     if settings.enable_openai_routes:
         app.include_router(openai_router)
-        app.include_router(assistants_router)
-        app.include_router(swarm_router)
-        app.include_router(files_router)
+        # Assistants API / Swarm / Files are opt-in (AXON_ENABLE_ASSISTANTS_ROUTES=true)
+        if settings.enable_assistants_routes:
+            app.include_router(assistants_router)
+            app.include_router(swarm_router)
+            app.include_router(files_router)
 
     # Batch processing
     app.include_router(batch_router)

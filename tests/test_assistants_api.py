@@ -1,21 +1,53 @@
-"""Test the new Axon /v1/threads Assistants API using the official OpenAI SDK."""
-
 import os
 import pytest
+from unittest.mock import patch, AsyncMock
+from httpx import AsyncClient, ASGITransport
 from openai import AsyncOpenAI
 import asyncio
-
 from dotenv import load_dotenv
 load_dotenv()
 
+# Enable assistants routes for this test (opt-in feature)
+os.environ["AXON_ENABLE_ASSISTANTS_ROUTES"] = "true"
+from app import app
+
 # Point the official OpenAI SDK to the local Axon Proxy!
 client = AsyncOpenAI(
-    base_url="http://127.0.0.1:8080/v1",
-    api_key=os.environ.get("OPENAI_API_KEY", os.environ.get("GEMINI_API_KEY", "dummy"))
+    base_url="http://testserver/v1",
+    api_key=os.environ.get("OPENAI_API_KEY", os.environ.get("GEMINI_API_KEY", "dummy")),
+    http_client=AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver/v1")
 )
 
+class MockResponseNonStream:
+    def model_dump(self):
+        return {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "ollama/llama3",
+            "choices": [{"message": {"role": "assistant", "content": "Assistant reply!"}}],
+            "usage": {}
+        }
+
+class MockResponseStream:
+    async def __aiter__(self):
+        class MockDelta:
+            content = "1 2 3 4 5"
+        class MockChoice:
+            delta = MockDelta()
+        class MockChunk:
+            choices = [MockChoice()]
+        yield MockChunk()
+
+async def mock_acompletion_side_effect(*args, **kwargs):
+    if kwargs.get("stream"):
+        return MockResponseStream()
+    return MockResponseNonStream()
+
 @pytest.mark.asyncio
-async def test_assistants_api_flow():
+@patch("api.routes.v1_assistants_routes.litellm.acompletion", new_callable=AsyncMock)
+async def test_assistants_api_flow(mock_acompletion):
+    mock_acompletion.side_effect = mock_acompletion_side_effect
     # 1. Create a Thread
     print("\n[1] Creating thread...")
     thread = await client.beta.threads.create()
@@ -42,11 +74,16 @@ async def test_assistants_api_flow():
     
     # 4. Run the Thread
     print("\n[4] Running thread (Calling LLM)...")
-    run = await client.beta.threads.runs.create(
-        thread_id=thread.id,
-        assistant_id="asst_dummy123",
-        model="ollama/llama3"
-    )
+    try:
+        run = await client.beta.threads.runs.create(
+            thread_id=thread.id,
+            assistant_id="asst_dummy123",
+            model="ollama/llama3"
+        )
+    except Exception as e:
+        if hasattr(e, "response"):
+            print(f"FAILED with response: {e.response.text}")
+        raise e
     assert run.status == "completed"
     assert run.assistant_id == "asst_dummy123"
     print(f"✅ Run Completed: {run.id}")

@@ -6,15 +6,18 @@ def test_get_tokenizer_openai():
     # Should be tiktoken encoding
     assert hasattr(tokenizer, "encode")
 
-@patch("anthropic.Anthropic")
-def test_get_tokenizer_anthropic(mock_anthropic):
+def test_get_tokenizer_anthropic():
+    import sys
+    mock_anthropic_module = MagicMock()
     mock_client = MagicMock()
-    mock_anthropic.return_value = mock_client
+    mock_anthropic_module.Anthropic.return_value = mock_client
     mock_tokenizer = MagicMock()
     mock_client.get_tokenizer.return_value = mock_tokenizer
     
-    tokenizer = get_tokenizer_for_model("claude-3-opus")
-    assert tokenizer == mock_tokenizer
+    with patch.dict(sys.modules, {'anthropic': mock_anthropic_module}):
+        from services.tokenizer_factory import get_tokenizer_for_model
+        tokenizer = get_tokenizer_for_model("claude-3-opus")
+        assert tokenizer == mock_tokenizer
 
 def test_get_tokenizer_fallback():
     tokenizer = get_tokenizer_for_model("unknown-model")

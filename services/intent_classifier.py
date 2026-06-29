@@ -11,11 +11,11 @@ def get_embedder():
     global _embedder, _categories
     if _embedder is None:
         try:
-            from sentence_transformers import SentenceTransformer
-            import torch
+            from fastembed import TextEmbedding
+            import numpy as np
             
-            log.info("Loading sentence-transformers model 'all-MiniLM-L6-v2'...")
-            _embedder = SentenceTransformer('all-MiniLM-L6-v2')
+            log.info("Loading fastembed model 'sentence-transformers/all-MiniLM-L6-v2'...")
+            _embedder = TextEmbedding("sentence-transformers/all-MiniLM-L6-v2")
             
             # Pre-compute the embeddings for our cluster centers
             clusters = {
@@ -34,14 +34,14 @@ def get_embedder():
             }
             
             for cat, phrases in clusters.items():
-                _categories[cat] = torch.tensor(_embedder.encode(phrases))
+                _categories[cat] = np.array(list(_embedder.embed(phrases)))
                 
             log.info("Semantic Intent Engine initialized successfully.")
         except ImportError:
-            log.warning("sentence-transformers not installed. Falling back to keyword heuristics.")
+            log.warning("fastembed not installed. Falling back to keyword heuristics.")
             _embedder = False
         except Exception as e:
-            log.error(f"Error loading sentence-transformers: {e}")
+            log.error(f"Error loading fastembed: {e}")
             _embedder = False
             
     return _embedder
@@ -56,18 +56,21 @@ def classify_intent(text: str) -> str:
         # Fallback to simple length if ML is missing
         return "high" if len(text) > 2000 else "low"
         
-    import torch
-    import torch.nn.functional as F
+    import numpy as np
     
     # 1. Embed the incoming prompt
-    prompt_emb = embedder.encode(text, convert_to_tensor=True)
+    prompt_emb = list(embedder.embed([text]))[0]
+    prompt_emb_norm = prompt_emb / np.linalg.norm(prompt_emb)
     
     scores = {}
     # 2. Find the maximum cosine similarity across all phrases in each category
     for cat, embeddings in _categories.items():
-        embeddings = embeddings.to(prompt_emb.device)
-        cos_scores = F.cosine_similarity(prompt_emb.unsqueeze(0), embeddings)
-        scores[cat] = cos_scores.max().item()
+        # Normalize the category embeddings
+        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+        embeddings_norm = embeddings / np.where(norms == 0, 1e-10, norms)
+        # Cosine similarity using dot product since both are normalized
+        cos_scores = np.dot(embeddings_norm, prompt_emb_norm)
+        scores[cat] = float(np.max(cos_scores))
         
     # 3. Find the winning category
     best_cat = max(scores, key=scores.get)

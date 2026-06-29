@@ -38,7 +38,7 @@ from typing import Any, AsyncIterator
 
 import httpx
 from fastapi import APIRouter, Header, HTTPException, Request, BackgroundTasks
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import ORJSONResponse, StreamingResponse
 from pydantic import BaseModel
 import asyncio
 import litellm
@@ -330,7 +330,7 @@ async def _stream_openai(
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
 @router.get("/v1/models")
-async def list_models(authorization: str | None = Header(None)) -> JSONResponse:
+async def list_models(authorization: str | None = Header(None)) -> ORJSONResponse:
     """Proxy the OpenAI model list."""
     api_key = (authorization or "").removeprefix("Bearer ").strip()
     async with httpx.AsyncClient(timeout=30) as client:
@@ -339,7 +339,7 @@ async def list_models(authorization: str | None = Header(None)) -> JSONResponse:
                 f"{_OPENAI_BASE}/models",
                 headers={"Authorization": f"Bearer {api_key}"},
             )
-            return JSONResponse(status_code=resp.status_code, content=resp.json())
+            return ORJSONResponse(status_code=resp.status_code, content=resp.json())
         except httpx.RequestError as exc:
             raise HTTPException(502, f"Upstream connection failed: {exc}") from exc
 
@@ -422,7 +422,7 @@ async def chat_completions(
                 status_code=200
             )
 
-            return JSONResponse(
+            return ORJSONResponse(
                 status_code=200, 
                 content=cached_exact,
                 headers={"x-axon-metrics": metrics_header, "x-axon-cache": "HIT"}
@@ -498,7 +498,7 @@ async def chat_completions(
                 status_code=200
             )
 
-            return JSONResponse(
+            return ORJSONResponse(
                 status_code=200, 
                 content=resp_dict,
                 headers={"x-axon-metrics": savings_header, "x-axon-cache": "HIT"}
@@ -571,10 +571,11 @@ async def chat_completions(
     # served via the OpenAI API or locally via Ollama (which mirrors the OpenAI spec).
     # Gemini and Anthropic either reject it or return incompatible formats, so we
     # gate it to known-good providers.
-    _LOGPROB_PROVIDERS = ("gpt", "openai/", "ollama/")
+    _LOGPROB_PROVIDERS = ("gpt", "openai/")
     _logprobs_enabled = (
         not req.stream
         and any(routed_model.startswith(p) for p in _LOGPROB_PROVIDERS)
+        and "gemini" not in routed_model
     )
     if _logprobs_enabled:
         upstream_body["logprobs"] = True
@@ -757,7 +758,7 @@ async def chat_completions(
             assistant_msg["tool_calls"] = reconstructed
             resp_json["choices"][0]["finish_reason"] = "tool_calls"
 
-    response = JSONResponse(status_code=200, content=resp_json)
+    response = ORJSONResponse(status_code=200, content=resp_json)
     response.headers["x-axon-metrics"] = savings_header
 
     if savings_usd is not None:
@@ -799,7 +800,7 @@ async def chat_completions(
 async def embeddings(
     req: EmbeddingRequest,
     authorization: str | None = Header(None),
-) -> JSONResponse:
+) -> ORJSONResponse:
     """Proxy embeddings requests (no compression — embeddings benefit less)."""
     api_key = (authorization or "").removeprefix("Bearer ").strip()
     if not api_key:
@@ -817,4 +818,4 @@ async def embeddings(
     except Exception as exc:
         raise HTTPException(502, f"Upstream connection failed: {exc}") from exc
 
-    return JSONResponse(status_code=200, content=response.model_dump())
+    return ORJSONResponse(status_code=200, content=response.model_dump())

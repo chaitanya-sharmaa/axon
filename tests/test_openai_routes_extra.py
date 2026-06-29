@@ -38,11 +38,12 @@ def test_vision_downscaling_and_pruning(mock_litellm):
         assert resp.status_code == 200
 
 def test_anthropic_prompt_caching(mock_litellm):
+    import uuid
     req = {
         "model": "claude-3-opus",
         "messages": [
-            {"role": "system", "content": "S" * 150}, # >100 chars triggers caching
-            {"role": "user", "content": "U" * 200}  # Triggers largest message caching
+            {"role": "system", "content": f"S{uuid.uuid4()}" * 150}, # >100 chars triggers caching
+            {"role": "user", "content": f"U{uuid.uuid4()}" * 200}  # Triggers largest message caching
         ]
     }
     resp = client.post("/v1/chat/completions", json=req)
@@ -68,15 +69,17 @@ def test_direct_gemini_api_call(mock_litellm):
     }
     mock_litellm.return_value = mock_resp
     
+    import uuid
     req = {
         "model": "gemini/gemini-pro",
-        "messages": [{"role": "user", "content": "hello"}]
+        "messages": [{"role": "user", "content": f"hello {uuid.uuid4()}"}]
     }
     resp = client.post("/v1/chat/completions", json=req)
     assert resp.status_code == 200
     assert resp.json()["choices"][0]["message"]["content"] == "gemini directly"
 
 def test_json_healing_loop(mock_litellm):
+    import uuid
     # Mock Litellm to return bad JSON twice, then good JSON
     mock_resp1 = MagicMock()
     mock_resp1.model_dump.return_value = {"choices": [{"message": {"content": "{bad json"}}]}
@@ -91,7 +94,7 @@ def test_json_healing_loop(mock_litellm):
     
     req = {
         "model": "gpt-4",
-        "messages": [{"role": "user", "content": "give json"}],
+        "messages": [{"role": "user", "content": f"give json {uuid.uuid4()}"}],
         "response_format": {
             "type": "json_schema", 
             "json_schema": {"schema": {"type": "object", "required": ["name"]}}
@@ -104,6 +107,7 @@ def test_json_healing_loop(mock_litellm):
     assert resp.json()["choices"][0]["message"]["content"] == '{"name": "ok"}'
 
 def test_fallback_retry_loop(mock_litellm):
+    import uuid
     # First call fails with ServiceUnavailable, second call succeeds with fallback model
     mock_litellm.side_effect = [
         ServiceUnavailableError(message="down", response=MagicMock(), llm_provider="openai", model="gpt-4o"),
@@ -113,7 +117,7 @@ def test_fallback_retry_loop(mock_litellm):
     with patch.dict(os.environ, {"AXON_AUTO_ROUTING": "true"}):
         req = {
             "model": "gpt-4o",
-            "messages": [{"role": "user", "content": "test" * 500}]
+            "messages": [{"role": "user", "content": f"test {uuid.uuid4()}" * 500}]
         }
         resp = client.post("/v1/chat/completions", json=req)
         assert resp.status_code == 200

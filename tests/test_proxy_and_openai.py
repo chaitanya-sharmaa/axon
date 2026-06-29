@@ -172,8 +172,9 @@ def test_proxy_upstream_json_decode_error(client, mock_httpx_request):
     assert res.json()["upstream"]["content_type"] == "application/json"
 
 def test_chat_completions_error(client, mock_litellm_acompletion):
+    import uuid
     mock_litellm_acompletion.side_effect = Exception("Error")
-    req = {"model": "gpt-4", "messages": [{"role": "user", "content": "hi"}]}
+    req = {"model": "gpt-4", "messages": [{"role": "user", "content": f"hi {uuid.uuid4()}"}]}
     res = client.post("/v1/chat/completions", json=req)
     assert res.status_code == 500
 

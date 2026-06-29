@@ -7,7 +7,7 @@ import httpx
 import json
 
 from fastapi import APIRouter, HTTPException, Header
-from fastapi.responses import JSONResponse
+from fastapi.responses import ORJSONResponse
 
 from domain.api_models import UpstreamProxyRequest
 from core.app_config import axon_service, memory_store, security_config
@@ -20,7 +20,7 @@ router = APIRouter(tags=["proxy"])
 async def proxy_upstream(
     req: UpstreamProxyRequest,
     x_api_key: str | None = Header(None),
-) -> JSONResponse:
+) -> ORJSONResponse:
     """Forward HTTP request to upstream URL with Axon response encoding.
     
     Security checks:
@@ -114,4 +114,4 @@ async def proxy_upstream(
             event_payload,
         )
 
-    return JSONResponse(status_code=response_status, content=envelope)
+    return ORJSONResponse(status_code=response_status, content=envelope)

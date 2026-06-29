@@ -81,9 +81,9 @@ def serve(
     """
     Start the Axon Bridge server.
     """
-    import uvicorn
-    console.print(f"[bold green]🚀 Starting Axon Bridge on {host}:{port}...[/bold green]")
-    uvicorn.run("app:app", host=host, port=port, reload=False)
+    from granian import Granian
+    console.print(f"[bold green]🚀 Starting Axon Bridge on {host}:{port} using Granian...[/bold green]")
+    Granian("app:app", address=host, port=port, interface="asgi").serve()
 
 if __name__ == "__main__":
     app()

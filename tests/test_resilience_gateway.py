@@ -39,12 +39,13 @@ def test_json_healing_loop(monkeypatch):
 
     monkeypatch.setattr("litellm.acompletion", mock_acompletion)
 
+    import uuid
     response = client.post(
         "/v1/chat/completions",
         headers={"Authorization": "Bearer test-key"},
         json={
             "model": "gpt-4o",
-            "messages": [{"role": "user", "content": "hello"}],
+            "messages": [{"role": "user", "content": f"hello {uuid.uuid4()}"}],
             "response_format": {"type": "json_object"}
         }
     )

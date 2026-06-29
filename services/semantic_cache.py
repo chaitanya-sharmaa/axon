@@ -4,7 +4,7 @@ import time
 import httpx
 import logging
 import hashlib
-import json
+import orjson
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Tuple, Any
 
@@ -40,34 +40,24 @@ class SemanticCache:
             question = ""
             context_msgs = messages
             
-        context_str = json.dumps(context_msgs, sort_keys=True)
-        context_hash = hashlib.sha256(context_str.encode()).hexdigest()
+        context_bytes = orjson.dumps(context_msgs, option=orjson.OPT_SORT_KEYS)
+        context_hash = hashlib.sha256(context_bytes).hexdigest()
         return context_hash, question
 
     async def get_embedding(self, text: str, api_key: str) -> list[float] | None:
-        """Fetch an embedding from the upstream provider using LiteLLM."""
+        """Fetch an embedding using the local fastembed engine."""
         if not text.strip():
             return None
-        if not api_key:
-            api_key = os.getenv("OPENAI_API_KEY", "")
-            
-        import litellm
-        
-        embed_model = "text-embedding-3-small"
-        if api_key.startswith("AQ.") or os.getenv("OPENAI_BASE_URL", "").startswith("https://generativelanguage"):
-            embed_model = "gemini/text-embedding-004"
             
         try:
-            resp = await litellm.aembedding(
-                model=embed_model,
-                input=text,
-                api_key=api_key,
-                num_retries=2
-            )
-            if resp and hasattr(resp, "data") and len(resp.data) > 0:
-                return resp.data[0]["embedding"]
+            from services.intent_classifier import get_embedder
+            embedder = get_embedder()
+            if embedder:
+                import numpy as np
+                emb = list(embedder.embed([text]))[0]
+                return emb.tolist()
         except Exception as e:
-            log.warning(f"Failed to get embedding for cache: {e}")
+            log.warning(f"Failed to get local embedding for cache: {e}")
         return None
 
     async def check_cache(self, messages: list[dict], api_key: str) -> Tuple[dict | None, dict | None]:
@@ -100,12 +90,12 @@ class SemanticCache:
 
         for row in rows:
             try:
-                cached_emb = json.loads(row["embedding"])
+                cached_emb = orjson.loads(row["embedding"])
                 cached_norm = sum(x * x for x in cached_emb) ** 0.5
                 score = self._fast_cosine(emb, norm_a, cached_emb, cached_norm)
                 if score > best_score:
                     best_score = score
-                    best_res = json.loads(row["response_json"])
+                    best_res = orjson.loads(row["response_json"])
             except Exception as e:
                 log.warning(f"Failed to parse cached vector: {e}")
 

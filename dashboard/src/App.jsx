@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, BarChart, Bar
-} from 'recharts';
+import FlintViewer from './components/FlintViewer';
 import {
   Activity, Zap, DollarSign, Database, BrainCircuit,
   Settings, List, Archive, Shield, Users, MessageSquare,
-  Terminal, AlertTriangle, Eye, Server, Send, BarChart2, RefreshCw, Clock
+  Terminal, AlertTriangle, Eye, Server, Send, BarChart2, RefreshCw, Clock, Sparkles
 } from 'lucide-react';
+import AgenticAnalytics from './pages/AgenticAnalytics';
 import './index.css';
 
 const BASE = 'http://localhost:8080';
@@ -81,6 +79,7 @@ function StatusChip({ ok, label }) {
 const TABS = [
   { id: 'metrics',    label: 'Metrics',       Icon: Activity },
   { id: 'analytics',  label: 'Analytics',     Icon: BarChart2 },
+  { id: 'insights',   label: 'Insights',      Icon: Sparkles },
   { id: 'firehose',   label: 'Firehose',      Icon: List },
   { id: 'cache',      label: 'Cache',         Icon: Archive },
   { id: 'security',   label: 'Security',      Icon: Shield },
@@ -250,22 +249,19 @@ export default function App() {
         </div>
         <div className="glass-panel" style={{ marginBottom: '2rem' }}>
           <SectionHeader title="Real-time Token Activity" sub="Total tokens processed per polling cycle" />
-          <div className="chart-container">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gTokens" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--accent-primary)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--accent-primary)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="time" stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} />
-                <YAxis stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} />
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-border)" vertical={false} />
-                <Tooltip contentStyle={chartTooltipStyle} />
-                <Area type="monotone" dataKey="tokens" stroke="var(--accent-primary)" strokeWidth={3} fillOpacity={1} fill="url(#gTokens)" name="Total Tokens" />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="chart-container" style={{ height: '300px' }}>
+            <FlintViewer
+              spec={{
+                data: { values: chartData },
+                semantic_types: { time: 'Category', tokens: 'Quantity' },
+                chart_spec: {
+                  chartType: 'Area Chart',
+                  encodings: { x: { field: 'time' }, y: { field: 'tokens' } },
+                  baseSize: { width: 800, height: 300 }
+                }
+              }}
+              height="300px"
+            />
           </div>
         </div>
       </>)}
@@ -277,14 +273,18 @@ export default function App() {
             <SectionHeader title="Model Distribution" sub="Traffic split by model (post smart-routing)" />
             {modelPieData.length > 0 ? (
               <div style={{ height: 260 }}>
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie data={modelPieData} cx="50%" cy="50%" outerRadius={90} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
-                      {modelPieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip contentStyle={chartTooltipStyle} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <FlintViewer
+                  spec={{
+                    data: { values: modelPieData },
+                    semantic_types: { name: 'Category', value: 'Quantity' },
+                    chart_spec: {
+                      chartType: 'Donut Chart',
+                      encodings: { color: { field: 'name' }, theta: { field: 'value' } },
+                      baseSize: { width: 400, height: 260 }
+                    }
+                  }}
+                  height="260px"
+                />
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
@@ -295,14 +295,18 @@ export default function App() {
           <div className="glass-panel">
             <SectionHeader title="Compression Strategy Wins" sub="Which encoding strategy Axon chose per request" />
             <div style={{ height: 260 }}>
-              <ResponsiveContainer>
-                <BarChart data={strategyData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                  <XAxis type="number" stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} />
-                  <YAxis type="category" dataKey="name" stroke="var(--text-secondary)" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} width={60} />
-                  <Tooltip contentStyle={chartTooltipStyle} />
-                  <Bar dataKey="wins" fill="var(--accent-primary)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <FlintViewer
+                spec={{
+                  data: { values: strategyData },
+                  semantic_types: { name: 'Category', wins: 'Quantity' },
+                  chart_spec: {
+                    chartType: 'Bar Chart',
+                    encodings: { x: { field: 'wins' }, y: { field: 'name' } },
+                    baseSize: { width: 400, height: 260 }
+                  }
+                }}
+                height="260px"
+              />
             </div>
           </div>
         </div>
@@ -333,6 +337,11 @@ export default function App() {
           </div>
         </div>
       </>)}
+
+      {/* ─── INSIGHTS (FLINT) ─── */}
+      {activeTab === 'insights' && (
+        <AgenticAnalytics />
+      )}
 
       {/* ─── FIREHOSE ─── */}
       {activeTab === 'firehose' && (

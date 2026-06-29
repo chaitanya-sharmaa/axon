@@ -31,7 +31,7 @@ async def test_semantic_cache():
         assert state["embedding"] == [1.0, 0.0]
         
         # Store response
-        cache.store_response(state, {"choices": [{"message": {"content": "hi"}}]})
+        await cache.store_response(state, {"choices": [{"message": {"content": "hi"}}]})
         
         # Test cache hit with same embedding
         cached2, state2 = await cache.check_cache([{"role": "user", "content": "hello world!"}], "fake_key")

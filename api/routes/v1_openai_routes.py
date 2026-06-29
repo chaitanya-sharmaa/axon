@@ -727,7 +727,7 @@ async def chat_completions(
 
     # Store successful response in Semantic Cache
     if not req.stream and settings.enable_semantic_cache and state_dict is not None:
-        semantic_cache.store_response(state_dict, resp_json)
+        await semantic_cache.store_response(state_dict, resp_json)
 
     # Spawn background fact extraction (opt-in: AXON_ENABLE_FACT_EXTRACTION)
     if settings.enable_fact_extraction and session_id and user_text and memory_store:

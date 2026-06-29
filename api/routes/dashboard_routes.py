@@ -108,9 +108,9 @@ from services.semantic_cache import semantic_cache
 
 
 @router.get("/admin/cache", dependencies=[Depends(require_admin)])
-def get_cache_entries():
+async def get_cache_entries():
     """Get semantic cache entries — uses thread-safe snapshot method."""
-    return semantic_cache.get_all_entries()
+    return await semantic_cache.get_all_entries()
 
 
 # ── Security Events ───────────────────────────────────────────────────────────

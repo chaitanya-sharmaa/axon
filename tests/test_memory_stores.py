@@ -3,15 +3,16 @@ import os
 import json
 from unittest.mock import AsyncMock, patch
 
-from services.sqlite_memory_store import SessionMemoryStore
+from services.libsql_memory_store import LibsqlMemoryStore
 from services.redis_memory_store import RedisMemoryStore
 
-# --- SQLite Store Tests ---
+# --- SQLite/libSQL Store Tests ---
 
 @pytest.fixture
 async def sqlite_store(tmp_path):
     db_file = tmp_path / "test.db"
-    store = SessionMemoryStore(db_path=str(db_file))
+    store = LibsqlMemoryStore(url=f"file:{db_file}")
+    await store.initialize()
     yield store
     await store.close()
 
@@ -25,8 +26,8 @@ async def test_sqlite_create_and_delete(sqlite_store):
 def test_sqlite_sync_init(tmp_path):
     # Initializes without an active event loop
     db_file = tmp_path / "sync_test.db"
-    store = SessionMemoryStore(db_path=str(db_file))
-    assert store._conn is None or store._conn is not None
+    store = LibsqlMemoryStore(url=f"file:{db_file}")
+    assert store._client is None or store._client is not None
 
 async def test_sqlite_symbols(sqlite_store):
     await sqlite_store.create_session("sess1")
@@ -60,9 +61,8 @@ async def test_sqlite_events(sqlite_store):
 async def test_sqlite_cleanup(sqlite_store):
     await sqlite_store.create_session("sess1")
     # Force last_accessed back in time via direct execute to test cleanup
-    conn = await sqlite_store._ensure_conn()
-    await conn.execute("UPDATE sessions SET last_accessed = '2000-01-01 00:00:00' WHERE session_id = 'sess1'")
-    await conn.commit()
+    client = await sqlite_store._ensure_conn()
+    await client.execute("UPDATE sessions SET last_accessed = '2000-01-01 00:00:00' WHERE session_id = 'sess1'")
     
     deleted = await sqlite_store.cleanup_old_sessions(days=7)
     assert deleted == 1

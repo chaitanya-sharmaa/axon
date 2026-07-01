@@ -20,9 +20,13 @@ def auth_headers():
 @pytest.fixture(autouse=True)
 def setup_settings():
     old_key = settings.admin_api_key
+    old_dict = vars(settings).copy()
     settings.admin_api_key = "test_key"
     yield
     settings.admin_api_key = old_key
+    for k, v in old_dict.items():
+        if hasattr(settings, k):
+            setattr(settings, k, v)
 
 def test_dashboard_route_exists():
     with patch("os.path.exists", return_value=True):

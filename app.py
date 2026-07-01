@@ -180,5 +180,5 @@ def create_app() -> FastAPI:
 app = create_app()
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host=settings.host, port=settings.port)
+    from granian import Granian
+    Granian("app:app", address=settings.host, port=settings.port, interface="asgi").serve()

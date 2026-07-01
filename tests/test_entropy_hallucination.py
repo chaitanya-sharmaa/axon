@@ -52,52 +52,42 @@ def test_shannon_entropy_hallucination_guard():
         assert mock_acompletion.call_count >= 3
 
 
-def test_shannon_entropy_enabled_for_ollama():
-    """BUG FIX: Verify logprobs are now injected for ollama/ models (not just gpt)."""
+def test_shannon_entropy_NOT_enabled_for_ollama():
+    import uuid
+    """BUG FIX: Verify logprobs are NOT injected for ollama/ models (unsupported natively)."""
     class MockResponse:
         def model_dump(self):
-            # Low entropy response: confident, no hallucination
-            logprobs = {
-                "content": [
-                    {
-                        "token": "hello",
-                        "top_logprobs": [
-                            {"token": "hello", "logprob": -0.01},  # ~99% confident
-                        ]
-                    }
-                ]
-            }
             return {
                 "id": "chatcmpl-ollama-123",
                 "object": "chat.completion",
                 "created": int(time.time()),
                 "model": "ollama/llama3",
-                "choices": [{"message": {"role": "assistant", "content": "hello"}, "logprobs": logprobs}]
+                "choices": [{"message": {"role": "assistant", "content": "hello ollama"}}]
             }
 
-    with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion:
+    with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion, \
+         patch("services.semantic_cache.SemanticCache.check_cache", new_callable=AsyncMock) as mock_cache:
         mock_acompletion.return_value = MockResponse()
+        mock_cache.return_value = (None, None)
 
         req_body = {
             "model": "ollama/llama3",
-            "messages": [{"role": "user", "content": "hello"}],
+            "messages": [{"role": "user", "content": f"hello ollama {uuid.uuid4()}"}],
             "temperature": 0.0
         }
 
         response = client.post("/v1/chat/completions", json=req_body)
 
-        # Should succeed with exactly 1 call (low entropy, no healing triggered)
         assert mock_acompletion.call_count == 1
         assert response.status_code == 200
 
-        # Verify logprobs were actually injected into the call
+        # Verify logprobs were NOT injected
         call_kwargs = mock_acompletion.call_args
-        assert call_kwargs.kwargs.get("logprobs") is True, "logprobs should be injected for ollama/"
-        # Verify drop_params was False (not silently killing logprobs)
-        assert call_kwargs.kwargs.get("drop_params") is False, "drop_params must be False when logprobs is enabled"
+        assert "logprobs" not in call_kwargs.kwargs, "logprobs should NOT be injected for ollama/"
 
 
 def test_logprobs_not_injected_for_gemini():
+    import uuid
     """Verify logprobs are NOT injected for Gemini (which rejects the param)."""
     class MockResponse:
         def model_dump(self):
@@ -106,15 +96,17 @@ def test_logprobs_not_injected_for_gemini():
                 "object": "chat.completion",
                 "created": int(time.time()),
                 "model": "gemini/gemini-1.5-flash",
-                "choices": [{"message": {"role": "assistant", "content": "hello"}, "logprobs": None}]
+                "choices": [{"message": {"role": "assistant", "content": "hello gemini"}}]
             }
 
-    with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion:
+    with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion, \
+         patch("services.semantic_cache.SemanticCache.check_cache", new_callable=AsyncMock) as mock_cache:
         mock_acompletion.return_value = MockResponse()
+        mock_cache.return_value = (None, None)
 
         req_body = {
             "model": "gemini/gemini-1.5-flash",
-            "messages": [{"role": "user", "content": "hello"}],
+            "messages": [{"role": "user", "content": f"hello gemini {uuid.uuid4()}"}],
             "temperature": 0.0
         }
 

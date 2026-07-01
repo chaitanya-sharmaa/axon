@@ -1,6 +1,5 @@
 import logging
-from bs4 import BeautifulSoup
-import markdownify
+import trafilatura
 
 log = logging.getLogger(__name__)
 
@@ -11,30 +10,23 @@ def compress_html_to_markdown(html_content: str) -> str:
     Useful for compressing payloads from browser-automation agents.
     """
     try:
-        soup = BeautifulSoup(html_content, "html.parser")
+        # Extract main content and convert to markdown without links/images to save tokens
+        compressed_md = trafilatura.extract(
+            html_content, 
+            output_format="markdown",
+            include_links=False, 
+            include_images=False,
+            include_comments=False
+        )
         
-        # 1. Remove non-content tags
-        for tag in soup(["script", "style", "meta", "noscript", "svg", "path", "head", "iframe"]):
-            tag.decompose()
+        if compressed_md:
+            return compressed_md
+        else:
+            # Trafilatura might return None if it couldn't find the "main article".
+            # For purely structural DOM dumps without a main article, fallback to simple HTML-to-text.
+            return trafilatura.html2txt(html_content) or html_content
             
-        # 2. Remove hidden elements
-        for tag in soup.find_all(style=True):
-            style_val = tag["style"]
-            style_str = " ".join(style_val).lower() if isinstance(style_val, list) else str(style_val).lower()
-            if "display: none" in style_str or "visibility: hidden" in style_str or "display:none" in style_str:
-                tag.decompose()
-                
-        # 3. Convert remaining structure to Markdown
-        # Strip hrefs and images to save pure text structural tokens
-        cleaned_html = str(soup)
-        md = markdownify.markdownify(cleaned_html, heading_style="ATX", strip=["a", "img"])
-        
-        # 4. Condense whitespace
-        lines = [line.strip() for line in md.splitlines() if line.strip()]
-        compressed_md = "\n".join(lines)
-        
-        return compressed_md
     except Exception as e:
-        log.warning(f"Failed to compress HTML to Markdown: {e}")
+        log.warning(f"Failed to compress HTML to Markdown with Trafilatura: {e}")
         # Fallback to returning original if parsing fails
         return html_content

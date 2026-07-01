@@ -5,14 +5,14 @@
 # ── Core ──────────────────────────────────────────────────────────────────────
 gcf-python>=2.1.0
 fastapi>=0.116.0
-uvicorn[standard]>=0.35.0
+granian>=0.6.0
 pydantic>=2.0.0
 
 # ── HTTP client ───────────────────────────────────────────────────────────────
 httpx>=0.27.0          # async HTTP for proxy_routes and v1_openai_routes
 
 # ── Persistence ───────────────────────────────────────────────────────────────
-aiosqlite>=0.20.0      # async SQLite driver for sqlite_memory_store
+libsql-client>=0.3.1      # libSQL driver for Turso / sqlite MemoryStore
 
 # ── Token counting ────────────────────────────────────────────────────────────
 tiktoken>=0.7.0        # tokenizer for OpenAI models
@@ -38,18 +38,21 @@ opentelemetry-exporter-prometheus>=0.45b0
 prometheus-client>=0.20.0
 
 # ── Agentic Features ──────────────────────────────────────────────────────────
-beautifulsoup4>=4.12.0 # DOM to Markdown
-markdownify>=0.11.6    # DOM to Markdown
+trafilatura>=1.12.0     # DOM to Markdown
 rank_bm25>=0.2.2       # Semantic tool pruning
 tenacity>=8.2.3        # Resilience retries
 litellm>=1.40.0        # Universal proxy routing
 
-# ── Optional — install only when needed ──────────────────────────────────────
+# Optional — install only when needed ──────────────────────────────────────
 # Redis backend:   pip install "axon-bridge[redis]"   → redis>=5.0.0
 # Claude models:  pip install "axon-bridge[claude]"  → anthropic>=0.28.0
 # LangChain:      pip install "axon-bridge[langchain]" → langchain-core>=0.2.0
 cachetools>=5.3.0
 gcf-python>=1.0.0
-sentence-transformers>=3.0.0
+fastembed>=0.2.7
 PyPDF2>=3.0.0
 python-multipart>=0.0.9
+
+# ── Performance Upgrades ──────────────────────────────────────────────────────
+orjson>=3.9.0          # Ultra-fast Rust JSON serializer
+lxml>=4.9.0            # High-performance C-based HTML parser

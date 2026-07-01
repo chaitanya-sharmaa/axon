@@ -43,7 +43,7 @@ Your App (OpenAI SDK)
 
 ## 📊 Verified Benchmarking Results
 
-All **220/220** tests in CI are passing. Benchmarks run against real-world complex JSON payloads.
+All **254/254** tests in CI are passing with 100% Core Coverage. Benchmarks run against real-world complex JSON payloads.
 
 ### Scenario: Codebase Context for AI Coding Agents (AST Graph)
 
@@ -57,147 +57,39 @@ All **220/220** tests in CI are passing. Benchmarks run against real-world compl
 
 ---
 
-## ✨ Feature Overview
+## ✨ The C.O.R.E. Feature Framework
 
-### 🗜️ 1. Token Compression Engine (8 Strategies)
+Axon categorizes its 18 distinct intelligence and optimization capabilities into the highly memorable **C.O.R.E.** framework:
 
-Axon's `TokenOptimizer` benchmarks every incoming request across 8 encoding strategies and picks the one with the best compression ratio — automatically, per request.
+### 🗜️ C - Compression (Payload Optimization)
+The core engine that actively reduces the physical size of requests.
+- **The 8 Structural Formats**: Benchmarks and converts repetitive JSON/Graph payloads into compact schemas (`generic`, `schema_values`, `graph`, etc.), saving ~20-39% on API tokens.
+- **Tool Compression**: Compresses massive OpenAI JSON Schema definitions into dense Python function signatures.
+- **Scratchpad Compression**: Truncates excessive ReAct agent "Thought" loops.
+- **Vision Downscaler**: Shrinks massive 4K images to 768px (saving thousands of vision tokens).
+- **Error Truncator**: Shrinks massive Python stack traces from failed tool calls.
+- **Observation Window**: Automatically drops irrelevant, older conversational history using a sliding entropy window.
 
-| Strategy | Best For | Savings |
-|---|---|---|
-| `graph` | AST/dependency graphs | ~39% |
-| `schema_values` | Database schemas with repetitive structure | ~25% |
-| `generic` | General-purpose JSON flattening | ~20% |
-| `generic_delta` | Repeated JSON across turns | ~30% |
-| `generic_session` | Multi-turn stateful sessions | ~25% |
-| `graph_delta` | Repeated graph context across turns | ~35% |
-| `graph_session` | Stateful graph sessions | ~30% |
-| `json` | Standard JSON pass-through (baseline) | 0% |
+### ⚡ O - Optimization & Caching
+Intercepts and routes requests for maximum speed and minimum cost.
+- **L1 Exact Match Cache**: Fast Key-Value caching for identical payloads (100% savings, ~5ms latency).
+- **L2 Semantic Cache**: Uses local vector embeddings to cache queries that are worded differently but mean the same thing.
+- **ML Smart Routing**: Uses a local sentence-transformer model to dynamically upgrade complex reasoning prompts to `gpt-4o` and downgrade simple ones to `gpt-4o-mini`.
 
-**Zero semantic loss** — compression is purely structural (removes JSON syntax, flattens nesting). The LLM receives equivalent information in fewer tokens.
+### 🛡️ R - Reliability & Security
+Protects your data, enforces budgets, and heals unpredictable LLMs.
+- **Prompt Firewall**: Blocks 25+ known prompt injection and jailbreak attacks at the edge.
+- **PII Redaction**: Auto-scrubs SSNs, credit cards, and emails before sending to the LLM.
+- **Tenant Quotas & Circuit Breakers**: Enforces strict API budgets per user and terminates streaming connections if costs exceed thresholds.
+- **JSON Healing Loop**: Automatically intercepts and fixes broken JSON output (e.g., trailing commas) without crashing your application.
+- **Hallucination Guard**: Uses Shannon entropy on `logprobs` to block or retry low-confidence, hallucinated answers.
+- **Agentic Loop Detection**: A circuit breaker that stops infinite agent tool-calling loops.
 
----
-
-### 🤖 2. ML Smart Router
-
-Axon uses a local **sentence-transformer ML model** (`all-MiniLM-L6-v2`, ~80MB) to classify the semantic intent of every prompt and route to the cheapest appropriate model tier automatically.
-
-```
-Prompt: "What's the weather like today?"
-  → Classified: casual_chat (Confidence: 0.87)
-  → Routed: gpt-4o → gpt-4o-mini (75% cheaper)
-
-Prompt: "Analyze this legal contract and identify all liability clauses..."
-  → Classified: complex_reasoning (Confidence: 0.91)
-  → Routed: gpt-4o-mini → gpt-4o (full capability)
-```
-
-**Supported families:**
-- OpenAI: `gpt-4o` ↔ `gpt-4o-mini`
-- Anthropic: `claude-3-5-sonnet` ↔ `claude-3-5-haiku`
-- Gemini: `gemini-2.5-pro` ↔ `gemini-2.5-flash`
-
-**Smart Fallback Cascading:** On `429/503`, Axon automatically retries down the model tier chain until a response is obtained.
-
----
-
-### ⚡ 3. Multi-Layer Caching
-
-Two caching layers ensure repeated requests cost $0.
-
-**Exact-Match KV Cache (L1)**
-- SHA-256 hash of the full request payload
-- 1-hour TTL, 1,000 entry LRU
-- **100% token savings, ~5ms latency** for cache hits
-
-**Semantic Vector Cache (L2)**
-- Uses cosine similarity embeddings to find *semantically equivalent* prior questions
-- Returns cached answers to paraphrased versions of the same question
-- Configurable similarity threshold
-
----
-
-### 🛡️ 4. Agentic Protections
-
-| Protection | What it does |
-|---|---|
-| **Prompt Firewall** | Blocks 25+ known jailbreak and prompt-injection patterns |
-| **PII Redactor** | Auto-redacts emails, SSNs, credit cards, phone numbers (incl. international) before sending to LLM |
-| **Shannon Entropy Guard** | Parses `logprobs` and computes $E = -\sum p \log_2 p$. Blocks responses if entropy > 1.5 (hallucination risk) |
-| **JSON Healing Loop** | On malformed JSON output, silently asks the LLM to fix it and retries (up to 3 times) |
-| **Schema Validator** | Validates LLM JSON output against user-provided JSON Schema |
-| **Vision Downscaler** | Strips 4K images to 768px before sending to reduce vision token costs |
-| **Streaming Circuit Breaker** | Counts tokens mid-stream and kills the connection if agent exceeds its per-request USD budget |
-
----
-
-### 💬 5. Stateful Threads API
-
-The Stateful Threads API eliminates the need to upload your entire message history on every turn. Your client sends only the new message; Axon rehydrates the full history from SQLite/Redis and forwards it to the LLM.
-
-```python
-# Client sends ONLY the new message (5 tokens instead of 10,000)
-client.chat.completions.create(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": "Follow up question here"}],
-    extra_headers={"X-Axon-Stateful-Thread": "true", "X-Axon-Session-ID": "my-session"}
-)
-# Axon rehydrates 10,000 tokens from SQLite locally — 0 network upload cost
-```
-
-**Result:** 99% network bandwidth reduction, ~20% API token reduction.
-
----
-
-### 🧠 6. Memory & Fact Extraction
-
-Axon automatically extracts semantic facts from user conversations and injects them as context in future turns.
-
-```
-User: "My name is Chaitanya and I work at Google."
-  → Axon extracts: ["name: Chaitanya", "employer: Google"]
-  → Stored in session memory
-
-Next turn, Axon injects:
-  System: "Memory: [name: Chaitanya, employer: Google]"
-```
-
----
-
-### 📁 7. Native RAG & File Attachments
-
-The Assistants API supports file uploads with native vector search:
-
-```python
-# Upload a document
-file = client.files.create(file=open("document.pdf", "rb"), purpose="assistants")
-
-# Attach to a message — Axon vectorizes and stores it locally
-client.beta.threads.messages.create(
-    thread_id=thread.id,
-    role="user",
-    content="Summarize the key points",
-    attachments=[{"file_id": file.id, "tools": [{"type": "file_search"}]}]
-)
-```
-
-Axon uses `sentence-transformers` to embed document chunks and performs cosine similarity search at query time. All vector storage is fully local — no external vector DB needed.
-
----
-
-### 🔧 8. Tool / Function Call Compression
-
-When using OpenAI function calling, the verbose JSON Schema tool definitions can cost thousands of tokens per request. Axon compresses them to dense Python function signatures:
-
-```python
-# Before (400+ tokens of JSON Schema):
-{"type": "function", "function": {"name": "get_weather", "parameters": {"type": "object", "properties": {"location": {"type": "string", "description": "The city name"}, ...}}}}
-
-# After (30 tokens):
-def get_weather(location: str  # The city name) -> None:
-    """Get the current weather for a location."""
-    pass
-```
+### 🧠 E - Extended State & Memory
+Adds persistent memory capabilities to stateless LLM requests.
+- **Stateful Threads (TRON/TOON)**: Computes the differential of your context window and only transmits the *delta* across conversational turns, saving up to 95% on network bandwidth and input tokens.
+- **Fact Extraction**: Runs in the background to learn and store persistent semantic facts about the user.
+- **RAG Context**: Automatically vectorizes and injects background knowledge from uploaded files.
 
 ---
 

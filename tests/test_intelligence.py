@@ -22,19 +22,26 @@ async def test_semantic_cache():
     cache = SemanticCache(threshold=0.90)
     
     with patch.object(cache, 'get_embedding', new_callable=AsyncMock) as mock_get_embedding:
-        # Mocking an embedding representing "hello"
-        mock_get_embedding.return_value = [1.0, 0.0]
+        import uuid
+        import random
+        test_str = f"hello world {uuid.uuid4()}"
+        # Use high dimensional centered random vector so cos(theta) with other random vectors is ~0
+        unique_emb = [random.uniform(-1, 1) for _ in range(128)]
+        unique_key = f"fake_key_{uuid.uuid4()}"
+        
+        # Mocking an embedding representing our unique string
+        mock_get_embedding.return_value = unique_emb
         
         # Test empty cache miss
-        cached, state = await cache.check_cache([{"role": "user", "content": "hello world"}], "fake_key")
+        cached, state = await cache.check_cache([{"role": "user", "content": test_str}], unique_key)
         assert cached is None
-        assert state["embedding"] == [1.0, 0.0]
+        assert state["embedding"] == unique_emb
         
         # Store response
-        cache.store_response(state, {"choices": [{"message": {"content": "hi"}}]})
+        await cache.store_response(state, {"choices": [{"message": {"content": "hi"}}]})
         
         # Test cache hit with same embedding
-        cached2, state2 = await cache.check_cache([{"role": "user", "content": "hello world!"}], "fake_key")
+        cached2, state2 = await cache.check_cache([{"role": "user", "content": test_str + "!"}], unique_key)
         assert cached2 is not None
         assert cached2["choices"][0]["message"]["content"] == "hi"
 

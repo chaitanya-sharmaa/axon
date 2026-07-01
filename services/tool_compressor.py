@@ -93,9 +93,6 @@ def reconstruct_tool_calls(response_text: str) -> list[dict[str, Any]] | None:
     json_str = match.group(1)
     try:
         parsed = json.loads(json_str)
-        if not isinstance(parsed, list):
-            return None
-            
         openai_tool_calls = []
         for idx, call in enumerate(parsed):
             openai_tool_calls.append({

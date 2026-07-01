@@ -73,23 +73,29 @@ def route_model(original_model: str, payload_tokens: int, prompt_text: str = "")
     family_map = {
         "gpt":    {"lite": "gpt-4o-mini",                    "pro": "gpt-4o"},
         "claude": {"lite": "claude-3-5-haiku-20241022",      "pro": "claude-3-5-sonnet-20241022"},
-        "gemini": {"lite": "gemini/gemini-2.5-flash",         "pro": "gemini/gemini-2.5-pro"},
+        "gemini": {"lite": "gemini-2.5-flash",               "pro": "gemini-2.5-pro"},
+        "ollama": {"lite": "llama3:latest",                  "pro": "qwen2.5:14b"},
     }
 
     family = None
-    if "gpt" in original_model:    family = "gpt"
+    if "gpt" in original_model:      family = "gpt"
     elif "claude" in original_model: family = "claude"
     elif "gemini" in original_model: family = "gemini"
-    # FIX #2: Ollama removed — no lite/pro tiers exist, routing is a no-op.
+    elif "ollama" in original_model: family = "ollama"
+
+    # Extract prefix if present (e.g. "openai/", "gemini/", "anthropic/")
+    prefix = ""
+    if "/" in original_model:
+        prefix = original_model.split("/")[0] + "/"
 
     if family:
         if complexity == "low":
-            new_model = family_map[family]["lite"]
+            new_model = prefix + family_map[family]["lite"]
             if original_model != new_model:
                 log.info(f"Smart Router: Simple prompt. Downgrading {original_model} -> {new_model}")
             return new_model
         elif complexity == "high":
-            new_model = family_map[family]["pro"]
+            new_model = prefix + family_map[family]["pro"]
             if original_model != new_model:
                 log.info(f"Smart Router: Complex prompt. Upgrading {original_model} -> {new_model}")
             return new_model

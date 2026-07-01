@@ -40,11 +40,11 @@ graph TD
 
 The most dramatic latency improvements occur during multi-turn LLM conversations. Standard LLM APIs (OpenAI, Gemini, Anthropic) are **stateless**, which forces you to upload your entire `messages=[...]` array on every single turn. This wastes massive amounts of client-side network bandwidth.
 
-Axon introduces the **Stateful Threads API**. By simply appending the header `X-Axon-Stateful-Thread: true`, Axon's local SQLite/Redis database automatically tracks your conversation history.
+Axon introduces the **Stateful Threads API**. By simply appending the header `X-Axon-Stateful-Thread: true`, Axon's local Turso/libSQL or Redis database automatically tracks your conversation history.
 
 **How it works:**
 1. Your application only sends the *new* message (a tiny delta) to Axon.
-2. Axon rehydrates the full conversation history from its local SQLite memory.
+2. Axon rehydrates the full conversation history from its local Turso/libSQL memory.
 3. Axon applies safe structural compression (Schema Flattening).
 4. Axon sends the full rehydrated payload to the stateless LLM API.
 
@@ -111,7 +111,7 @@ graph LR
     Route --> LLM["OpenAI / Anthropic / Gemini"]:::llm
     LLM --> Calc["Calculate Exact Tokens Used"]:::axon
     Calc --> Cost["Convert Tokens to USD"]:::axon
-    Cost --> Redis[("Redis / SQLite<br/>Atomic Hash Increment")]:::db
+    Cost --> Redis[("Redis / Turso<br/>Atomic Hash Increment")]:::db
 
     classDef client fill:#1e1e1e,stroke:#333,color:#fff
     classDef axon fill:#2563eb,stroke:#1d4ed8,color:#fff

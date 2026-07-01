@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from services.bridge_service import AxonService
-from services.sqlite_memory_store import SessionMemoryStore
 from services.security_policy import SecurityConfig
 from services.token_optimizer import TokenOptimizer
 from services.agent_orchestrator import AgentOrchestrator, AgentDefinition
@@ -35,16 +34,19 @@ axon_service = AxonService(
     include_json_fallback=settings.include_json_fallback,
 )
 
-# ── Persistent event log (SQLite) ──────────────────────────────────────────────
 from services.memory_store import BaseMemoryStore
+from services.libsql_memory_store import LibsqlMemoryStore
+from services.redis_memory_store import RedisMemoryStore
+
 memory_store: BaseMemoryStore
 
 if settings.memory_type == "redis":
-    from services.redis_memory_store import RedisMemoryStore
     memory_store = RedisMemoryStore(redis_url=settings.redis_url)
 else:
-    memory_store = SessionMemoryStore(db_path=settings.memory_db_path)
-
+    # "turso" or "sqlite" will map to LibsqlMemoryStore
+    # We mapped 'sqlite' to Turso/libSQL for backward compatibility
+    url = settings.turso_url if settings.memory_type == "turso" else f"file:{settings.memory_db_path}"
+    memory_store = LibsqlMemoryStore(url=url, auth_token=settings.turso_auth_token)
 
 # ── Agent orchestrator — multi-agent dispatch layer ───────────────────────────
 orchestrator = AgentOrchestrator(token_optimizer=token_optimizer)

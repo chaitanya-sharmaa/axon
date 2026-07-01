@@ -4,25 +4,25 @@ import time
 import httpx
 import logging
 import hashlib
-import json
-from typing import Dict, Tuple
+import orjson
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Tuple, Any
+
+from core.app_config import memory_store
 
 log = logging.getLogger(__name__)
 
 class SemanticCache:
-    """In-memory semantic response cache using cosine similarity on the question and exact match on context.
+    """Persistent semantic response cache using cosine similarity on the question and exact match on context.
     
-    Thread-safety: all mutations to `_cache` and `_size` are guarded by `_lock`.
+    Data is stored in the universal `memory_store` (libSQL/Turso), allowing serverless 
+    instances and cross-region nodes to share the cache seamlessly.
     """
 
     def __init__(self, threshold: float = 0.95, maxsize: int = 100, ttl_seconds: int = 3600):
         self.threshold = threshold
         self.maxsize = maxsize
         self.ttl_seconds = ttl_seconds
-        # context_hash -> list of (question_text, embedding, norm, response_dict, timestamp)
-        self._cache: Dict[str, list[Tuple[str, list[float], float, dict, float]]] = {}
-        self._size = 0
-        self._lock = asyncio.Lock()  # FIX #6: guard concurrent mutations
 
     def _fast_cosine(self, a: list[float], norm_a: float, b: list[float], norm_b: float) -> float:
         if norm_a == 0 or norm_b == 0:
@@ -40,36 +40,24 @@ class SemanticCache:
             question = ""
             context_msgs = messages
             
-        context_str = json.dumps(context_msgs, sort_keys=True)
-        context_hash = hashlib.sha256(context_str.encode()).hexdigest()
+        context_bytes = orjson.dumps(context_msgs, option=orjson.OPT_SORT_KEYS)
+        context_hash = hashlib.sha256(context_bytes).hexdigest()
         return context_hash, question
 
     async def get_embedding(self, text: str, api_key: str) -> list[float] | None:
-        """Fetch an embedding from the upstream provider using LiteLLM."""
+        """Fetch an embedding using the local fastembed engine."""
         if not text.strip():
             return None
-        if not api_key:
-            api_key = os.getenv("OPENAI_API_KEY", "")
-            
-        import litellm
-        
-        # Select appropriate embedding model based on API key type
-        embed_model = "text-embedding-3-small"
-        if api_key.startswith("AQ.") or os.getenv("OPENAI_BASE_URL", "").startswith("https://generativelanguage"):
-            embed_model = "gemini/text-embedding-004"
             
         try:
-            resp = await litellm.aembedding(
-                model=embed_model,
-                input=text,
-                api_key=api_key,
-                num_retries=2
-            )
-            # litellm returns a Pydantic-like object compatible with OpenAI format
-            if resp and hasattr(resp, "data") and len(resp.data) > 0:
-                return resp.data[0]["embedding"]
+            from services.intent_classifier import get_embedder
+            embedder = get_embedder()
+            if embedder:
+                import numpy as np
+                emb = list(embedder.embed([text]))[0]
+                return emb.tolist()
         except Exception as e:
-            log.warning(f"Failed to get embedding for cache: {e}")
+            log.warning(f"Failed to get local embedding for cache: {e}")
         return None
 
     async def check_cache(self, messages: list[dict], api_key: str) -> Tuple[dict | None, dict | None]:
@@ -86,28 +74,30 @@ class SemanticCache:
         if not emb:
             return None, state_dict
 
+        # Fetch candidate entries from the database
+        cutoff_iso = (datetime.now(timezone.utc) - timedelta(seconds=self.ttl_seconds)).isoformat()
+        
+        # Ensure memory_store supports Semantic Cache features
+        if not hasattr(memory_store, "get_active_semantic_cache"):
+            log.warning("memory_store does not support get_active_semantic_cache (Redis config?). Skipping cache.")
+            return None, state_dict
+
+        rows = await memory_store.get_active_semantic_cache(context_hash, cutoff_iso, limit=self.maxsize)
+
         best_score = -1.0
         best_res = None
-        now = time.time()
         norm_a = sum(x * x for x in emb) ** 0.5
-        valid_entries = []
 
-        async with self._lock:  # FIX #6: guard read-modify-write under async concurrency
-            for q_text, cached_emb, cached_norm, response, ts in self._cache.get(context_hash, []):
-                if now - ts > self.ttl_seconds:
-                    self._size -= 1
-                    continue
-
-                valid_entries.append((q_text, cached_emb, cached_norm, response, ts))
+        for row in rows:
+            try:
+                cached_emb = orjson.loads(row["embedding"])
+                cached_norm = sum(x * x for x in cached_emb) ** 0.5
                 score = self._fast_cosine(emb, norm_a, cached_emb, cached_norm)
                 if score > best_score:
                     best_score = score
-                    best_res = response
-
-            if valid_entries:
-                self._cache[context_hash] = valid_entries
-            elif context_hash in self._cache:
-                del self._cache[context_hash]
+                    best_res = orjson.loads(row["response_json"])
+            except Exception as e:
+                log.warning(f"Failed to parse cached vector: {e}")
 
         if best_score >= self.threshold:
             log.info(f"Semantic cache hit! Similarity: {best_score:.3f}")
@@ -115,13 +105,8 @@ class SemanticCache:
 
         return None, state_dict
 
-    def store_response(self, state_dict: dict | None, response: dict):
-        """Store a successful LLM response in the cache.
-        
-        Note: This is intentionally synchronous (called from a non-async context after
-        the LLM response). The lock is not needed here because store_response is always
-        called sequentially after await in the request handler.
-        """
+    async def store_response(self, state_dict: dict | None, response: dict):
+        """Store a successful LLM response in the cache database."""
         if not state_dict or not response:
             return
 
@@ -129,43 +114,33 @@ class SemanticCache:
         question = state_dict.get("question")
         embedding = state_dict.get("embedding")
 
-        # FIX #1: embedding may be None if we skipped fetching it (no prior entries).
-        # In that case we cannot store — the cache key would be unusable. Skip silently.
         if not context_hash or not question or not embedding:
             return
 
-        if self._size >= self.maxsize:
-            # Simple eviction: clear oldest context to free space
-            if self._cache:
-                oldest_ctx = next(iter(self._cache))
-                self._size -= len(self._cache[oldest_ctx])
-                del self._cache[oldest_ctx]
+        if hasattr(memory_store, "store_semantic_cache"):
+            # Fire and forget storage into DB
+            await memory_store.store_semantic_cache(context_hash, question, embedding, response)
 
-        if context_hash not in self._cache:
-            self._cache[context_hash] = []
-
-        norm = sum(x * x for x in embedding) ** 0.5
-        self._cache[context_hash].append((question, embedding, norm, response, time.time()))
-        self._size += 1
-
-    def get_all_entries(self) -> list[dict]:
-        """Return a snapshot of all cache entries (non-async, safe to call from sync endpoints).
-        
-        Note: This does a shallow copy of keys under the GIL — sufficient for read-only dashboard display.
-        Not suitable for mutations.
-        """
-        entries = []
-        now = __import__('time').time()
-        for ctx_hash, items in list(self._cache.items()):
-            for item in items:
-                q_text, _emb, _norm, _resp, ts = item
-                if now - ts <= self.ttl_seconds:
-                    entries.append({
-                        "context_hash": ctx_hash,
-                        "question": q_text,
-                        "timestamp": ts,
-                    })
-        return sorted(entries, key=lambda x: x["timestamp"], reverse=True)
+    async def get_all_entries(self) -> list[dict]:
+        """Return a snapshot of all cache entries."""
+        if hasattr(memory_store, "get_all_semantic_cache_entries"):
+            cutoff_iso = (datetime.now(timezone.utc) - timedelta(seconds=self.ttl_seconds)).isoformat()
+            rows = await memory_store.get_all_semantic_cache_entries(cutoff_iso)
+            entries = []
+            for row in rows:
+                # Convert ISO string to unix timestamp for backward compatibility with dashboard
+                try:
+                    dt = datetime.fromisoformat(row["created_at"].replace('Z', '+00:00'))
+                    ts = dt.timestamp()
+                except Exception:
+                    ts = time.time()
+                entries.append({
+                    "context_hash": row["context_hash"],
+                    "question": row["question"],
+                    "timestamp": ts,
+                })
+            return entries
+        return []
 
 # Global singleton
 semantic_cache = SemanticCache()

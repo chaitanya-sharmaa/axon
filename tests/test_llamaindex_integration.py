@@ -1,60 +1,79 @@
 import pytest
+from unittest.mock import MagicMock, patch
 import json
-from unittest.mock import MagicMock
+import sys
 
-try:
-    from llama_index.core.schema import NodeWithScore, TextNode
-    from integrations.llamaindex import AxonNodePostprocessor
-except ImportError:
-    pytest.skip("llama-index-core not installed", allow_module_level=True)
+# Mock llama_index completely so we can test the file without it installed
+mock_llama_index = MagicMock()
+from pydantic import BaseModel
+mock_base_postprocessor = type("BaseNodePostprocessor", (BaseModel,), {})
+mock_schema = MagicMock()
+mock_node_with_score = MagicMock
+mock_text_node = MagicMock
 
-from services.token_optimizer import TokenOptimizer, OptimizerResult
+sys.modules["llama_index"] = mock_llama_index
+sys.modules["llama_index.core"] = MagicMock()
+sys.modules["llama_index.core.postprocessor"] = MagicMock()
+sys.modules["llama_index.core.postprocessor.types"] = MagicMock(BaseNodePostprocessor=mock_base_postprocessor)
+sys.modules["llama_index.core.schema"] = MagicMock(NodeWithScore=mock_node_with_score, TextNode=mock_text_node)
 
-class DummyWinner:
-    def __init__(self, token_estimate, encoded, strategy, savings_vs_json_pct):
-        self.token_estimate = token_estimate
-        self.encoded = encoded
-        self.strategy = strategy
-        self.savings_vs_json_pct = savings_vs_json_pct
+from integrations.llamaindex import AxonNodePostprocessor
+from llama_index.core.schema import NodeWithScore, TextNode
 
-def test_axon_node_postprocessor():
-    mock_optimizer = MagicMock(spec=TokenOptimizer)
-    
-    node1 = NodeWithScore(node=TextNode(text="This is a very long text that should be compressed " * 20), score=0.9)
-    node2 = NodeWithScore(node=TextNode(text="Short text"), score=0.8)
-    
-    def mock_optimize(payload, session_id=None, model="gpt-4o"):
-        text_len = len(payload["text"])
-        if text_len > 50:
-            winner = DummyWinner(
-                token_estimate=10, 
-                encoded="Compressed generic format", 
-                strategy="generic", 
-                savings_vs_json_pct=50.0
-            )
-            return OptimizerResult(winner=winner, all_results=[], json_baseline_tokens=20, payload_type="text")
-        else:
-            winner = DummyWinner(
-                token_estimate=5, 
-                encoded=payload["text"], 
-                strategy="json", 
-                savings_vs_json_pct=0.0
-            )
-            return OptimizerResult(winner=winner, all_results=[], json_baseline_tokens=5, payload_type="text")
+from services.token_optimizer import TokenOptimizer
 
-    mock_optimizer.optimize.side_effect = mock_optimize
+def test_llamaindex_postprocessor():
+    mock_opt = TokenOptimizer()
+    mock_opt.optimize = MagicMock()
+    
+    # Setup mock optimization result that compresses well
+    mock_res = MagicMock()
+    mock_res.json_baseline_tokens = 100
+    mock_res.winner.token_estimate = 50
+    mock_res.winner.savings_vs_json_pct = 50.0
+    mock_res.winner.encoded = "compressed text"
+    mock_res.winner.strategy = "yaml"
+    mock_opt.optimize.return_value = mock_res
+    
+    postprocessor = AxonNodePostprocessor(optimizer=mock_opt)
+    
+    # 1. Test short text (should be skipped)
+    node1 = NodeWithScore(node=TextNode(text="short", metadata={}))
+    nodes = postprocessor._postprocess_nodes([node1])
+    assert nodes[0].node.text == "short"
+    assert "axon_original_tokens" not in nodes[0].node.metadata
+    
+    # 2. Test long text with successful compression (string)
+    node2 = NodeWithScore(node=TextNode(text="long text " * 50, metadata={}))
+    nodes = postprocessor._postprocess_nodes([node2])
+    assert nodes[0].node.text == "compressed text"
+    assert nodes[0].node.metadata["axon_original_tokens"] == 100
+    assert nodes[0].node.metadata["axon_tokens_saved"] == 50
+    assert nodes[0].node.metadata["axon_strategy"] == "yaml"
 
-    postprocessor = AxonNodePostprocessor(optimizer=mock_optimizer, enable_pruning=False)
+    # 3. Test long text with successful compression (dict/json)
+    mock_res.winner.encoded = {"compressed": "dict"}
+    node3 = NodeWithScore(node=TextNode(text="long dict " * 50, metadata={}))
+    nodes = postprocessor._postprocess_nodes([node3])
+    assert nodes[0].node.text == json.dumps({"compressed": "dict"})
+
+    # 4. Test long text with no savings but pruning enabled
+    mock_res.winner.savings_vs_json_pct = 0.0
+    mock_res.json_baseline_tokens = 100
+    mock_res.winner.token_estimate = 100
+    postprocessor = AxonNodePostprocessor(optimizer=mock_opt, enable_pruning=True)
     
-    processed_nodes = postprocessor.postprocess_nodes([node1, node2])
-    
-    assert len(processed_nodes) == 2
-    
-    # Node 1 should be compressed
-    assert processed_nodes[0].node.text == "Compressed generic format"
-    assert processed_nodes[0].node.metadata["axon_strategy"] == "generic"
-    assert processed_nodes[0].node.metadata["axon_tokens_saved"] == 10
-    
-    # Node 2 should be untouched
-    assert processed_nodes[1].node.text == "Short text"
-    assert "axon_strategy" not in processed_nodes[1].node.metadata
+    node4 = NodeWithScore(node=TextNode(text="long text pruning " * 100, metadata={}))
+    nodes = postprocessor._postprocess_nodes([node4])
+    # The text should be pruned. "long text pruning" x100 is > 500 chars, prune_text removes some spaces.
+    # We just ensure it didn't use the 'encoded' mock since savings=0.
+    assert "long text pruning" in nodes[0].node.text
+    assert nodes[0].node.metadata["axon_tokens_saved"] == 0
+
+def test_llamaindex_import_error():
+    # Remove llama_index from sys.modules and mock the import error
+    with patch.dict('sys.modules', {'llama_index.core.postprocessor.types': None}):
+        with pytest.raises(ImportError):
+            import importlib
+            import integrations.llamaindex
+            importlib.reload(integrations.llamaindex)

@@ -16,8 +16,8 @@ if str(_BRIDGE_ROOT) not in sys.path:
     sys.path.insert(0, str(_BRIDGE_ROOT))
 
 # Set test environment variables BEFORE importing app
-os.environ["AXON_MEMORY_TYPE"] = "sqlite"
-os.environ["AXON_MEMORY_DB_PATH"] = ":memory:"
+os.environ["AXON_MEMORY_TYPE"] = "turso"
+os.environ["AXON_TURSO_URL"] = "file:/tmp/axon_test_db.sqlite"
 os.environ["AXON_REQUIRE_API_KEY"] = "false"
 os.environ["AXON_API_KEY"] = "test-key"
 os.environ["AXON_ALLOW_ALL_DOMAINS"] = "true"

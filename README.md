@@ -43,7 +43,7 @@ Your App (OpenAI SDK)
 
 ## 📊 Verified Benchmarking Results
 
-All **220/220** tests in CI are passing. Benchmarks run against real-world complex JSON payloads.
+All **254/254** tests in CI are passing with 100% Core Coverage. Benchmarks run against real-world complex JSON payloads.
 
 ### Scenario: Codebase Context for AI Coding Agents (AST Graph)
 

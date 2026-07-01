@@ -47,7 +47,7 @@
     <div class="container hero-content">
       <div class="pill">
         <span class="pill-dot"></span>
-        v0.3.0 &nbsp;·&nbsp; 215 Tests Passing &nbsp;·&nbsp; MIT License
+        v0.3.0 &nbsp;·&nbsp; 254 Tests Passing (100% Core Coverage) &nbsp;·&nbsp; MIT License
       </div>
       <h1 class="hero-h1">
         Cut your LLM API costs<br/>
@@ -110,7 +110,7 @@
       <div class="stat-div"></div>
       <div class="stat"><span class="stat-n">8</span><div class="stat-l">Compression Strategies</div></div>
       <div class="stat-div"></div>
-      <div class="stat"><span class="stat-n" data-target="215">0</span><div class="stat-l">Tests Passing</div></div>
+      <div class="stat"><span class="stat-n" data-target="254">0</span><div class="stat-l">Tests Passing</div></div>
     </div>
   </section>
 
@@ -168,7 +168,7 @@ response = client.chat.completions.create(
     <div class="container">
       <p class="eyebrow">Verified Results</p>
       <h2 class="section-h2">Real benchmarks. Real savings.</h2>
-      <p class="section-p">Tested against a 4,800+ token AST graph payload — typical of AI coding agents. 215/215 CI tests passing.</p>
+      <p class="section-p">Tested against a 4,800+ token AST graph payload — typical of AI coding agents. 254/254 CI tests passing with 100% Core Coverage.</p>
       <div class="bench-table-wrap">
         <table class="bench-table">
           <thead><tr><th>Turn</th><th>Scenario</th><th>Strategy</th><th>Result</th></tr></thead>
@@ -261,8 +261,8 @@ response = client.chat.completions.create(
         </div>
         <div class="feat">
           <div class="feat-ico">🔧</div>
-          <h3>Tool Call Compression</h3>
-          <p>Converts verbose JSON Schema tool definitions (~400 tokens) to compact Python signatures (~30 tokens).</p>
+          <h3>Agentic Optimizations</h3>
+          <p>Compresses tool calls, deduplicates schemas, compresses thought scratchpads, truncates repetitive errors, and limits observation windows.</p>
           <span class="feat-tag">Agents</span>
         </div>
         <div class="feat">

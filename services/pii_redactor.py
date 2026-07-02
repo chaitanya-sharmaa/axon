@@ -1,6 +1,5 @@
-import re
 import logging
-from typing import Dict, Tuple
+import re
 
 log = logging.getLogger(__name__)
 
@@ -23,38 +22,38 @@ PHONE_REGEX = re.compile(
 
 class PIIRedactor:
     """A lightweight heuristic-based PII Redactor for Axon Bridge."""
-    
+
     def __init__(self, enable_redaction: bool = True):
         self.enable_redaction = enable_redaction
-        
+
     def redact(self, text: str, tenant_id: str = "default") -> str:
         """Replace detected PII with tokens (e.g. [EMAIL_REDACTED])."""
         if not self.enable_redaction or not text:
             return text
-            
+
         original_text = text
         hit_types = []
-        
+
         # Redact SSNs
         new_text = SSN_REGEX.sub("[SSN_REDACTED]", text)
         if new_text != text: hit_types.append("ssn")
         text = new_text
-        
+
         # Redact Credit Cards
         new_text = CREDIT_CARD_REGEX.sub("[CREDIT_CARD_REDACTED]", text)
         if new_text != text: hit_types.append("credit_card")
         text = new_text
-        
+
         # Redact Phones
         new_text = PHONE_REGEX.sub("[PHONE_REDACTED]", text)
         if new_text != text: hit_types.append("phone")
         text = new_text
-        
+
         # Redact Emails
         new_text = EMAIL_REGEX.sub("[EMAIL_REDACTED]", text)
         if new_text != text: hit_types.append("email")
         text = new_text
-        
+
         if text != original_text:
             log.info(f"PII Redactor: Detected and masked: {hit_types}")
             try:
@@ -62,7 +61,7 @@ class PIIRedactor:
                 event_logger.log_pii_hit(hit_types, tenant_id=tenant_id)
             except Exception:
                 pass
-            
+
         return text
 
 pii_redactor = PIIRedactor()

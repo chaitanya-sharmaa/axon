@@ -26,7 +26,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from services.agentic.session_state import AgenticSessionState
 
@@ -39,14 +39,14 @@ RETENTION_TURNS = 3
 GRACE_TURNS = 2
 
 
-def _schema_hash(tool: Dict[str, Any]) -> str:
+def _schema_hash(tool: dict[str, Any]) -> str:
     """Stable hash of a tool schema dict."""
     return hashlib.md5(
         json.dumps(tool, sort_keys=True).encode()
     ).hexdigest()[:12]
 
 
-def _tool_name(tool: Dict[str, Any]) -> str:
+def _tool_name(tool: dict[str, Any]) -> str:
     """Extract the tool name regardless of schema format."""
     return (
         tool.get("function", {}).get("name")
@@ -55,15 +55,15 @@ def _tool_name(tool: Dict[str, Any]) -> str:
     )
 
 
-def _estimate_tokens(tool: Dict[str, Any]) -> int:
+def _estimate_tokens(tool: dict[str, Any]) -> int:
     """Rough token estimate for a tool schema."""
     return len(json.dumps(tool)) // 4
 
 
 def apply(
-    tools: List[Dict[str, Any]],
+    tools: list[dict[str, Any]],
     state: AgenticSessionState,
-) -> Tuple[List[Dict[str, Any]], int]:
+) -> tuple[list[dict[str, Any]], int]:
     """
     Filter the tool list to only schemas needed for the current turn.
 
@@ -75,9 +75,9 @@ def apply(
         return tools, 0
 
     current_turn = state.turn
-    filtered: List[Dict[str, Any]] = []
+    filtered: list[dict[str, Any]] = []
     tokens_saved = 0
-    dropped_names: List[str] = []
+    dropped_names: list[str] = []
 
     for tool in tools:
         name = _tool_name(tool)
@@ -111,7 +111,7 @@ def apply(
 
 
 def update_after_response(
-    tool_calls_made: List[str],
+    tool_calls_made: list[str],
     state: AgenticSessionState,
 ) -> None:
     """

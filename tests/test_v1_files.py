@@ -1,10 +1,10 @@
-import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import patch
 from io import BytesIO
+from unittest.mock import patch
 
 # Import directly to avoid app loading issue
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
 from api.routes.v1_files_routes import router
 
 app = FastAPI()
@@ -36,7 +36,7 @@ def test_upload_file_pdf():
     writer.add_blank_page(width=72, height=72)
     pdf_bytes = BytesIO()
     writer.write(pdf_bytes)
-    
+
     with patch("api.routes.v1_files_routes.vector_store"):
         response = client.post(
             "/v1/files",

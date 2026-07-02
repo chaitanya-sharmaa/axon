@@ -1,5 +1,9 @@
-import pytest
-from services.tool_compressor import _json_schema_to_python_type, compress_tools_to_prompt, reconstruct_tool_calls
+from services.tool_compressor import (
+    _json_schema_to_python_type,
+    compress_tools_to_prompt,
+    reconstruct_tool_calls,
+)
+
 
 def test_json_schema_to_python_type():
     assert _json_schema_to_python_type({"type": "string"}) == "str"
@@ -13,7 +17,7 @@ def test_json_schema_to_python_type():
 
 def test_compress_tools_to_prompt():
     assert compress_tools_to_prompt([]) == ""
-    
+
     tools = [
         {
             "type": "function",
@@ -40,7 +44,7 @@ def test_compress_tools_to_prompt():
             "type": "other"  # Should be skipped
         }
     ]
-    
+
     prompt = compress_tools_to_prompt(tools)
     assert "def get_weather" in prompt
     assert "location: str  # The city" in prompt
@@ -67,7 +71,7 @@ def test_compress_tools_to_prompt_no_desc():
 def test_reconstruct_tool_calls():
     assert reconstruct_tool_calls("") is None
     assert reconstruct_tool_calls("Normal response without tools") is None
-    
+
     valid_xml = '''
 Here is the result:
 <tool_calls>

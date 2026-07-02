@@ -1,11 +1,12 @@
 from services.security_policy import SecurityConfig
 
+
 def test_security_config_defaults():
     config = SecurityConfig()
     assert not config.require_api_key
     assert not config.allow_all_domains
     assert "localhost" in config.allowed_domains
-    
+
 def test_validate_api_key():
     config = SecurityConfig(api_key="secret", require_api_key=True)
     assert config.validate_api_key("secret") is True
@@ -41,7 +42,7 @@ def test_add_remove_domain():
     # Deduplication
     config.add_domain("test.com")
     assert len(config.allowed_domains) == 2
-    
+
     config.remove_domain("test.com")
     assert "test.com" not in config.allowed_domains
 

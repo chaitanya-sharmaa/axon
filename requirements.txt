@@ -39,7 +39,7 @@ prometheus-client>=0.20.0
 
 # ── Agentic Features ──────────────────────────────────────────────────────────
 trafilatura>=1.12.0     # DOM to Markdown
-rank_bm25>=0.2.2       # Semantic tool pruning
+bm25s>=0.2.0           # Fast semantic tool pruning
 tenacity>=8.2.3        # Resilience retries
 litellm>=1.40.0        # Universal proxy routing
 
@@ -52,6 +52,7 @@ gcf-python>=1.0.0
 fastembed>=0.2.7
 PyPDF2>=3.0.0
 python-multipart>=0.0.9
+numpy>=1.24.0
 
 # ── Performance Upgrades ──────────────────────────────────────────────────────
 orjson>=3.9.0          # Ultra-fast Rust JSON serializer

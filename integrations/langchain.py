@@ -30,9 +30,8 @@ Usage
 
 from __future__ import annotations
 
-import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 log = logging.getLogger(__name__)
@@ -65,7 +64,7 @@ class AxonCallbackHandler(BaseCallbackHandler):  # type: ignore[misc]
     def __init__(
         self,
         optimizer: Any = None,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
         verbose: bool = True,
     ) -> None:
         if not _LANGCHAIN_AVAILABLE:
@@ -76,7 +75,7 @@ class AxonCallbackHandler(BaseCallbackHandler):  # type: ignore[misc]
         self._optimizer = optimizer
         self._session_id = session_id
         self._verbose = verbose
-        self.last_savings: Dict[str, Any] = {}
+        self.last_savings: dict[str, Any] = {}
         self._total_original_tokens = 0
         self._total_compressed_tokens = 0
 
@@ -84,8 +83,8 @@ class AxonCallbackHandler(BaseCallbackHandler):  # type: ignore[misc]
 
     def on_llm_start(
         self,
-        serialized: Dict[str, Any],
-        prompts: List[str],
+        serialized: dict[str, Any],
+        prompts: list[str],
         *,
         run_id: UUID,
         **kwargs: Any,
@@ -102,8 +101,8 @@ class AxonCallbackHandler(BaseCallbackHandler):  # type: ignore[misc]
 
     def on_chat_model_start(
         self,
-        serialized: Dict[str, Any],
-        messages: List[List[Any]],
+        serialized: dict[str, Any],
+        messages: list[list[Any]],
         *,
         run_id: UUID,
         **kwargs: Any,
@@ -153,5 +152,5 @@ class AxonCallbackHandler(BaseCallbackHandler):  # type: ignore[misc]
     # ── Summary helpers ────────────────────────────────────────────────────────
 
     @property
-    def session_id(self) -> Optional[str]:
+    def session_id(self) -> str | None:
         return self._session_id

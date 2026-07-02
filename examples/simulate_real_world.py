@@ -1,7 +1,7 @@
-import openai
 import json
-import time
 import uuid
+
+import openai
 
 session_uuid = str(uuid.uuid4())
 
@@ -104,7 +104,7 @@ try:
         extra_headers={"X-Axon-Session-ID": session_uuid, "X-Axon-Stateful-Thread": "true"}
     )
     print_metrics(response)
-    
+
     print("Next turn in the same thread (should be heavily compressed)...")
     response2 = client.chat.completions.with_raw_response.create(
         model="gpt-4o",

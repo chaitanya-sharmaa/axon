@@ -1,12 +1,13 @@
-import openai
 import json
-import time
-import uuid
 import os
+import uuid
+
+import openai
 
 session_uuid = str(uuid.uuid4())
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Axon transparently accepts Gemini keys if passing through to Gemini
@@ -115,7 +116,7 @@ try:
         extra_headers={"X-Axon-Session-ID": session_uuid, "X-Axon-Stateful-Thread": "true"}
     )
     print_metrics(response)
-    
+
     print("Next turn in the same thread (should be heavily compressed)...")
     response2 = client.chat.completions.with_raw_response.create(
         model="ollama/llama3:latest",

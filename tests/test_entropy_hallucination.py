@@ -1,10 +1,10 @@
-import pytest
-import math
-from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock
-from app import app
 import os
 import time
+from unittest.mock import AsyncMock, patch
+
+from fastapi.testclient import TestClient
+
+from app import app
 
 os.environ["OPENAI_API_KEY"] = "dummy"
 os.environ["AXON_REQUIRE_API_KEY"] = "false"
@@ -38,16 +38,16 @@ def test_shannon_entropy_hallucination_guard():
 
     with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion:
         mock_acompletion.return_value = MockResponse()
-        
+
         req_body = {
             "model": "gpt-4o",
             "messages": [{"role": "user", "content": "Trigger hallucination please"}],
             "temperature": 0.0
         }
-        
+
         # This will exhaust the attempts and eventually fail 502
         response = client.post("/v1/chat/completions", json=req_body)
-        
+
         # Verify that it tried multiple times because of the Hallucination error
         assert mock_acompletion.call_count >= 3
 

@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any
-import httpx
 import json
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Header
+import httpx
+from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import ORJSONResponse
 
-from domain.api_models import UpstreamProxyRequest
 from core.app_config import axon_service, memory_store, security_config
-
+from domain.api_models import UpstreamProxyRequest
 
 router = APIRouter(tags=["proxy"])
 
@@ -39,14 +38,14 @@ async def proxy_upstream(
             status_code=403,
             detail="Domain not permitted. Contact your administrator to add it to the allowlist.",
         )
-    
+
     # Security: Check API key if required
     if not security_config.validate_api_key(x_api_key):
         raise HTTPException(
             status_code=401,
             detail="Invalid or missing API key (X-API-Key header)",
         )
-    
+
     method = req.method.upper().strip()
     if method not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
         raise HTTPException(status_code=400, detail=f"Unsupported method: {method}")
@@ -62,7 +61,7 @@ async def proxy_upstream(
                 content_payload = req.data.encode("utf-8")
             elif req.data is not None:
                 json_payload = axon_service.from_any_to_object(req.data)
-            
+
             response = await client.request(
                 method=method,
                 url=req.upstream_url,
@@ -81,7 +80,7 @@ async def proxy_upstream(
     # Parse and encode response
     content_type = response_headers.get("content-type", "")
     decoded_text = response_body.decode("utf-8", errors="replace")
-    
+
     if "application/json" in content_type:
         try:
             upstream_payload: Any = json.loads(decoded_text)
@@ -98,7 +97,7 @@ async def proxy_upstream(
         "status": response_status,
         "content_type": content_type,
     }
-    
+
     # Log to persistent memory
     if req.session_id:
         event_payload = {

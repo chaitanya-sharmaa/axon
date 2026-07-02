@@ -29,12 +29,13 @@ Supported strategies:
 
 from __future__ import annotations
 
-import json
 import logging
 import re
-from dataclasses import dataclass, field
-from typing import Any, Mapping, Callable
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from typing import Any
 
+import orjson
 from gcf import (
     DeltaPayload,
     Edge,
@@ -48,9 +49,9 @@ from gcf import (
 )
 
 try:
-    from rank_bm25 import BM25Okapi
+    import bm25s
 except ImportError:
-    BM25Okapi = None
+    bm25s = None
 
 # ── Strategy names ─────────────────────────────────────────────────────────────
 STRATEGY_AXON_GRAPH = "graph"
@@ -85,7 +86,9 @@ ALL_STRATEGIES = [
 # ── LRU session cache ──────────────────────────────────────────────────────────
 
 import threading
+
 from cachetools import TTLCache
+
 
 class _TTLDict(TTLCache):
     """Thread-safe TTLCache that silently evicts the oldest entry based on time or size.
@@ -119,6 +122,18 @@ class _TTLDict(TTLCache):
             if key not in self:
                 self[key] = default
             return self[key]
+
+    def __delitem__(self, key):
+        with self._rlock:
+            return super().__delitem__(key)
+
+    def pop(self, key, default=None):
+        with self._rlock:
+            return super().pop(key, default)
+
+    def clear(self):
+        with self._rlock:
+            return super().clear()
 
 
 # ── Result containers ──────────────────────────────────────────────────────────
@@ -164,6 +179,7 @@ class OptimizerResult:
 
 from services.tokenizer_factory import get_tokenizer_for_model
 
+
 def _estimate_tokens(text: str, model: str | None = None) -> int:
     """Estimate tokens using the specified model's tokenizer, or a fast heuristic if model is unknown."""
     if model:
@@ -185,26 +201,34 @@ def _prune_context(symbols: list[Symbol], query: str | None) -> list[Symbol]:
     """Prune bottom 25% of irrelevant symbols if the payload is large and a query exists."""
     if not query or len(symbols) < 50:
         return symbols
-        
+
     query_terms = set(query.lower().replace(".", " ").replace("_", " ").split())
     if not query_terms:
         return symbols
-        
+
     scored = []
-    if BM25Okapi:
-        # Use BM25 for advanced contextual pruning
+    if bm25s:
+        # Use bm25s for advanced contextual pruning
         corpus = []
         for s in symbols:
             desc = f"{s.qualified_name} {s.kind} {s.provenance}"
-            corpus.append(desc.lower().split())
-        
-        bm25 = BM25Okapi(corpus)
-        tokenized_query = query.lower().split()
-        bm25_scores = bm25.get_scores(tokenized_query)
-        
+            corpus.append(desc.lower())
+
+        tokenized_corpus = bm25s.tokenize(corpus)
+        retriever = bm25s.BM25()
+        retriever.index(tokenized_corpus)
+
+        tokenized_query = bm25s.tokenize([query.lower()])
+        corpus_indices = list(range(len(symbols)))
+        results, bm25_scores = retriever.retrieve(tokenized_query, corpus=corpus_indices, k=len(symbols))
+
+        score_map = {}
+        for idx_val, score in zip(results[0], bm25_scores[0]):
+            score_map[idx_val] = float(score)
+
         for idx, s in enumerate(symbols):
             # Combine BM25 normalized score with native payload score
-            final_score = s.score + (bm25_scores[idx] * 2.0)
+            final_score = s.score + (score_map.get(idx, 0.0) * 2.0)
             scored.append((final_score, s))
     else:
         # Fallback to string overlap
@@ -213,7 +237,7 @@ def _prune_context(symbols: list[Symbol], query: str | None) -> list[Symbol]:
             overlap = len(query_terms.intersection(name_terms))
             final_score = s.score + (overlap * 2.0)
             scored.append((final_score, s))
-        
+
     # Sort highest score first
     scored.sort(key=lambda x: x[0], reverse=True)
     keep_count = max(10, int(len(symbols) * 0.75))
@@ -238,7 +262,7 @@ def _build_payload(obj: Mapping) -> Payload | None:
             score = float(item.get("score", 1.0))
         except (ValueError, TypeError):
             score = 1.0
-            
+
         symbols.append(Symbol(
             qualified_name=str(qn),
             kind=str(item.get("kind", item.get("type", "function"))),
@@ -246,10 +270,10 @@ def _build_payload(obj: Mapping) -> Payload | None:
             provenance=str(item.get("provenance", "bridge")),
             distance=int(item.get("distance", 0)),
         ))
-        
+
     query = str(obj.get("query", "")) or str(obj.get("prompt", ""))
     symbols = _prune_context(symbols, query)
-    
+
     edges: list[Edge] = []
     edges_raw = obj.get("edges", [])
     if isinstance(edges_raw, list):
@@ -284,7 +308,7 @@ def _build_generic_delta(current: Any, previous: Any) -> Any:
     """
     if previous is None:
         return current
-        
+
     if isinstance(current, dict) and isinstance(previous, dict):
         delta: dict[str, Any] = {}
         all_keys = set(current) | set(previous)
@@ -298,15 +322,15 @@ def _build_generic_delta(current: Any, previous: Any) -> Any:
                 if sub_delta is not None:
                     delta[key] = sub_delta
         return delta if delta else None
-        
+
     if isinstance(current, list) and isinstance(previous, list):
         if current == previous:
             return None
         return current
-        
+
     if current == previous:
         return None
-        
+
     return current
 
 
@@ -323,13 +347,13 @@ def _build_generic_session(current: Any, seen_values: dict[str, int]) -> Any:
         for k, v in current.items():
             compressed_dict[k] = _build_generic_session(v, seen_values)
         return compressed_dict
-        
+
     elif isinstance(current, list):
         compressed_list: list[Any] = []
         for v in current:
             compressed_list.append(_build_generic_session(v, seen_values))
         return compressed_list
-        
+
     elif isinstance(current, (str, int, float, bool)):
         vstr = str(current)
         if vstr in seen_values:
@@ -442,8 +466,8 @@ class TokenOptimizer:
             Override per-call; falls back to the instance-level ``enabled_strategies``.
         """
         active = set(enabled_strategies or []) or self._enabled
-        json_text = json.dumps(obj, separators=(",", ":"), ensure_ascii=True)
-        
+        json_text = orjson.dumps(obj).decode("utf-8")
+
         # ── Payload Caching ────────────────────────────────────────────────────
         # Hash the payload to quickly return cached optimizations for exact matches
         cache_key = None
@@ -451,7 +475,7 @@ class TokenOptimizer:
             cache_key = hash((json_text, model, tuple(sorted(active))))
             if cache_key in self._payload_cache:
                 return self._payload_cache[cache_key]
-            
+
         json_tokens = _estimate_tokens(json_text, model=model)
 
         # Detect payload type
@@ -467,7 +491,7 @@ class TokenOptimizer:
             history = self._strategy_wins.get(session_id, {})
             strat, count = history.get(payload_type, (None, 0))
             if count >= 3 and strat in active:
-                # We have a stable winner (won 3+ times in a row). 
+                # We have a stable winner (won 3+ times in a row).
                 # Skip benchmarking other strategies to save CPU, just compare to JSON baseline.
                 active = {strat, STRATEGY_JSON}
 
@@ -515,7 +539,7 @@ class TokenOptimizer:
             json_baseline_tokens=json_tokens,
             payload_type=payload_type,
         )
-        
+
         if cache_key is not None:
             self._payload_cache[cache_key] = result
         return result
@@ -626,22 +650,26 @@ def prune_tools(tools: list[dict[str, Any]], query: str, top_k: int = 5) -> list
     Dynamically prune irrelevant tools from the schema using BM25.
     If the user's query is short or tools are few, it returns them all.
     """
-    if not BM25Okapi or not query or len(tools) <= top_k:
+    if not bm25s or not query or len(tools) <= top_k:
         return tools
-    
+
     # Create corpus from tool descriptions/names
     corpus = []
     for t in tools:
         func = t.get("function", {})
         desc = func.get("description", "") + " " + func.get("name", "")
-        corpus.append(desc.lower().split())
-        
-    bm25 = BM25Okapi(corpus)
-    tokenized_query = query.lower().split()
-    
+        corpus.append(desc.lower())
+
+    tokenized_corpus = bm25s.tokenize(corpus)
+    retriever = bm25s.BM25()
+    retriever.index(tokenized_corpus)
+
+    tokenized_query = bm25s.tokenize([query.lower()])
+
     # Get top_k tools
-    top_tools = bm25.get_top_n(tokenized_query, tools, n=top_k)
-    return top_tools
+    indices = list(range(len(tools)))
+    results, _ = retriever.retrieve(tokenized_query, corpus=indices, k=top_k)
+    return [tools[idx] for idx in results[0]]
 
 def minify_scratchpad(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
@@ -650,7 +678,7 @@ def minify_scratchpad(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     if len(messages) <= 2:
         return messages
-        
+
     minified = []
     # Leave the last 2 messages intact
     for i, msg in enumerate(messages):

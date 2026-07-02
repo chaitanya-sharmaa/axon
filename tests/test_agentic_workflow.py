@@ -1,6 +1,6 @@
-import os
 import json
 import time
+
 from openai import OpenAI
 
 # Initialize the OpenAI client pointing to the local Axon Bridge proxy
@@ -88,7 +88,7 @@ print("=" * 80)
 def call_axon(messages, turn_name):
     print(f"\\n➡️ Sending Turn: {turn_name}...")
     start = time.time()
-    
+
     # We use raw requests to easily capture the headers
     import requests
     response = requests.post(
@@ -104,17 +104,17 @@ def call_axon(messages, turn_name):
             "tools": TOOLS
         }
     )
-    
+
     elapsed = time.time() - start
-    
+
     if response.status_code != 200:
         print(f"❌ Error {response.status_code}: {response.text}")
         return None
-        
+
     metrics = json.loads(response.headers.get("x-axon-metrics", "{}"))
     agentic_tokens_saved = metrics.get("agentic_tokens_saved", 0)
     agentic_breakdown = metrics.get("agentic_breakdown", {})
-    
+
     print(f"✅ Received response in {elapsed:.2f}s")
     print(f"💡 Total Tokens Saved: {metrics.get('tokens_saved', 0)} ({metrics.get('savings_pct', 0):.1f}%)")
     if agentic_tokens_saved > 0:
@@ -122,10 +122,10 @@ def call_axon(messages, turn_name):
         for module, saved in agentic_breakdown.items():
             if saved > 0:
                 print(f"   - {module.replace('_', ' ').title()}: {saved} tokens")
-                
+
     if response.headers.get("x-axon-cache") == "HIT":
         print("⚡ Served from Cache (Loop Detected or Identical Request)")
-        
+
     return response.json()
 
 def run_simulation():

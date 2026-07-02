@@ -1,10 +1,12 @@
-import time
 import json
 import os
+import time
 import uuid
-from fastapi.testclient import TestClient
-from app import app
+
 from dotenv import load_dotenv
+from fastapi.testclient import TestClient
+
+from app import app
 
 load_dotenv()
 
@@ -36,26 +38,26 @@ def create_massive_payload():
 def run_stateful_threads_test():
     payload = create_massive_payload()
     json_payload_str = json.dumps(payload)
-    print(f"==================================================")
-    print(f"🤖 STARTING STATEFUL THREADS ARCHITECTURE TEST")
-    print(f"==================================================")
-    
+    print("==================================================")
+    print("🤖 STARTING STATEFUL THREADS ARCHITECTURE TEST")
+    print("==================================================")
+
     api_key = os.getenv("OPENAI_API_KEY")
     # Generate a unique thread ID for this test run
     session_id = f"thread_demo_{uuid.uuid4().hex[:8]}"
-    
+
     turns = [
         "Turn 1 (Cold Start): Identify the product_id of the cheapest item.",
         "Turn 2 (Follow-up): Are there any products made of 'Unobtanium alloy'?",
         "Turn 3 (Reasoning): What is the average stock of the first 5 items?"
     ]
-    
+
     total_original = 0
     total_compressed = 0
-    
+
     for i, question in enumerate(turns, 1):
         print(f"\n[Turn {i}] Client asks: '{question}'")
-        
+
         if i == 1:
             # On Turn 1, the client sends the full context (System + Payload + Question)
             messages_from_client = [
@@ -72,16 +74,16 @@ def run_stateful_threads_test():
             ]
             client_payload_size = len(json.dumps(messages_from_client))
             print(f"  📤 Client -> Proxy Upload Size: {client_payload_size} bytes (ONLY the 5-token question!)")
-            print(f"  🔥 99% Network Bandwidth Saved between Client and Proxy!")
-        
+            print("  🔥 99% Network Bandwidth Saved between Client and Proxy!")
+
         req_body = {
             "model": "ollama/llama3",
             "messages": messages_from_client,
             "temperature": 0.0
         }
-        
+
         start_time = time.time()
-        
+
         response = client.post(
             "/v1/chat/completions",
             json=req_body,
@@ -92,40 +94,40 @@ def run_stateful_threads_test():
             }
         )
         latency = time.time() - start_time
-        
+
         if response.status_code != 200:
             print(f"  ❌ Error: {response.status_code} - {response.text}")
             return
-            
+
         metrics = response.headers.get("x-axon-metrics")
         data = response.json()
         answer = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-        
+
         if metrics:
             m = json.loads(metrics)
             orig = m.get('original_tokens', 0)
             comp = m.get('compressed_tokens', 0)
             sav_pct = m.get('savings_pct', 0)
             strat = m.get('best_strategy', 'Unknown')
-            
+
             total_original += orig
             total_compressed += comp
-            
-            print(f"  ✓ Proxy rehydrated full history from SQLite.")
+
+            print("  ✓ Proxy rehydrated full history from SQLite.")
             print(f"  ✓ Proxy -> LLM Tokens: {orig} raw -> {comp} compressed ({sav_pct:.2f}% saved) [Latency: {latency:.2f}s]")
             print(f"  ✓ LLM Answer:\n{answer}\n")
-            
+
         time.sleep(1) # Slight pause
-        
-    print(f"\n==================================================")
+
+    print("\n==================================================")
     print("📈 FINAL STATEFUL THREADS METRICS")
-    print(f"==================================================")
+    print("==================================================")
     print(f"Total Tokens if you used raw JSON:  {total_original}")
     print(f"Total Tokens actually sent to API: {total_compressed}")
-    
+
     overall_saved_pct = (1 - (total_compressed / total_original)) * 100
     print(f"\n✨ OVERALL TOKEN API SAVINGS: {overall_saved_pct:.2f}% ✨")
-    print(f"🚀 NETWORK LATENCY REDUCED BY 99% ON TURNS 2 & 3!")
+    print("🚀 NETWORK LATENCY REDUCED BY 99% ON TURNS 2 & 3!")
 
 if __name__ == "__main__":
     run_stateful_threads_test()

@@ -1,9 +1,13 @@
 from __future__ import annotations
+
 import json
-import redis.asyncio as redis
 from datetime import datetime, timedelta, timezone
 from typing import Any
+
+import redis.asyncio as redis
+
 from services.memory_store import BaseMemoryStore
+
 
 class RedisMemoryStore(BaseMemoryStore):
     """Distributed session memory backed by Redis."""
@@ -46,7 +50,7 @@ class RedisMemoryStore(BaseMemoryStore):
         return sorted(symbols, key=lambda x: x.get('symbol_id', 0))
 
     async def add_session_symbol(
-        self, session_id: str, symbol_id: int, qualified_name: str, 
+        self, session_id: str, symbol_id: int, qualified_name: str,
         kind: str, score: float, provenance: str, distance: int
     ) -> None:
         key = self._symbols_key(session_id)
@@ -106,7 +110,7 @@ class RedisMemoryStore(BaseMemoryStore):
         await self.redis.delete(*keys)
 
     async def list_all_sessions(self) -> list[dict[str, Any]]:
-        # For Redis, we can scan keys matching axon:session:* 
+        # For Redis, we can scan keys matching axon:session:*
         # But for tests, returning an empty list or scanning is fine.
         keys = await self.redis.keys("axon:session:*")
         sessions = []
@@ -115,7 +119,7 @@ class RedisMemoryStore(BaseMemoryStore):
             k_str = k.decode('utf-8') if isinstance(k, bytes) else k
             # Decode values in data to match the expected dict[str, Any]
             decoded_data = {
-                (k_attr.decode('utf-8') if isinstance(k_attr, bytes) else k_attr): 
+                (k_attr.decode('utf-8') if isinstance(k_attr, bytes) else k_attr):
                 (v_attr.decode('utf-8') if isinstance(v_attr, bytes) else v_attr)
                 for k_attr, v_attr in data.items()
             }

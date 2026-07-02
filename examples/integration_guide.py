@@ -137,7 +137,7 @@ def section_graph():
         marker = " ◀" if name == m["strategy_used"] else ""
         print(f"    {name:<28} {v['tokens']:>4}t  ({v['savings_pct']:+.1f}%){marker}")
 
-    print(f"\n  Turn 2 — 4 symbols, 3 edges (one new each):")
+    print("\n  Turn 2 — 4 symbols, 3 edges (one new each):")
     r2 = post("/process", {
         "inbound": {
             "symbols": base_symbols + [

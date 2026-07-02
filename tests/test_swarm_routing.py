@@ -7,8 +7,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import app
-from domain.api_models import TranslateOutRequest
-from core.app_config import axon_service
 
 client = TestClient(app)
 
@@ -46,7 +44,7 @@ class MockCompletionResponse:
 @pytest.mark.asyncio
 async def test_swarm_completions_non_streaming():
     """Test fan-out and synthesis for non-streaming swarm completions."""
-    
+
     # Mock litellm.acompletion
     async def mock_acompletion(*args, **kwargs):
         model = kwargs.get("model")
@@ -65,7 +63,7 @@ async def test_swarm_completions_non_streaming():
 
     with patch("api.routes.v1_swarm_routes.litellm.acompletion", new_callable=AsyncMock) as mock_lite:
         mock_lite.side_effect = mock_acompletion
-        
+
         payload = {
             "messages": [
                 {"role": "user", "content": "How do I reverse a string?"}
@@ -74,13 +72,13 @@ async def test_swarm_completions_non_streaming():
             "synthesizer_model": "gpt-4o",
             "stream": False
         }
-        
+
         response = client.post("/v1/swarm/completions", json=payload)
         assert response.status_code == 200
-        
+
         data = response.json()
         assert data["choices"][0]["message"]["content"] == "Synthesized Final Answer"
-        
+
         # Verify it made 3 calls (2 fan-out, 1 synthesize)
         assert mock_lite.call_count == 3
 
@@ -88,7 +86,7 @@ async def test_swarm_completions_non_streaming():
 @pytest.mark.asyncio
 async def test_swarm_completions_streaming():
     """Test streaming output from the synthesizer."""
-    
+
     async def mock_streaming_generator():
         yield MockCompletionResponse("Synth ")
         yield MockCompletionResponse("Stream!")
@@ -104,7 +102,7 @@ async def test_swarm_completions_streaming():
 
     with patch("api.routes.v1_swarm_routes.litellm.acompletion", new_callable=AsyncMock) as mock_lite:
         mock_lite.side_effect = mock_acompletion
-        
+
         payload = {
             "messages": [
                 {"role": "user", "content": "Hello!"}
@@ -113,11 +111,11 @@ async def test_swarm_completions_streaming():
             "synthesizer_model": "gpt-4o",
             "stream": True
         }
-        
+
         response = client.post("/v1/swarm/completions", json=payload)
         assert response.status_code == 200
         assert "text/event-stream" in response.headers["content-type"]
-        
+
         content = response.text
         assert "data: " in content
         assert "Synth " in content

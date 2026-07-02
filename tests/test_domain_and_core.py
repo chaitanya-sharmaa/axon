@@ -1,17 +1,17 @@
-import os
 import json
 import logging
+import os
 from unittest.mock import patch
 
-from domain.process_handlers import (
-    handler_echo,
-    handler_active_items,
-    handler_graph_processor,
-    get_handler,
-    list_handlers
-)
+from core.logging_config import _JSONFormatter, configure_logging, request_id_var
 from core.settings import _as_bool, _as_float, _as_list, load_settings
-from core.logging_config import configure_logging, request_id_var, _JSONFormatter
+from domain.process_handlers import (
+    get_handler,
+    handler_active_items,
+    handler_echo,
+    handler_graph_processor,
+    list_handlers,
+)
 
 # --- Domain Process Handlers Tests ---
 
@@ -22,7 +22,7 @@ def test_handler_active_items():
     # Invalid payload
     assert handler_active_items("not_a_dict")["summary"]["total"] == 0
     assert handler_active_items({"items": "not_a_list"})["summary"]["total"] == 0
-    
+
     # Valid payload
     payload = {
         "items": [
@@ -40,12 +40,12 @@ def test_handler_active_items():
 def test_handler_graph_processor():
     # Invalid
     assert handler_graph_processor("string")["symbols_processed"] == 0
-    
+
     # Empty
     res = handler_graph_processor({})
     assert res["symbols_processed"] == 0
     assert res["edges_processed"] == 0
-    
+
     # Valid
     payload = {
         "symbols": [
@@ -137,7 +137,7 @@ def test_json_formatter():
         msg="hello world", args=(), exc_info=None
     )
     request_id_var.set("req-123")
-    
+
     formatted = formatter.format(record)
     parsed = json.loads(formatted)
     assert parsed["msg"] == "hello world"
@@ -151,28 +151,28 @@ def test_json_formatter_with_exc():
     except ValueError:
         import sys
         exc_info = sys.exc_info()
-        
+
     record = logging.LogRecord(
         name="test", level=logging.ERROR, pathname="", lineno=0,
         msg="error happened", args=(), exc_info=exc_info
     )
-    
+
     formatted = formatter.format(record)
     parsed = json.loads(formatted)
     assert "boom" in parsed["exc"]
-    
+
 def test_request_id_filter():
     # Setup text logging
     configure_logging(log_format="text")
     root = logging.getLogger()
     handler = root.handlers[0]
-    
+
     request_id_var.set("req-test")
     record = logging.LogRecord(
         name="test", level=logging.INFO, pathname="", lineno=0,
         msg="msg", args=(), exc_info=None
     )
-    
+
     # Filter should add request_id to record
     assert handler.filters[0].filter(record) is True
     assert record.request_id == "req-test"
@@ -191,7 +191,6 @@ def test_initialize_app():
 def test_app_config_redis():
     import runpy
     import sys
-    import importlib
     with patch.dict(os.environ, {"AXON_MEMORY_TYPE": "redis"}):
         old_settings = sys.modules.get("core.settings")
         if "core.settings" in sys.modules:
@@ -204,12 +203,12 @@ def test_app_config_redis():
             if old_settings is not None:
                 sys.modules["core.settings"] = old_settings
             else:
-                import core.settings
+                pass
 
 def test_settings_no_dotenv():
-    import sys
     import importlib
-    import core.settings
+    import sys
+
     # Hide dotenv
     with patch.dict(sys.modules, {"dotenv": None}):
         importlib.reload(sys.modules["core.settings"])
@@ -219,16 +218,21 @@ def test_settings_no_dotenv():
 # --- Domain API Models Tests ---
 
 def test_api_models():
-    from domain.api_models import ProcessRequest, UpstreamProxyRequest, HealthResponse, SessionDeleteResponse
-    
+    from domain.api_models import (
+        HealthResponse,
+        ProcessRequest,
+        SessionDeleteResponse,
+        UpstreamProxyRequest,
+    )
+
     req = ProcessRequest(inbound={"test": 1}, handler="echo", session_id="abc", target_model="gpt-4o")
     assert req.handler == "echo"
-    
+
     proxy = UpstreamProxyRequest(method="POST", upstream_url="http://test.com", headers={"a": "b"}, data={"x": 1})
     assert proxy.method == "POST"
-    
+
     health = HealthResponse(status="ok")
     assert health.status == "ok"
-    
+
     sess = SessionDeleteResponse(status="deleted", session_id="abc")
     assert sess.session_id == "abc"

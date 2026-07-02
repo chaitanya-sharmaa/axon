@@ -1,4 +1,5 @@
 import requests
+
 key = "REDACTED_API_KEY"
 url = f"https://generativelanguage.googleapis.com/v1beta/models?key={key}"
 resp = requests.get(url)

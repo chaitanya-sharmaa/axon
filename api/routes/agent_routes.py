@@ -9,10 +9,11 @@ GET  /agent/list           — List registered agents and their capabilities
 from __future__ import annotations
 
 from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from core.app_config import orchestrator, memory_store
+from core.app_config import memory_store, orchestrator
 
 router = APIRouter(tags=["agents"])
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 
 try:
     from dotenv import load_dotenv
@@ -80,7 +80,7 @@ class AppSettings:
     enable_security_routes: bool
     enable_agent_routes: bool
     enable_openai_routes: bool
-    
+
     # ── Token-Compression Feature Flags (ON by default) ──────────────────────
     enable_exact_match_cache: bool       # L1 KV cache — 100% savings on repeated requests
     enable_semantic_cache: bool          # L2 semantic vector cache — catches paraphrased questions

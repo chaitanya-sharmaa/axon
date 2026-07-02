@@ -1,7 +1,8 @@
-import os
 import json
-from openai import OpenAI
+import os
+
 from dotenv import load_dotenv
+from openai import OpenAI
 
 load_dotenv()
 
@@ -41,32 +42,32 @@ try:
         model="gemini/gemini-2.5-flash",
         messages=[
             {
-                "role": "system", 
+                "role": "system",
                 "content": "You are a code architect. Briefly summarize the structure of the provided module dependency graph in 2 sentences."
             },
             {
-                "role": "user", 
+                "role": "user",
                 "content": prompt_content
             }
         ],
         temperature=0.7
     )
-    
+
     # Parse standard response
     parsed = raw_response.parse()
-    
+
     print("\n=== Upstream LLM Response ===")
     print(parsed.choices[0].message.content)
-    
+
     print("\n=== Axon Bridge Savings (Extracted from HTTP Headers) ===")
     metrics_header = raw_response.headers.get("x-axon-metrics")
     saved_usd = raw_response.headers.get("x-axon-cost-saved-usd")
-    
+
     if metrics_header:
         print(f"Token Savings: {metrics_header}")
     if saved_usd:
         print(f"Estimated Cost Saved: ${saved_usd}")
-        
+
 except Exception as e:
     print(f"\n[Error] Failed to communicate with LLM: {e}")
     print("Please ensure you have exported OPENAI_API_KEY in your terminal.")

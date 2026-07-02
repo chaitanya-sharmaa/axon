@@ -1,5 +1,5 @@
-import re
 import logging
+import re
 
 log = logging.getLogger(__name__)
 
@@ -45,12 +45,12 @@ def prune_text(text: str) -> str:
 
         # Only target alphabetical sequences
         text = re.sub(r'\b[a-zA-Z]+\b', _filter_word, text)
-        
+
         # 4. Final cleanup of orphaned spaces from word removal
         text = re.sub(r'[ \t]+', ' ', text)
         text = re.sub(r' \.', '.', text)
         text = re.sub(r' ,', ',', text)
-        
+
         return text.strip()
     except Exception as e:
         log.warning(f"Text pruner failed: {e}")

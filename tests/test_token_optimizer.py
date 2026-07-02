@@ -1,8 +1,9 @@
 """Unit tests for the TokenOptimizer service."""
 
 import pytest
-from services.token_optimizer import TokenOptimizer
+
 from services.bridge_service import AxonService
+from services.token_optimizer import TokenOptimizer
 
 
 @pytest.fixture
@@ -236,8 +237,9 @@ def test_savings_zero_tokens():
     assert _savings(0, 100) == 0.0
 
 def test_prune_context_empty_query_terms():
-    from services.token_optimizer import _prune_context
     from gcf import Symbol
+
+    from services.token_optimizer import _prune_context
     syms = [Symbol("a", "func", 1.0, "", 0)] * 60
     assert len(_prune_context(syms, "   ")) == 60
 
@@ -288,19 +290,18 @@ def test_get_gcf_session(optimizer: TokenOptimizer):
 def test_optimizer_strategy_exceptions(optimizer: TokenOptimizer):
     # Pass a malformed object that tricks it into entering a strategy but crashes the encoder
     # Mock the encode functions to raise Exceptions
-    import collections
     from unittest.mock import patch
-    
+
     with patch("services.token_optimizer.encode", side_effect=Exception("mock err")), \
          patch("services.token_optimizer.encode_with_session", side_effect=Exception("mock err")), \
          patch("services.token_optimizer.encode_delta", side_effect=Exception("mock err")), \
          patch("services.token_optimizer.encode_generic", side_effect=Exception("mock err")):
-         
+
         payload_graph = {"symbols": [{"qualified_name": "A", "kind": "func"}], "edges": []}
         # It should catch the exceptions and fallback to json
         res1 = optimizer.optimize(payload_graph, session_id="test_err")
         assert res1.winner.strategy == "json"
-        
+
         payload_generic = {"a": 1}
         res2 = optimizer.optimize(payload_generic, session_id="test_err2")
         # Falls back to schema_values since generic encodings failed
@@ -308,6 +309,7 @@ def test_optimizer_strategy_exceptions(optimizer: TokenOptimizer):
 
 def test_prune_tools_no_bm25():
     from unittest.mock import patch
+
     from services.token_optimizer import prune_tools
     with patch("services.token_optimizer.BM25Okapi", None):
         tools = [{"type": "function", "function": {"name": "A"}}] * 6

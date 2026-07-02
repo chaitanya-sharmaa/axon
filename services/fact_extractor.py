@@ -1,8 +1,9 @@
-import os
 import json
-import httpx
 import logging
+import os
 from typing import Any
+
+import httpx
 
 from services.pii_redactor import pii_redactor
 
@@ -18,7 +19,7 @@ async def extract_facts_async(session_id: str, message: str, api_key: str, memor
 
     model = os.getenv("AXON_EXTRACTION_MODEL", "gpt-4o-mini")
     base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-    
+
     if not api_key:
         api_key = os.getenv("OPENAI_API_KEY", "")
 
@@ -26,7 +27,7 @@ async def extract_facts_async(session_id: str, message: str, api_key: str, memor
         "Extract persistent facts/preferences. Output strictly a JSON object: {\"facts\": [\"user=alice\", \"lang=python\"]}. "
         "If none, output {\"facts\": []}."
     )
-    
+
     safe_message = pii_redactor.redact(message)
 
     payload = {
@@ -49,7 +50,7 @@ async def extract_facts_async(session_id: str, message: str, api_key: str, memor
             if resp.status_code == 200:
                 data = resp.json()
                 content = data["choices"][0]["message"]["content"]
-                
+
                 try:
                     result = json.loads(content)
                     facts = result.get("facts", [])
@@ -62,6 +63,6 @@ async def extract_facts_async(session_id: str, message: str, api_key: str, memor
                             log.debug(f"Extracted fact for {session_id}: {fact}")
                 except json.JSONDecodeError:
                     log.warning("Fact extraction returned invalid JSON.")
-                    
+
         except Exception as e:
             log.warning(f"Failed to extract facts in background: {e}")

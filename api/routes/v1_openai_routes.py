@@ -30,37 +30,38 @@ Endpoints
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 import time
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException, Request, BackgroundTasks
-from fastapi.responses import ORJSONResponse, StreamingResponse
-from pydantic import BaseModel
-import asyncio
 import litellm
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
+from fastapi.responses import ORJSONResponse, StreamingResponse
 from litellm.exceptions import APIError, RateLimitError, ServiceUnavailableError, Timeout
+from opentelemetry import metrics, trace
+from pydantic import BaseModel
 
 from core.app_config import axon_service, memory_store
 from core.settings import settings
-from services.pricing import estimate_savings_usd, estimate_cost_usd
-from services.semantic_cache import semantic_cache
-from services.smart_router import route_model, fallback_model, get_load_balanced_key
+from services.agentic.pipeline import optimize_request as agentic_optimize
+from services.agentic.pipeline import update_after_response as agentic_post
 from services.fact_extractor import extract_facts_async
-from services.vision_optimizer import downscale_base64_image
-from services.text_pruner import prune_text
-from services.prompt_firewall import prompt_firewall
-from services.pii_redactor import pii_redactor
-from services.schema_validator import schema_validator
 from services.kv_cache import kv_cache
-from services.tool_compressor import compress_tools_to_prompt, reconstruct_tool_calls
+from services.pii_redactor import pii_redactor
+from services.pricing import estimate_cost_usd, estimate_savings_usd
+from services.prompt_firewall import prompt_firewall
 from services.request_logger import request_logger
-from services.agentic.pipeline import optimize_request as agentic_optimize, update_after_response as agentic_post
-
-from opentelemetry import trace, metrics
+from services.schema_validator import schema_validator
+from services.semantic_cache import semantic_cache
+from services.smart_router import fallback_model, get_load_balanced_key, route_model
+from services.text_pruner import prune_text
+from services.tool_compressor import compress_tools_to_prompt, reconstruct_tool_calls
+from services.vision_optimizer import downscale_base64_image
 
 # OTel setup
 tracer = trace.get_tracer(__name__)
@@ -262,49 +263,63 @@ async def _stream_openai(
     accumulated_tokens = 0
     tokenizer = None
     current_model = model
-    
+
     if max_spend is not None or (settings.enable_tenant_quotas and tenant_id):
         from services.tokenizer_factory import get_tokenizer_for_model
         tokenizer = get_tokenizer_for_model(model)
-        
+
     # Extract required LiteLLM args
     messages = body.pop("messages", [])
     body.pop("model", None) # Prevent duplicate keyword error
     body.pop("stream", None) # Prevent duplicate keyword error
-    
+
     try:
         start_t = time.time()
-        response = await litellm.acompletion(
-            model=current_model,
-            messages=messages,
-            api_key=api_key,
-            stream=True,
-            num_retries=2,
-            **body
-        )
-        
+        response = None
+        last_exc = None
+
+        while True:
+            try:
+                response = await litellm.acompletion(
+                    model=current_model,
+                    messages=messages,
+                    api_key=api_key,
+                    stream=True,
+                    num_retries=2,
+                    **body
+                )
+                break
+            except (RateLimitError, ServiceUnavailableError, Timeout) as exc:
+                last_exc = exc
+                next_fb_model = fallback_model(current_model)
+                if next_fb_model == current_model:
+                    log.error(f"Streaming failed on {current_model} and no fallback available: {exc}")
+                    raise exc
+                log.warning(f"Streaming connection failed on {current_model} with {exc.__class__.__name__}. Falling back to {next_fb_model}...")
+                current_model = next_fb_model
+
         async for chunk in response:
             if max_spend is not None and tokenizer is not None:
                 delta_text = chunk.choices[0].delta.content or ""
                 if delta_text:
                     accumulated_tokens += len(tokenizer.encode(delta_text))
-                    
+
                     # Calculate true output cost for the specific model
                     from services.pricing import estimate_cost_usd
                     cost = estimate_cost_usd(accumulated_tokens, current_model, direction="output")
                     if cost is None:
                         cost = (accumulated_tokens / 1000.0) * 0.015 # fallback
-                    
+
                     if cost > max_spend:
                         log.warning(f"Circuit Breaker Triggered! Cost ${cost:.4f} exceeded budget ${max_spend}")
-                        yield f'data: {{"choices": [{{"delta": {{"content": "\\n\\n[AXON BUDGET EXCEEDED - STREAM TERMINATED]"}}}}]}}\n\n'
+                        yield 'data: {"choices": [{"delta": {"content": "\\n\\n[AXON BUDGET EXCEEDED - STREAM TERMINATED]"}}]}\n\n'
                         yield "data: [DONE]\n\n"
                         return
 
             yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
-        
+
         yield "data: [DONE]\n\n"
-        
+
     finally:
         latency_ms = (time.time() - start_t) * 1000 if 'start_t' in locals() else 0
         output_cost = 0.0
@@ -313,7 +328,7 @@ async def _stream_openai(
             total_cost = input_cost + output_cost
             if total_cost > 0:
                 asyncio.create_task(memory_store.increment_tenant_spend(tenant_id, total_cost))
-                
+
         request_logger.log_request(
             model=current_model,
             latency_ms=latency_ms,
@@ -360,7 +375,7 @@ async def chat_completions(
     api_key = (authorization or "").removeprefix("Bearer ").strip()
     if not api_key:
         api_key = os.getenv("OPENAI_API_KEY", "")
-        
+
     api_key = get_load_balanced_key(api_key)
 
     session_id = request.headers.get("X-Axon-Session-ID") or request.headers.get("X-Session-ID")
@@ -409,7 +424,7 @@ async def chat_completions(
         if cached_exact:
             # Inject HIT header and return immediately
             metrics_header = json.dumps({"strategy": "exact_match", "original_tokens": 0, "compressed_tokens": 0, "savings_pct": 100.0})
-            
+
             request_logger.log_request(
                 model=req.model,
                 latency_ms=(time.time() - start_t) * 1000,
@@ -423,7 +438,7 @@ async def chat_completions(
             )
 
             return ORJSONResponse(
-                status_code=200, 
+                status_code=200,
                 content=cached_exact,
                 headers={"x-axon-metrics": metrics_header, "x-axon-cache": "HIT"}
             )
@@ -446,7 +461,7 @@ async def chat_completions(
     agentic_tokens_saved = agentic_result.tokens_saved
 
     # Compress messages
-    # If stateful thread is enabled, pass session_id=None to disable stateful TRON/TOON 
+    # If stateful thread is enabled, pass session_id=None to disable stateful TRON/TOON
     # delta deduplication, forcing safe structural compression (GCF).
     compress_session_id = None if is_stateful_thread else session_id
     compressed_messages, metrics = _compress_messages(req.messages, compress_session_id, req.model)
@@ -459,7 +474,7 @@ async def chat_completions(
         if tools_system_prompt:
             # Inject into compressed_messages
             compressed_messages.insert(0, {"role": "system", "content": tools_system_prompt})
-            
+
     # Semantic Caching (token-compression, ON by default: AXON_ENABLE_SEMANTIC_CACHE)
     state_dict = None
     if not req.stream and settings.enable_semantic_cache:
@@ -470,22 +485,22 @@ async def chat_completions(
             metrics["savings_pct"] = 100.0  # 100% savings!
             metrics["compressed_tokens"] = 0
             savings_header = json.dumps(metrics)
-            
+
             resp_dict = cached_resp
-            
+
             # Reconstruct tool_calls from simulated XML format
             if has_tools and resp_dict.get("choices") and len(resp_dict["choices"]) > 0:
                 assistant_msg = resp_dict["choices"][0].get("message", {})
                 content_str = assistant_msg.get("content") or ""
                 reconstructed = reconstruct_tool_calls(content_str)
-                
+
                 if reconstructed:
                     # Override the text content with the tool_calls object
                     # to maintain 100% OpenAI SDK compatibility
                     assistant_msg["content"] = None
                     assistant_msg["tool_calls"] = reconstructed
                     resp_dict["choices"][0]["finish_reason"] = "tool_calls"
-                    
+
             request_logger.log_request(
                 model=req.model,
                 latency_ms=(time.time() - start_t) * 1000,
@@ -499,14 +514,14 @@ async def chat_completions(
             )
 
             return ORJSONResponse(
-                status_code=200, 
+                status_code=200,
                 content=resp_dict,
                 headers={"x-axon-metrics": savings_header, "x-axon-cache": "HIT"}
             )
 
     # Smart Routing (Prompt Complexity aware)
     routed_model = route_model(req.model, metrics["original_tokens"], user_text)
-    
+
     # Build the upstream payload
     upstream_body = req.model_dump(exclude_none=True)
     upstream_body["messages"] = compressed_messages
@@ -548,13 +563,13 @@ async def chat_completions(
     if req.stream:
         max_spend_str = request.headers.get("X-Axon-Max-Spend")
         max_spend = float(max_spend_str) if max_spend_str else None
-        
+
         headers_to_send = {"x-axon-metrics": savings_header}
         if savings_usd is not None:
             headers_to_send["x-axon-cost-saved-usd"] = str(savings_usd)
-            
+
         input_cost = estimate_cost_usd(metrics["compressed_tokens"], routed_model, direction="input") or 0.0
-            
+
         return StreamingResponse(
             _stream_openai(url, upstream_headers, upstream_body, max_spend, routed_model, tenant_id, input_cost, api_key),
             media_type="text/event-stream",
@@ -565,7 +580,7 @@ async def chat_completions(
     req_type = extra.get("response_format", {}).get("type")
     requires_json = req_type in ("json_object", "json_schema")
     json_schema = extra.get("response_format", {}).get("json_schema", {}).get("schema")
-    
+
     # Inject logprobs to power Shannon Entropy Hallucination Guard.
     # logprobs is a native OpenAI API feature. It is reliably supported by models
     # served via the OpenAI API or locally via Ollama (which mirrors the OpenAI spec).
@@ -662,12 +677,12 @@ async def chat_completions(
             current_fb_model = routed_model
             success = False
             last_exc = exc
-            
+
             while True:
                 next_fb_model = fallback_model(current_fb_model)
                 if next_fb_model == current_fb_model:
                     break
-                    
+
                 current_fb_model = next_fb_model
                 upstream_body["model"] = current_fb_model
                 try:
@@ -680,14 +695,14 @@ async def chat_completions(
                     continue
                 except Exception as fb_exc:
                     raise HTTPException(502, f"Fallback connection failed on {current_fb_model}: {fb_exc}") from fb_exc
-                    
+
             if not success:
                 raise HTTPException(502, f"All fallback models failed. Last error: {last_exc}") from last_exc
         except APIError as exc:
             raise HTTPException(502, f"Upstream API Error: {exc}") from exc
         except Exception as exc:
             raise HTTPException(500, f"Unexpected error: {exc}") from exc
-        
+
         if requires_json:
             if not resp_json:
                 resp_dict: dict[str, Any] = {}
@@ -697,30 +712,30 @@ async def chat_completions(
             if content:
                 try:
                     json.loads(content)
-                    
+
                     if json_schema:
                         is_valid, err_msg, _ = schema_validator.validate_output(content, json_schema)
                         if not is_valid:
                             raise ValueError(err_msg)
-                            
+
                     break # Valid JSON and Schema, exit healing loop
                 except json.JSONDecodeError as e:
                     err_msg = f"Your previous output was invalid JSON. Fix this syntax error: {str(e)}"
                 except ValueError as e:
                     err_msg = str(e)
-                    
+
                 if attempt == 2:
                     break # Give up on last attempt
                 log.warning(f"JSON Healing Triggered: {err_msg}")
                 upstream_body["messages"].append({"role": "assistant", "content": content})
                 upstream_body["messages"].append({
-                    "role": "user", 
+                    "role": "user",
                     "content": err_msg
                 })
                 continue # Retry LLM with the error appended
         else:
             break # Not requiring JSON, exit loop
-    
+
     if resp_json is None:
         if last_val_exc:
             raise HTTPException(502, f"Failed to heal hallucination: {last_val_exc}") from last_val_exc
@@ -750,7 +765,7 @@ async def chat_completions(
         assistant_msg = resp_json["choices"][0].get("message", {})
         content_str = assistant_msg.get("content") or ""
         reconstructed = reconstruct_tool_calls(content_str)
-        
+
         if reconstructed:
             # Override the text content with the tool_calls object
             # to maintain 100% OpenAI SDK compatibility

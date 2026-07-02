@@ -1,4 +1,5 @@
 import os
+
 import requests
 
 api_key = os.getenv("OPENAI_API_KEY", "REDACTED_API_KEY")

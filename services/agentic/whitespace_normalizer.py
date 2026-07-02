@@ -14,7 +14,7 @@ SAVINGS: 5–15% on code-heavy or document-pasted payloads.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 # ── Compiled patterns (module-level for performance) ─────────────────────────
 
@@ -41,7 +41,7 @@ _CRLF = re.compile(r'\r\n|\r')
 _MULTI_SPACE = re.compile(r' {2,}')
 
 
-def normalize(text: str) -> Tuple[str, int]:
+def normalize(text: str) -> tuple[str, int]:
     """
     Apply all normalisation passes to a single string.
 
@@ -65,7 +65,7 @@ def normalize(text: str) -> Tuple[str, int]:
     return text, max(0, chars_saved // 4)       # ~4 chars per token
 
 
-def _normalize_content(content: Any) -> Tuple[Any, int]:
+def _normalize_content(content: Any) -> tuple[Any, int]:
     """Normalize message content (str or list-of-parts)."""
     if isinstance(content, str):
         return normalize(content)
@@ -87,7 +87,7 @@ def _normalize_content(content: Any) -> Tuple[Any, int]:
     return content, 0
 
 
-def apply(messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]:
+def apply(messages: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
     """
     Apply whitespace normalisation to all messages.
 

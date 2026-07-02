@@ -1,5 +1,5 @@
 import asyncio
-import os
+
 from openai import AsyncOpenAI
 
 # Point OpenAI client to Axon local bridge
@@ -13,7 +13,7 @@ async def main():
     print("-------------------------")
     print("This example demonstrates how an AI agent can analyze its own telemetry data")
     print("and use the Flint Chart MCP server to visualize the cost savings.")
-    
+
     # In a real workflow, the agent would fetch this telemetry from the Axon Admin API
     telemetry_data = """
     Date: 2026-06-21, Type: Semantic Cache, Tokens Saved: 150000
@@ -23,10 +23,10 @@ async def main():
     Date: 2026-06-23, Type: Semantic Cache, Tokens Saved: 210000
     Date: 2026-06-23, Type: Compression, Tokens Saved: 125000
     """
-    
+
     print("\nPrompting agent to write a Flint chart spec...")
-    
-    # We ask the agent to formulate a Flint chart spec. 
+
+    # We ask the agent to formulate a Flint chart spec.
     # NOTE: If connected directly to the Flint MCP Server (e.g. via Claude Desktop),
     # the agent could use the MCP tools automatically. Here, we just prompt it directly.
     response = await client.chat.completions.create(
@@ -36,7 +36,7 @@ async def main():
             {"role": "user", "content": f"Given the following data, write a Flint chart spec that creates a Stacked Bar Chart showing token savings over time, grouped by the optimization type.\n\nData:\n{telemetry_data}"}
         ]
     )
-    
+
     chart_spec = response.choices[0].message.content
     print("\nGenerated Flint Spec:")
     print(chart_spec)

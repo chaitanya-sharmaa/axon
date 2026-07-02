@@ -1,9 +1,8 @@
-import pytest
-from fastapi.testclient import TestClient
-from app import app
-import httpx
-import json
 import copy
+
+from fastapi.testclient import TestClient
+
+from app import app
 
 client = TestClient(app)
 
@@ -19,13 +18,13 @@ def test_json_healing_loop(monkeypatch):
         nonlocal call_count
         captured_bodies.append(copy.deepcopy(kwargs))
         call_count += 1
-        
+
         class MockResponse:
             def __init__(self, content):
                 self._content = content
             def model_dump(self):
                 return self._content
-                
+
         if call_count == 1:
             # Return malformed JSON string
             return MockResponse({
@@ -52,11 +51,11 @@ def test_json_healing_loop(monkeypatch):
 
     assert response.status_code == 200
     assert call_count == 2
-    
+
     # The first request was the original payload
     print("Captured body:", captured_bodies[0])
     assert len(captured_bodies[0]["messages"]) == 1
-    
+
     # The second request included the JSON Healing prompt
     second_request_messages = captured_bodies[1]["messages"]
     assert len(second_request_messages) == 3

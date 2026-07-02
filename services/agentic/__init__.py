@@ -24,7 +24,11 @@ Usage:
 """
 
 from services.agentic import pipeline
-from services.agentic.pipeline import AgenticOptimizationResult, optimize_request, update_after_response
+from services.agentic.pipeline import (
+    AgenticOptimizationResult,
+    optimize_request,
+    update_after_response,
+)
 from services.agentic.session_state import agentic_state_manager
 
 __all__ = [

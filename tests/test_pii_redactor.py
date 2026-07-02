@@ -1,5 +1,5 @@
-import pytest
 from services.pii_redactor import PIIRedactor
+
 
 def test_redactor_disabled():
     redactor = PIIRedactor(enable_redaction=False)
@@ -31,11 +31,11 @@ def test_redact_credit_card():
     text1 = "Card: 1234 5678 1234 5678"
     assert "1234 5678 1234 5678" not in redactor.redact(text1)
     assert "[CREDIT_CARD_REDACTED]" in redactor.redact(text1)
-    
+
     text2 = "Card: 1234-5678-1234-5678"
     assert "1234-5678-1234-5678" not in redactor.redact(text2)
     assert "[CREDIT_CARD_REDACTED]" in redactor.redact(text2)
-    
+
     text3 = "Card: 1234567812345678"
     assert "1234567812345678" not in redactor.redact(text3)
     assert "[CREDIT_CARD_REDACTED]" in redactor.redact(text3)

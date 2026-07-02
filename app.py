@@ -11,41 +11,41 @@ from dotenv import load_dotenv
 # Load .env before any other import reads os.getenv()
 load_dotenv()
 
-from fastapi import FastAPI, Request
-from fastapi.responses import PlainTextResponse
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import PlainTextResponse
+
+# OpenTelemetry imports
+from opentelemetry import metrics, trace
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.trace import TracerProvider
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-# OpenTelemetry imports
-from opentelemetry import trace, metrics
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
-
 from api.middleware.request_id import RequestIDMiddleware
-from core.app_config import initialize_app, memory_store
-from core.logging_config import configure_logging
-from core.settings import settings
 from api.routes import (
-    core_router,
-    process_router,
-    proxy_router,
-    memory_router,
-    security_router,
+    admin_router,
     agent_router,
-    openai_router,
     assistants_router,
     batch_router,
-    admin_router,
+    core_router,
     files_router,
+    memory_router,
+    openai_router,
+    process_router,
+    proxy_router,
+    security_router,
 )
 from api.routes.dashboard_routes import router as dashboard_router
 from api.routes.v1_swarm_routes import router as swarm_router
+from core.app_config import initialize_app, memory_store
+from core.logging_config import configure_logging
+from core.settings import settings
 
 log = logging.getLogger(__name__)
 
@@ -105,7 +105,7 @@ def create_app() -> FastAPI:
 
     # ── Middleware ────────────────────────────────────────────────────────────
     app.add_middleware(RequestIDMiddleware)
-    
+
     cors_origins = os.getenv("AXON_CORS_ORIGINS", "")
     app.add_middleware(
         CORSMiddleware,
@@ -145,7 +145,7 @@ def create_app() -> FastAPI:
 
     # Dashboard
     app.include_router(dashboard_router)
-    
+
     from fastapi.staticfiles import StaticFiles
     DASHBOARD_BUILD_DIR = os.path.join(os.path.dirname(__file__), "dashboard", "dist")
     if os.path.exists(DASHBOARD_BUILD_DIR):

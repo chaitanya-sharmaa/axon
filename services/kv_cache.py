@@ -3,7 +3,6 @@ import hashlib
 import json
 import logging
 import time
-from typing import Dict, Tuple, Any
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ class ExactMatchCache:
         self.maxsize = maxsize
         self.ttl_seconds = ttl_seconds
         # req_hash -> (response_dict, timestamp)
-        self._cache: Dict[str, Tuple[dict, float]] = {}
+        self._cache: dict[str, tuple[dict, float]] = {}
         self._lock = asyncio.Lock()
 
     def _compute_hash(self, req_body: dict) -> str:
@@ -33,7 +32,7 @@ class ExactMatchCache:
     async def get(self, req_body: dict) -> dict | None:
         """Retrieve a cached response if an exact match exists."""
         req_hash = self._compute_hash(req_body)
-        
+
         async with self._lock:
             if req_hash in self._cache:
                 response, ts = self._cache[req_hash]
@@ -41,23 +40,23 @@ class ExactMatchCache:
                     # Expired
                     del self._cache[req_hash]
                     return None
-                
+
                 log.info(f"Exact-Match KV Cache hit! Hash: {req_hash[:8]}")
                 return response
-                
+
         return None
 
     async def set(self, req_body: dict, response: dict):
         """Store a successful LLM response in the exact-match cache."""
         req_hash = self._compute_hash(req_body)
-        
+
         async with self._lock:
             # Simple eviction: if at capacity, pop a random item
             if len(self._cache) >= self.maxsize and req_hash not in self._cache:
                 # In Python 3.7+, dicts maintain insertion order, so this pops the oldest
                 oldest_key = next(iter(self._cache))
                 del self._cache[oldest_key]
-                
+
             self._cache[req_hash] = (response, time.time())
 
 # Global singleton for the KV Cache

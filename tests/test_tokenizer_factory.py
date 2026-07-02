@@ -1,5 +1,7 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from services.tokenizer_factory import get_tokenizer_for_model
+
 
 def test_get_tokenizer_openai():
     tokenizer = get_tokenizer_for_model("gpt-4o")
@@ -13,7 +15,7 @@ def test_get_tokenizer_anthropic():
     mock_anthropic_module.Anthropic.return_value = mock_client
     mock_tokenizer = MagicMock()
     mock_client.get_tokenizer.return_value = mock_tokenizer
-    
+
     with patch.dict(sys.modules, {'anthropic': mock_anthropic_module}):
         from services.tokenizer_factory import get_tokenizer_for_model
         tokenizer = get_tokenizer_for_model("claude-3-opus")

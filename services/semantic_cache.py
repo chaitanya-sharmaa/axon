@@ -1,12 +1,10 @@
-import asyncio
-import os
-import time
-import httpx
-import logging
 import hashlib
-import orjson
+import logging
+import time
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Tuple, Any
+
+import numpy as np
+import orjson
 
 from core.app_config import memory_store
 
@@ -27,7 +25,7 @@ class SemanticCache:
     def _fast_cosine(self, a: list[float], norm_a: float, b: list[float], norm_b: float) -> float:
         if norm_a == 0 or norm_b == 0:
             return 0.0
-        dot = sum(a[i] * b[i] for i in range(len(a)))
+        dot = float(np.dot(a, b))
         return dot / (norm_a * norm_b)
 
     def _extract_context_and_question(self, messages: list[dict]) -> tuple[str, str]:
@@ -39,7 +37,7 @@ class SemanticCache:
         else:
             question = ""
             context_msgs = messages
-            
+
         context_bytes = orjson.dumps(context_msgs, option=orjson.OPT_SORT_KEYS)
         context_hash = hashlib.sha256(context_bytes).hexdigest()
         return context_hash, question
@@ -48,19 +46,18 @@ class SemanticCache:
         """Fetch an embedding using the local fastembed engine."""
         if not text.strip():
             return None
-            
+
         try:
             from services.intent_classifier import get_embedder
             embedder = get_embedder()
             if embedder:
-                import numpy as np
                 emb = list(embedder.embed([text]))[0]
                 return emb.tolist()
         except Exception as e:
             log.warning(f"Failed to get local embedding for cache: {e}")
         return None
 
-    async def check_cache(self, messages: list[dict], api_key: str) -> Tuple[dict | None, dict | None]:
+    async def check_cache(self, messages: list[dict], api_key: str) -> tuple[dict | None, dict | None]:
         """Check if a semantically similar prompt exists for this context. Returns (response, state_dict)."""
         if not messages:
             return None, None
@@ -76,7 +73,7 @@ class SemanticCache:
 
         # Fetch candidate entries from the database
         cutoff_iso = (datetime.now(timezone.utc) - timedelta(seconds=self.ttl_seconds)).isoformat()
-        
+
         # Ensure memory_store supports Semantic Cache features
         if not hasattr(memory_store, "get_active_semantic_cache"):
             log.warning("memory_store does not support get_active_semantic_cache (Redis config?). Skipping cache.")

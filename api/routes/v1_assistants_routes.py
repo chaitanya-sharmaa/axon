@@ -9,21 +9,20 @@ from __future__ import annotations
 import json
 import logging
 import os
-import uuid
 import time
-from typing import Any
+import uuid
 from datetime import datetime, timezone
+from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Request, BackgroundTasks
+import litellm
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-import litellm
-from core.app_config import axon_service, memory_store
+from api.routes.v1_openai_routes import ChatMessage, _compress_messages
+from core.app_config import memory_store
 from core.settings import settings
-from services.pricing import estimate_savings_usd, estimate_cost_usd
 from services.vector_store import vector_store
-from api.routes.v1_openai_routes import _compress_messages, ChatMessage
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["openai-assistants"])
@@ -35,13 +34,13 @@ class CreateMessageRequest(BaseModel):
     role: str
     content: str | list[Any]
     attachments: list[dict[str, Any]] | None = None
-    
+
 class CreateRunRequest(BaseModel):
     assistant_id: str
     model: str | None = None
     instructions: str | None = None
     stream: bool | None = False
-    
+
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
 @router.post("/v1/threads")
@@ -49,10 +48,10 @@ async def create_thread(authorization: str | None = Header(None)) -> JSONRespons
     """Create a new thread."""
     if not memory_store:
         raise HTTPException(500, "Memory store is not initialized")
-        
+
     thread_id = f"thread_{uuid.uuid4().hex}"
     await memory_store.create_session(thread_id)
-    
+
     return JSONResponse(status_code=200, content={
         "id": thread_id,
         "object": "thread",
@@ -65,11 +64,11 @@ async def get_thread(thread_id: str, authorization: str | None = Header(None)) -
     """Retrieve a thread."""
     if not memory_store:
         raise HTTPException(500, "Memory store is not initialized")
-        
+
     exists = await memory_store.session_exists(thread_id)
     if not exists:
         raise HTTPException(404, f"Thread {thread_id} not found")
-        
+
     return JSONResponse(status_code=200, content={
         "id": thread_id,
         "object": "thread",
@@ -89,7 +88,7 @@ def _format_as_assistant_messages(history: list[dict], session_id: str) -> list[
                 elif isinstance(part, str):
                     text_parts.append(part)
             content_val = " ".join(text_parts)
-            
+
         messages.append({
             "id": f"msg_{session_id}_{i}",
             "object": "thread.message",
@@ -110,29 +109,29 @@ def _format_as_assistant_messages(history: list[dict], session_id: str) -> list[
 
 @router.post("/v1/threads/{thread_id}/messages")
 async def create_message(
-    thread_id: str, 
+    thread_id: str,
     req: CreateMessageRequest,
     authorization: str | None = Header(None)
 ) -> JSONResponse:
     """Create a message in a thread."""
     if not memory_store:
         raise HTTPException(500, "Memory store is not initialized")
-        
+
     exists = await memory_store.session_exists(thread_id)
     if not exists:
         raise HTTPException(404, f"Thread {thread_id} not found")
-        
+
     new_msg = {"role": req.role, "content": req.content}
     if req.attachments:
         new_msg["attachments"] = req.attachments
     await memory_store.append_to_thread(thread_id, [new_msg])
-    
+
     # Get the latest message formatted properly
     raw_msgs = await memory_store.get_thread(thread_id)
     if not raw_msgs:
         raise HTTPException(500, "Failed to retrieve saved message")
     msgs = _format_as_assistant_messages(raw_msgs, thread_id)
-        
+
     return JSONResponse(status_code=200, content=msgs[-1])
 
 @router.get("/v1/threads/{thread_id}/messages")
@@ -140,16 +139,16 @@ async def list_messages(thread_id: str, authorization: str | None = Header(None)
     """List messages in a thread."""
     if not memory_store:
         raise HTTPException(500, "Memory store is not initialized")
-        
+
     exists = await memory_store.session_exists(thread_id)
     if not exists:
         raise HTTPException(404, f"Thread {thread_id} not found")
-        
+
     raw_messages = await memory_store.get_thread(thread_id)
     messages = _format_as_assistant_messages(raw_messages, thread_id)
     # The official API returns messages in descending order by default
     messages.reverse()
-    
+
     return JSONResponse(status_code=200, content={
         "object": "list",
         "data": messages,
@@ -158,8 +157,9 @@ async def list_messages(thread_id: str, authorization: str | None = Header(None)
         "has_more": False
     })
 
-from typing import Any, AsyncIterator
-from fastapi.responses import JSONResponse, StreamingResponse
+from collections.abc import AsyncIterator
+
+from fastapi.responses import StreamingResponse
 
 # ... earlier imports already present, just append the generator ...
 
@@ -180,11 +180,11 @@ async def _stream_assistant_run(
         "instructions": instructions, "created_at": int(time.time())
     }
     yield f"event: thread.run.created\ndata: {json.dumps(run_obj)}\n\n"
-    
+
     # 2. thread.run.in_progress
     run_obj["status"] = "in_progress"
     yield f"event: thread.run.in_progress\ndata: {json.dumps(run_obj)}\n\n"
-    
+
     # 3. thread.run.step.created
     step_id = f"step_{uuid.uuid4().hex}"
     step_obj = {
@@ -193,7 +193,7 @@ async def _stream_assistant_run(
         "created_at": int(time.time())
     }
     yield f"event: thread.run.step.created\ndata: {json.dumps(step_obj)}\n\n"
-    
+
     # 4. thread.message.created
     msg_id = f"msg_{uuid.uuid4().hex}"
     msg_obj = {
@@ -203,7 +203,7 @@ async def _stream_assistant_run(
     }
     yield f"event: thread.message.created\ndata: {json.dumps(msg_obj)}\n\n"
     yield f"event: thread.message.in_progress\ndata: {json.dumps(msg_obj)}\n\n"
-    
+
     # 5. Call LiteLLM stream=True
     full_content = ""
     try:
@@ -233,22 +233,22 @@ async def _stream_assistant_run(
         run_obj["last_error"] = {"code": "server_error", "message": str(exc)}
         yield f"event: thread.run.failed\ndata: {json.dumps(run_obj)}\n\n"
         return
-        
+
     # 6. Save final message to DB
     if memory_store:
         await memory_store.append_to_thread(thread_id, [{"role": "assistant", "content": full_content}])
-    
+
     # 7. Completed events
     msg_obj["status"] = "completed"
     msg_obj["content"] = [{"type": "text", "text": {"value": full_content}}]
     yield f"event: thread.message.completed\ndata: {json.dumps(msg_obj)}\n\n"
-    
+
     step_obj["status"] = "completed"
     yield f"event: thread.run.step.completed\ndata: {json.dumps(step_obj)}\n\n"
-    
+
     run_obj["status"] = "completed"
     yield f"event: thread.run.completed\ndata: {json.dumps(run_obj)}\n\n"
-    
+
     yield "event: done\ndata: [DONE]\n\n"
 
 
@@ -264,17 +264,17 @@ async def create_run(
     api_key = (authorization or "").removeprefix("Bearer ").strip()
     if not api_key:
         api_key = os.getenv("OPENAI_API_KEY", "")
-        
+
     if not memory_store:
         raise HTTPException(500, "Memory store is not initialized")
-        
+
     exists = await memory_store.session_exists(thread_id)
     if not exists:
         raise HTTPException(404, f"Thread {thread_id} not found")
 
     history_dicts = await memory_store.get_thread(thread_id)
     messages = [ChatMessage(**m) for m in history_dicts]
-    
+
     # ── Phase 4: Native RAG & File Attachments ──
     # Check if the latest user message has attachments
     if history_dicts:
@@ -282,27 +282,27 @@ async def create_run(
         if settings.enable_rag_context and latest_msg.get("role") == "user" and latest_msg.get("attachments"):
             file_ids = [att.get("file_id") for att in latest_msg["attachments"] if "file_id" in att]
             query_text = latest_msg.get("content", "")
-            
+
             if file_ids and isinstance(query_text, str) and query_text.strip():
                 log.info(f"RAG Triggered: Searching {len(file_ids)} files for query: '{query_text[:50]}...'")
                 relevant_chunks = vector_store.search(file_ids, query_text, top_k=3)
-                
+
                 if relevant_chunks:
                     rag_context = "You are an AI assistant. Use the following retrieved document excerpts to answer the user's query.\n\n"
                     for idx, chunk in enumerate(relevant_chunks):
                         rag_context += f"--- Excerpt {idx+1} ---\n{chunk}\n\n"
-                        
+
                     # Inject RAG context as a system message right before the user message
                     messages.insert(-1, ChatMessage(role="system", content=rag_context))
-    
+
     if req.instructions:
         messages.insert(0, ChatMessage(role="system", content=req.instructions))
-        
+
     model = req.model or os.getenv("AXON_DEFAULT_MODEL", "gpt-4o")
     compressed_messages, metrics = _compress_messages(messages, session_id=None, model_name=model)
-    
+
     run_id = f"run_{uuid.uuid4().hex}"
-    
+
     if req.stream:
         return StreamingResponse(
             _stream_assistant_run(
@@ -316,7 +316,7 @@ async def create_run(
             ),
             media_type="text/event-stream"
         )
-    
+
     # Non-streaming execution
     try:
         response = await litellm.acompletion(
@@ -327,14 +327,14 @@ async def create_run(
         )
     except Exception as exc:
         raise HTTPException(502, f"Upstream API Error: {exc}") from exc
-        
+
     resp_dict = response.model_dump()
-    
+
     if resp_dict.get("choices") and len(resp_dict["choices"]) > 0:
         assistant_msg = resp_dict["choices"][0].get("message")
         if assistant_msg:
             await memory_store.append_to_thread(thread_id, [assistant_msg])
-            
+
     return JSONResponse(status_code=200, content={
         "id": run_id,
         "object": "thread.run",

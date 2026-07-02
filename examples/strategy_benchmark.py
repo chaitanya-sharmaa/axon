@@ -5,30 +5,33 @@ Benchmark the performance (latency) of each individual encoding strategy.
 This script measures the raw encoding time for different payload types to help
 understand the performance trade-offs of each compression format.
 """
-import timeit
 import json
-from typing import Any, Callable, Dict
 
 # Add project root to path to allow direct imports
 import sys
+import timeit
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from services.token_optimizer import (
-    _SessionState,
-    _build_payload,
-    _build_generic_delta,
-    _build_generic_session,
-    _build_delta,
-    _encode_schema_values_strategy,
-    tokenizer,
-)
 from gcf import (
+    Session,
     encode,
     encode_delta,
     encode_generic,
     encode_with_session,
-    Session,
+)
+
+from services.token_optimizer import (
+    _build_delta,
+    _build_generic_delta,
+    _build_generic_session,
+    _build_payload,
+    _encode_schema_values_strategy,
+    _SessionState,
+    tokenizer,
 )
 
 NUMBER_OF_RUNS = 1000
@@ -62,7 +65,7 @@ large_graph_payload_2 = {
 }
 
 
-def run_benchmark(title: str, payload: Any, strategies: Dict[str, Callable[[], str]]):
+def run_benchmark(title: str, payload: Any, strategies: dict[str, Callable[[], str]]):
     """Runs timeit for each strategy and prints a formatted table."""
     print("\n" + "=" * 80)
     print(f"  BENCHMARK: {title}")

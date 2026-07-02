@@ -26,12 +26,13 @@ any strategy name it doesn't recognise natively.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 log = logging.getLogger(__name__)
 
 # Strategy callable: (obj, session_id) -> str
-StrategyFn = Callable[[Any, Optional[str]], str]
+StrategyFn = Callable[[Any, str | None], str]
 
 _REGISTRY: dict[str, StrategyFn] = {}
 
@@ -59,7 +60,7 @@ def list_strategies() -> list[str]:
     return list(_REGISTRY.keys())
 
 
-def encode(name: str, obj: Any, session_id: Optional[str] = None) -> Optional[str]:
+def encode(name: str, obj: Any, session_id: str | None = None) -> str | None:
     """Invoke a registered plugin strategy.
 
     Returns ``None`` if the strategy is not registered (caller should fall back
@@ -83,7 +84,7 @@ class PluginRegistry:
         _REGISTRY[name] = fn
 
     @staticmethod
-    def encode(name: str, obj: Any, session_id: Optional[str] = None) -> Optional[str]:
+    def encode(name: str, obj: Any, session_id: str | None = None) -> str | None:
         return encode(name, obj, session_id)
 
     @staticmethod

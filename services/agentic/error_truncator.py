@@ -12,9 +12,9 @@ SAVINGS: 90%+ on failed tool observations.
 """
 from __future__ import annotations
 
-import re
 import logging
-from typing import Any, List, Dict, Tuple
+import re
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ def _extract_final_error(text: str) -> str:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def truncate(content: str) -> Tuple[str, int]:
+def truncate(content: str) -> tuple[str, int]:
     """
     If *content* is a stack trace, compress it to the error headline.
 
@@ -98,7 +98,7 @@ def truncate(content: str) -> Tuple[str, int]:
     return compressed, tokens_saved
 
 
-def apply(messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]:
+def apply(messages: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
     """
     Apply error truncation to every ``role:tool`` message in *messages*.
 

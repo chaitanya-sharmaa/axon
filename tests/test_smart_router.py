@@ -1,12 +1,18 @@
-import pytest
-from unittest.mock import patch, MagicMock
-from services.smart_router import get_load_balanced_key, analyze_complexity, route_model, fallback_model
+from unittest.mock import patch
+
+from services.smart_router import (
+    analyze_complexity,
+    fallback_model,
+    get_load_balanced_key,
+    route_model,
+)
+
 
 def test_get_load_balanced_key():
     # Empty / single key
     assert get_load_balanced_key("") == ""
     assert get_load_balanced_key("sk-123") == "sk-123"
-    
+
     # Multiple keys
     key_str = "sk-1, sk-2, sk-3 "
     assert get_load_balanced_key(key_str) == "sk-1"
@@ -17,18 +23,18 @@ def test_get_load_balanced_key():
 def test_analyze_complexity():
     assert analyze_complexity("") == "low"
     assert analyze_complexity("hello") == "low"
-    
+
     # High complexity keywords
     assert analyze_complexity("analyze this data") == "high"
     assert analyze_complexity("please implement this function") == "high"
     assert analyze_complexity("comprehensive review") == "high"
-    
+
     # Code markers
     assert analyze_complexity("Here is some code ```python\nprint(1)```") == "high"
     assert analyze_complexity("def my_func(): pass") == "high"
     assert analyze_complexity("class User:") == "high"
     assert analyze_complexity("SELECT * FROM table") == "high"
-    
+
     # Long text
     long_text = "a " * 2001
     assert analyze_complexity(long_text) == "high"
@@ -38,9 +44,9 @@ def test_analyze_complexity():
 def test_route_model(mock_classify, mock_settings):
     mock_settings.enable_semantic_routing = False
     assert route_model("gpt-4o", 100) == "gpt-4o"
-    
+
     mock_settings.enable_semantic_routing = True
-    
+
     # Test low complexity -> lite
     mock_classify.return_value = "low"
     assert route_model("gpt-4o", 100) == "gpt-4o-mini"
@@ -48,7 +54,7 @@ def test_route_model(mock_classify, mock_settings):
     assert route_model("gemini-2.5-pro", 100) == "gemini-2.5-flash"
     assert route_model("ollama/qwen2.5:14b", 100) == "ollama/llama3:latest"
     assert route_model("unknown-model", 100) == "unknown-model"
-    
+
     # Test high complexity -> pro
     mock_classify.return_value = "high"
     assert route_model("gpt-4o-mini", 100) == "gpt-4o"

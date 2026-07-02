@@ -7,10 +7,8 @@ is bounded even under long-running deployments.
 from __future__ import annotations
 
 import time
-import hashlib
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-
+from typing import Any
 
 # ── Tool call record ──────────────────────────────────────────────────────────
 
@@ -35,16 +33,16 @@ class AgenticSessionState:
 
     # ── Tool schema tracking (for differential transmission) ──────────────────
     # tool_name -> md5 of the schema dict (to detect schema changes)
-    schemas_sent: Dict[str, str] = field(default_factory=dict)
+    schemas_sent: dict[str, str] = field(default_factory=dict)
     # tool_name -> last turn on which this tool was actually called
-    schemas_last_called: Dict[str, int] = field(default_factory=dict)
+    schemas_last_called: dict[str, int] = field(default_factory=dict)
 
     # ── Tool call history (for loop detection and result caching) ─────────────
-    tool_call_history: List[ToolCallRecord] = field(default_factory=list)
+    tool_call_history: list[ToolCallRecord] = field(default_factory=list)
 
     # ── Prefix caching (for provider-native KV cache injection) ───────────────
     # MD5 of the most-recently-seen system prompt block
-    system_prompt_hash: Optional[str] = None
+    system_prompt_hash: str | None = None
     # Turn on which the system prompt was last sent with cache markers
     last_prefix_cache_turn: int = -1
 
@@ -68,7 +66,7 @@ class AgenticStateManager:
     """
 
     def __init__(self, ttl_seconds: int = 3600, max_sessions: int = 500):
-        self._states: Dict[str, AgenticSessionState] = {}
+        self._states: dict[str, AgenticSessionState] = {}
         self.ttl_seconds = ttl_seconds
         self.max_sessions = max_sessions
         self._access_count = 0
@@ -102,7 +100,7 @@ class AgenticStateManager:
         for k in expired:
             del self._states[k]
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         return {
             "active_sessions": len(self._states),
             "max_sessions": self.max_sessions,

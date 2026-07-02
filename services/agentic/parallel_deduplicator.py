@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def _try_parse_json(text: str) -> Any:
         return None
 
 
-def apply(messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]:
+def apply(messages: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
     """
     Deduplicate field values across parallel tool result messages.
 
@@ -72,7 +72,7 @@ def apply(messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]:
             continue
 
         # Collect the consecutive batch starting at i
-        batch_indices: List[int] = []
+        batch_indices: list[int] = []
         j = i
         while j < len(result) and result[j].get("role") == "tool":
             batch_indices.append(j)
@@ -88,12 +88,12 @@ def apply(messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]:
 
 
 def _dedup_batch(
-    messages: List[Dict[str, Any]],
-    indices: List[int],
+    messages: list[dict[str, Any]],
+    indices: list[int],
 ) -> int:
     """Dedup a batch of consecutive tool messages in-place. Returns tokens saved."""
     # value_str -> (source_tool_call_id, field_name)
-    seen_values: Dict[str, Tuple[str, str]] = {}
+    seen_values: dict[str, tuple[str, str]] = {}
     tokens_saved = 0
 
     for idx in indices:
@@ -108,8 +108,8 @@ def _dedup_batch(
         if not isinstance(parsed, dict):
             continue
 
-        new_dict: Dict[str, Any] = {}
-        refs: List[str] = []
+        new_dict: dict[str, Any] = {}
+        refs: list[str] = []
         changed = False
 
         for field, value in parsed.items():

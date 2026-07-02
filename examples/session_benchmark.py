@@ -124,19 +124,19 @@ def run_benchmark() -> dict | None:
     total_gcf = sum(results["axon_tokens"])
     overall_savings = ((total_json - total_gcf) / total_json * 100) if total_json else 0
 
-    print(f"\n📊 Savings per call:")
+    print("\n📊 Savings per call:")
     print(f"   Average:  {avg_savings:.1f}%")
     print(f"   Peak:     {peak_savings:.1f}% (call {results['savings_pct'].index(peak_savings) + 1})")
     print(f"   Min:      {min(results['savings_pct']):.1f}%")
 
-    print(f"\n💾 Total payload compression (10 calls):")
+    print("\n💾 Total payload compression (10 calls):")
     print(f"   JSON total:       {total_json:,} tokens")
     print(f"   Optimized total:  {total_gcf:,} tokens")
     print(f"   Tokens saved:     {total_json - total_gcf:,}")
     print(f"   Overall savings:  {overall_savings:.1f}%")
 
     if total_gcf > 0:
-        print(f"\n🧠 Context window improvement:")
+        print("\n🧠 Context window improvement:")
         print(f"   10 JSON calls at std 4K token limit: {total_json / 4000:.1f}x window usage")
         print(f"   10 Optimized calls:                   {total_gcf / 4000:.1f}x window usage")
         print(f"   Effective expansion:                  {(total_json / total_gcf):.1f}x")
@@ -150,7 +150,7 @@ def run_benchmark() -> dict | None:
         memory = _get(f"/memory/session/{SESSION_ID}?limit=20")
         print(f"\n✅ Events logged: {memory['history_events']}")
         print(f"✅ Symbols cached: {memory['symbols_cached']}")
-        print(f"\n📝 Event types:")
+        print("\n📝 Event types:")
         event_types: dict[str, int] = {}
         for event in memory["recent_events"]:
             etype = event.get("event_type", "unknown")

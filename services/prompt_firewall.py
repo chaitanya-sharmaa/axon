@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 
 class PromptFirewall:
     """Heuristic Prompt Injection and Jailbreak detection firewall."""
-    
+
     # Common jailbreak phrases and system prompt overrides
     BLACKLIST_PHRASES = [
         "ignore all previous instructions",
@@ -26,10 +26,10 @@ class PromptFirewall:
         "give me your initial prompt",
         "forget everything",
     ]
-    
+
     def __init__(self, enable_firewall: bool = True):
         self.enable_firewall = enable_firewall
-        
+
     def scan(self, text: str, tenant_id: str = "default") -> bool:
         """
         Scan text for prompt injection.
@@ -37,7 +37,7 @@ class PromptFirewall:
         """
         if not self.enable_firewall or not text:
             return True
-            
+
         text_lower = text.lower()
         for phrase in self.BLACKLIST_PHRASES:
             if phrase in text_lower:
@@ -48,7 +48,7 @@ class PromptFirewall:
                 except Exception:
                     pass
                 return False
-                
+
         return True
 
 prompt_firewall = PromptFirewall()

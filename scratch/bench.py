@@ -1,8 +1,10 @@
-from services.token_optimizer import TokenOptimizer
-from typing import Any
 import json
 import uuid
+
 import litellm
+
+from services.token_optimizer import TokenOptimizer
+
 
 def run():
     products = []
@@ -17,14 +19,14 @@ def run():
             "description": "This is a great product that you should definitely buy.",
             "rating": 4.5
         })
-    
+
     base_json = json.dumps(products)
     base_tokens = len(litellm.encode(model="gpt-4o", text=base_json))
     print(f"Base tokens: {base_tokens}")
 
     opt = TokenOptimizer(enabled_strategies=["generic_delta", "json"]) # ENABLE TOON
     sess_id = str(uuid.uuid4())
-    
+
     # Turn 1
     res1 = opt.optimize({"products": products}, sess_id)
     print(f"Turn 1 Strategy: {res1.winner.strategy}")

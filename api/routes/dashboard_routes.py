@@ -1,8 +1,10 @@
 import os
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+
 from core.settings import settings
 
 router = APIRouter(tags=["dashboard"])
@@ -142,7 +144,7 @@ def get_entropy_events():
 # ── Health ────────────────────────────────────────────────────────────────────
 
 import time as _time
-import os as _os
+
 _start_time = _time.time()
 
 

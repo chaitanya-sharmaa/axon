@@ -5,7 +5,7 @@ All stored in bounded deques — no persistence, purely for the live dashboard.
 """
 import time
 from collections import deque
-from typing import Dict, Any, List
+from typing import Any
 
 
 class EventLogger:
@@ -22,7 +22,7 @@ class EventLogger:
             "tenant_id": tenant_id,
         })
 
-    def get_firewall_events(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_firewall_events(self, limit: int = 50) -> list[dict[str, Any]]:
         return list(self._firewall)[:limit]
 
     # ── PII ───────────────────────────────────────────────────────────────────
@@ -33,11 +33,11 @@ class EventLogger:
             "tenant_id": tenant_id,
         })
 
-    def get_pii_events(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_pii_events(self, limit: int = 50) -> list[dict[str, Any]]:
         return list(self._pii)[:limit]
 
-    def pii_type_counts(self) -> Dict[str, int]:
-        counts: Dict[str, int] = {}
+    def pii_type_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
         for entry in self._pii:
             for t in entry["pii_types"]:
                 counts[t] = counts.get(t, 0) + 1
@@ -54,7 +54,7 @@ class EventLogger:
             "tenant_id": tenant_id,
         })
 
-    def get_entropy_events(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_entropy_events(self, limit: int = 50) -> list[dict[str, Any]]:
         return list(self._entropy)[:limit]
 
 

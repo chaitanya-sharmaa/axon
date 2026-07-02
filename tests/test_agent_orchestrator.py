@@ -1,5 +1,10 @@
 import pytest
-from services.agent_orchestrator import AgentOrchestrator, AgentDefinition, AgentResult, ParallelDispatchResult
+
+from services.agent_orchestrator import (
+    AgentDefinition,
+    AgentOrchestrator,
+)
+
 
 async def dummy_handler(payload):
     if payload == "fail":
@@ -36,13 +41,13 @@ def agent2():
 def test_register_and_list(orchestrator, agent1, agent2):
     orchestrator.register(agent1)
     orchestrator.register(agent2)
-    
+
     agents = orchestrator.list_agents()
     assert len(agents) == 2
     # agent2 should be first due to priority 5 < 10
     assert agents[0]["name"] == "agent2"
     assert agents[1]["name"] == "agent1"
-    
+
     # Unregister
     assert orchestrator.unregister("agent1") is True
     assert orchestrator.unregister("nonexistent") is False
@@ -50,23 +55,23 @@ def test_register_and_list(orchestrator, agent1, agent2):
 def test_find_for_capability(orchestrator, agent1, agent2):
     orchestrator.register(agent1)
     orchestrator.register(agent2)
-    
+
     res = orchestrator.find_for_capability("cap2")
     assert len(res) == 2
     assert res[0].name == "agent2" # due to priority
-    
+
     res = orchestrator.find_for_capability("cap1")
     assert len(res) == 1
     assert res[0].name == "agent1"
 
 async def test_dispatch_by_name(orchestrator, agent1):
     orchestrator.register(agent1)
-    
+
     res = await orchestrator.dispatch("test", agent_name="agent1")
     assert res.success is True
     assert res.result == "handled: test"
     assert res.agent_name == "agent1"
-    
+
     # Non-existent
     res = await orchestrator.dispatch("test", agent_name="missing")
     assert res.success is False
@@ -75,13 +80,13 @@ async def test_dispatch_by_name(orchestrator, agent1):
 async def test_dispatch_by_capability(orchestrator, agent1, agent2):
     orchestrator.register(agent1)
     orchestrator.register(agent2)
-    
+
     res = await orchestrator.dispatch("test", capability="cap2")
     # Should pick agent2 due to priority
     assert res.success is True
     assert res.agent_name == "agent2"
     assert res.result == "sync_handled: test"
-    
+
     # Missing capability
     res = await orchestrator.dispatch("test", capability="missing")
     assert res.success is False
@@ -92,7 +97,7 @@ async def test_dispatch_fallback(orchestrator, agent1):
     res = await orchestrator.dispatch("test")
     assert res.success is False
     assert "empty" in res.error
-    
+
     # Pick first
     orchestrator.register(agent1)
     res = await orchestrator.dispatch("test")
@@ -109,16 +114,16 @@ async def test_agent_failure(orchestrator, agent1):
 async def test_dispatch_parallel(orchestrator, agent1, agent2):
     orchestrator.register(agent1)
     orchestrator.register(agent2)
-    
+
     res = await orchestrator.dispatch_parallel("test", capabilities=["cap1", "cap3", "missing"])
     assert len(res.results) == 3
-    
+
     succeeded = res.succeeded
     assert len(succeeded) == 2
     names = {r.agent_name for r in succeeded}
     assert "agent1" in names
     assert "agent2" in names
-    
+
     failed = res.failed
     assert len(failed) == 1
     assert failed[0].agent_name == "none"
@@ -127,11 +132,11 @@ async def test_dispatch_parallel(orchestrator, agent1, agent2):
 async def test_swarm(orchestrator, agent1, agent2):
     orchestrator.register(agent1)
     orchestrator.register(agent2)
-    
+
     # All
     res = await orchestrator.swarm("test")
     assert len(res.results) == 2
-    
+
     # Filtered
     res = await orchestrator.swarm("test", filter_type="type_a")
     assert len(res.results) == 1
@@ -157,10 +162,10 @@ async def test_orchestrator_encode_mock():
             class OptResult:
                 winner = Winner()
             return OptResult()
-    
+
     orch = AgentOrchestrator(token_optimizer=MockOptimizer())
     orch.register(AgentDefinition(name="a1", agent_type="t", handler=sync_handler))
-    
+
     res = await orch.dispatch("test")
     assert res.encoded_output == "optimized"
     assert res.strategy_used == "mock_strat"
@@ -170,10 +175,10 @@ async def test_orchestrator_encode_exception():
     class BrokenOptimizer:
         def optimize(self, payload, session_id):
             raise Exception("broken")
-    
+
     orch = AgentOrchestrator(token_optimizer=BrokenOptimizer())
     orch.register(AgentDefinition(name="a1", agent_type="t", handler=sync_handler))
-    
+
     res = await orch.dispatch("test")
     # Exception caught, returns normal result without encoding
     assert res.success is True

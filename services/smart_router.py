@@ -1,16 +1,13 @@
-import os
-import logging
-import itertools
 import hashlib
-from functools import lru_cache
-from typing import Dict
+import itertools
+import logging
 
 log = logging.getLogger(__name__)
 
 # Round robin iterators per provider/key-set.
 # FIX #8: Use a hash of the key string as the dict key so that long comma-separated
 # API key lists don't leak unbounded memory. Eviction is implicit via @lru_cache.
-_key_iterators: Dict[str, itertools.cycle] = {}
+_key_iterators: dict[str, itertools.cycle] = {}
 
 def get_load_balanced_key(api_key: str) -> str:
     """If the key contains a comma, round-robin through the keys to bypass RPM limits."""
@@ -27,13 +24,14 @@ def get_load_balanced_key(api_key: str) -> str:
 
 from services.intent_classifier import classify_intent
 
+
 def analyze_complexity(text: str) -> str:
     """Returns 'high' or 'low' based on keyword heuristics and reasoning triggers."""
     if not text:
         return "low"
-        
+
     text_lower = text.lower()
-    
+
     # High complexity triggers (deep reasoning, code generation, complex math)
     high_complexity_keywords = [
         "think step by step", "analyze", "evaluate", "deduce", "mathematical proof",
@@ -41,21 +39,22 @@ def analyze_complexity(text: str) -> str:
         "edge case", "explain the reasoning", "json schema", "strictly adhere",
         "deep dive", "comprehensive"
     ]
-    
+
     if any(kw in text_lower for kw in high_complexity_keywords):
         return "high"
-        
+
     # Code formatting markers
     if "```" in text or "def " in text or "class " in text or "SELECT " in text.upper():
         return "high"
-        
+
     # Very long context
     if len(text) > 4000:
         return "high"
-        
+
     return "low"
 
 from core.settings import settings
+
 
 def route_model(original_model: str, payload_tokens: int, prompt_text: str = "") -> str:
     """Intelligently route to Lite or Pro models within the same family based on semantic ML intent."""

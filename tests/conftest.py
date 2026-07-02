@@ -74,13 +74,13 @@ def mock_redis():
 def reset_security_config():
     """Reset security config to default test values before and after each test."""
     from core.app_config import security_config
-    
+
     def reset():
         security_config.allow_all_domains = True
         security_config.require_api_key = False
         security_config.api_key = "test-key"
         security_config.allowed_domains = ["api.github.com", "api.openai.com"]
-        
+
     reset()
     yield
     reset()

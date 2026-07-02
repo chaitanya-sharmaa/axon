@@ -90,6 +90,7 @@ Adds persistent memory capabilities to stateless LLM requests.
 - **Stateful Threads (TRON/TOON)**: Computes the differential of your context window and only transmits the *delta* across conversational turns, saving up to 95% on network bandwidth and input tokens.
 - **Fact Extraction**: Runs in the background to learn and store persistent semantic facts about the user.
 - **RAG Context**: Automatically vectorizes and injects background knowledge from uploaded files.
+- **Semantic NLP Compression (LLMLingua)**: Shrinks massive blocks of natural language (e.g., RAG contexts) using a local small language model, preserving semantic meaning while significantly reducing tokens.
 
 ---
 
@@ -251,109 +252,13 @@ Toggle all Axon features on/off at runtime **without restarting the server**:
 
 ---
 
-## ⚙️ Configuration Reference
+## ⚙️ Configuration & API Reference
 
-### Core Settings
+Axon Bridge is highly configurable via environment variables and exposes a robust set of API endpoints for both OpenAI SDK compatibility and administrative control.
 
-| Variable | Default | Description |
-|---|---|---|
-| `AXON_HOST` | `127.0.0.1` | Bind address (`0.0.0.0` to expose on network) |
-| `AXON_PORT` | `8080` | Listen port |
-| `OPENAI_API_KEY` | — | Your upstream LLM API key (comma-separated for load balancing) |
-| `AXON_DEFAULT_MODEL` | `gpt-4o` | Default model when none is specified |
+To keep this README clean, the full **Configuration Variables** and **API Endpoint Reference** have been moved to their own dedicated document.
 
-### Caching & Compression
-
-| Variable | Default | Description |
-|---|---|---|
-| `AXON_ENABLED_FORMATS` | `(all 8)` | Comma-separated list of compression strategies to benchmark |
-| `AXON_TOKENIZER_MODEL` | `cl100k_base` | Tokenizer for token count estimation |
-| `AXON_SEMANTIC_CACHE` | `true` | Enable/disable semantic vector cache |
-| `AXON_ENTROPY_THRESHOLD` | `1.5` | Shannon entropy threshold for hallucination guard |
-
-### Stateful Compression (Advanced)
-
-| Variable | Default | Description |
-|---|---|---|
-| `AXON_ENABLE_STATEFUL_COMPRESSION` | `false` | Enable TOON/TRON destructive deduplication. **Only safe with Anthropic/Gemini provider caching.** |
-| `AXON_ENABLE_GEMINI_PROMPT_CACHE` | `false` | Inject `cache_control` hints for Gemini Context Caching (paid plan only) |
-
-### Memory & Persistence
-
-| Variable | Default | Description |
-|---|---|---|
-| `AXON_MEMORY_TYPE` | `sqlite` | Memory backend (`sqlite` or `redis`) |
-| `AXON_MEMORY_DB_PATH` | `./axon_sessions.db` | SQLite file path. **Never use `/tmp/` in production — data is lost on restart.** |
-| `AXON_REDIS_URL` | `redis://localhost:6379/0` | Redis connection URL (when `AXON_MEMORY_TYPE=redis`) |
-
-### Security & Quotas
-
-| Variable | Default | Description |
-|---|---|---|
-| `AXON_ADMIN_API_KEY` | — | Bearer token required for all `/admin/*` endpoints. Leave unset for open dev access. |
-| `AXON_REQUIRE_API_KEY` | `false` | Enforce `X-API-Key` on all proxy requests |
-| `AXON_ENABLE_TENANT_QUOTAS` | `false` | Enable per-tenant USD spend tracking and enforcement |
-| `AXON_CORS_ORIGINS` | — | Comma-separated allowed CORS origins (e.g. `http://localhost:3000`) |
-
-### Feature Flags (Runtime-Toggleable)
-
-| Variable | Default | Description |
-|---|---|---|
-| `AXON_ENABLE_SEMANTIC_ROUTING` | `true` | ML-powered lite/pro model routing |
-| `AXON_ENABLE_EXACT_MATCH_CACHE` | `true` | SHA-256 exact-match + semantic cache |
-| `AXON_ENABLE_TOOL_COMPRESSION` | `true` | Compress JSON Schema tool definitions |
-| `AXON_ENABLE_RAG_CONTEXT` | `true` | File attachment vector search |
-
----
-
-## 🔌 API Reference
-
-### OpenAI-Compatible Endpoints
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/v1/chat/completions` | Chat completions (streaming + non-streaming) |
-| `GET` | `/v1/models` | List available models |
-| `POST` | `/v1/embeddings` | Embeddings proxy |
-| `POST` | `/v1/files` | Upload files for RAG |
-| `GET` | `/v1/files/{id}` | Retrieve file metadata |
-| `POST` | `/v1/threads` | Create a stateful thread |
-| `POST` | `/v1/threads/{id}/messages` | Add message to thread |
-| `POST` | `/v1/threads/{id}/runs` | Execute a thread run |
-| `GET` | `/v1/threads/{id}/messages` | List thread messages |
-
-### Custom Axon Headers
-
-| Header | Description |
-|---|---|
-| `X-Axon-Session-ID` | Session ID for memory/fact extraction |
-| `X-Axon-Stateful-Thread: true` | Enable stateful thread rehydration |
-| `X-Axon-Tenant-ID` | Tenant identifier for quota tracking |
-| `X-Axon-Max-Spend: 0.05` | Per-request USD budget (stream circuit breaker) |
-
-### Response Headers
-
-| Header | Description |
-|---|---|
-| `x-axon-metrics` | JSON blob: `{original_tokens, compressed_tokens, savings_pct}` |
-| `x-axon-cost-saved-usd` | Estimated dollar savings for this request |
-| `x-axon-cache` | `HIT` if response served from cache |
-
-### Admin Endpoints
-
-> **Note:** All `/admin/*` endpoints require `Authorization: Bearer <AXON_ADMIN_API_KEY>` if the key is set.
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/admin/features` | Get current feature flag states |
-| `POST` | `/admin/features` | Toggle feature flags at runtime |
-| `GET` | `/admin/requests` | Live request firehose (last 100) |
-| `GET` | `/admin/cache` | Semantic cache contents |
-| `GET` | `/admin/quotas/{tenant_id}` | Get tenant quota & spend |
-| `POST` | `/admin/quotas/{tenant_id}` | Set tenant quota |
-| `GET` | `/metrics` | Prometheus metrics endpoint |
-| `GET` | `/dashboard` | React observability dashboard |
-| `GET` | `/docs` | Interactive OpenAPI docs |
+👉 **[View the Configuration & API Reference](docs/api-reference.md)**
 
 ---
 
@@ -365,19 +270,24 @@ pip install axon-bridge
 
 # 2. Configure
 cp .env.example .env
-# Edit .env and set OPENAI_API_KEY=your-key
+# Edit .env and set AXON_OPENAI_API_KEY if you want a server-default key
+# Otherwise, agents can Bring Their Own Key (BYOK)
 
 # 3. Run
 axon serve
 
-# 4. Point your app at Axon
+# 4. Point your app at Axon (BYOK Example)
 import openai
+import httpx
+
 client = openai.OpenAI(
     base_url="http://localhost:8080/v1",
-    api_key="any-value"  # Axon uses the key from .env
+    api_key="your-real-api-key",  # Axon uses the agent's key by default (BYOK)
+    # Optional: Pass a custom upstream base URL via header
+    http_client=httpx.Client(headers={"X-Upstream-Base-Url": "https://api.groq.com/openai/v1"})
 )
 response = client.chat.completions.create(
-    model="gpt-4o",
+    model="openai/llama-3.1-8b-instant", # Use litellm provider prefixes
     messages=[{"role": "user", "content": "Hello!"}]
 )
 # Check x-axon-metrics header for savings report

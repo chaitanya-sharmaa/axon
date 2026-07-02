@@ -21,7 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from services.agentic.session_state import AgenticSessionState
 
@@ -38,12 +38,12 @@ def _is_anthropic(model: str) -> bool:
     return "claude" in model.lower()
 
 
-def _wrap_with_cache(content: str) -> List[Dict[str, Any]]:
+def _wrap_with_cache(content: str) -> list[dict[str, Any]]:
     """Convert a plain string into the cache-marked content block format."""
     return [{"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}]
 
 
-def _system_prompt_hash(messages: List[Dict[str, Any]]) -> str:
+def _system_prompt_hash(messages: list[dict[str, Any]]) -> str:
     """Stable hash of all system messages combined."""
     sys_parts = [m.get("content", "") for m in messages if m.get("role") == "system"]
     combined = json.dumps(sys_parts, sort_keys=True)
@@ -51,11 +51,11 @@ def _system_prompt_hash(messages: List[Dict[str, Any]]) -> str:
 
 
 def apply(
-    messages: List[Dict[str, Any]],
-    tools: Optional[List[Dict[str, Any]]],
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]] | None,
     model: str,
     state: AgenticSessionState,
-) -> Tuple[List[Dict[str, Any]], Optional[List[Dict[str, Any]]], int]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]] | None, int]:
     """
     Inject cache_control markers on system messages that qualify.
 

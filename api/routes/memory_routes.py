@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 from typing import Any
-import aiosqlite
 
 from fastapi import APIRouter, HTTPException, Query
 
-from core.app_config import memory_store, axon_service
-
+from core.app_config import axon_service, memory_store
 
 router = APIRouter(tags=["memory"])
 

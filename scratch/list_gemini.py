@@ -1,6 +1,6 @@
 import os
+
 import requests
-import json
 
 api_key = os.getenv("OPENAI_API_KEY", "REDACTED_API_KEY")
 headers = {"x-goog-api-key": api_key}

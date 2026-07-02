@@ -23,7 +23,7 @@ import hashlib
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from services.agentic.session_state import AgenticSessionState, ToolCallRecord
 
@@ -58,7 +58,7 @@ def check_and_cache(
     tool_name: str,
     arguments: Any,
     state: AgenticSessionState,
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Called BEFORE executing a tool call.
 
@@ -123,13 +123,13 @@ def record(
 # ── Passive message-scan (for historical context pruning) ────────────────────
 
 def find_loops_in_history(
-    messages: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """
     Scan message history for duplicate tool-call / tool-result pairs and
     return info about them. Used by the dashboard / analytics, not for pruning.
     """
-    seen: Dict[str, int] = {}
+    seen: dict[str, int] = {}
     loops = []
     for msg in messages:
         if msg.get("role") == "assistant":

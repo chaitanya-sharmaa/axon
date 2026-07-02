@@ -1,10 +1,9 @@
-import sys
+
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock, AsyncMock
-import os
 
 from api.routes.dashboard_routes import router
 from core.settings import settings
@@ -33,7 +32,7 @@ def test_dashboard_route_exists():
         with patch("fastapi.responses.FileResponse") as mock_file:
             # We bypass the actual file return for test stability if FileResponse actually reads it
             pass
-            
+
     # When file exists (real app has it)
     response = client.get("/dashboard")
     if response.status_code == 200:
@@ -51,11 +50,11 @@ def test_require_admin():
     # Missing key
     response = client.get("/admin/features")
     assert response.status_code == 403
-    
+
     # Invalid key
     response = client.get("/admin/features", headers={"Authorization": "Bearer wrong_key"})
     assert response.status_code == 403
-    
+
     # Valid key
     response = client.get("/admin/features", headers={"Authorization": "Bearer test_key"})
     assert response.status_code == 200
@@ -79,7 +78,7 @@ def test_update_features(auth_headers):
     for v in data.values():
         if isinstance(v, bool):
             assert v is False
-            
+
     # Test setting some back to true
     payload = {
         "enable_semantic_routing": True,
@@ -101,11 +100,11 @@ def test_get_requests(auth_headers):
 async def test_get_cache_entries(auth_headers):
     with patch("api.routes.dashboard_routes.semantic_cache") as mock_cache:
         mock_cache.get_all_entries = AsyncMock(return_value=[{"cache": 1}])
-        
+
         # We need async test client or rely on fastapi handling
         # TestClient is sync, so it will execute async endpoints internally
         pass
-        
+
     with patch("api.routes.dashboard_routes.semantic_cache") as mock_cache:
         mock_cache.get_all_entries = AsyncMock(return_value=[{"cache": 1}])
         response = client.get("/admin/cache", headers=auth_headers)
@@ -124,7 +123,7 @@ def test_get_events(auth_headers):
         response = client.get("/admin/events/pii", headers=auth_headers)
         assert response.status_code == 200
         assert response.json()["events"] == [{"pii": 1}]
-        
+
         mock_events.get_entropy_events.return_value = [{"ent": 1}]
         response = client.get("/admin/events/entropy", headers=auth_headers)
         assert response.status_code == 200
@@ -150,11 +149,11 @@ def test_get_tenants_and_sessions(auth_headers):
     with patch("api.routes.dashboard_routes.memory_store") as mock_store:
         mock_store.list_all_tenants = AsyncMock(return_value=[{"tenant": 1}])
         mock_store.list_all_sessions = AsyncMock(return_value=[{"session": 1}])
-        
+
         res_t = client.get("/admin/tenants", headers=auth_headers)
         assert res_t.status_code == 200
         assert res_t.json() == [{"tenant": 1}]
-        
+
         res_s = client.get("/admin/sessions", headers=auth_headers)
         assert res_s.status_code == 200
         assert res_s.json() == [{"session": 1}]
@@ -163,18 +162,18 @@ def test_get_tenants_and_sessions_no_support(auth_headers):
     with patch("api.routes.dashboard_routes.memory_store", spec=[]):
         res_t = client.get("/admin/tenants", headers=auth_headers)
         assert res_t.json() == []
-        
+
         res_s = client.get("/admin/sessions", headers=auth_headers)
         assert res_s.json() == []
-        
+
 def test_get_tenants_and_sessions_exception(auth_headers):
     with patch("api.routes.dashboard_routes.memory_store") as mock_store:
         mock_store.list_all_tenants = AsyncMock(side_effect=Exception)
         mock_store.list_all_sessions = AsyncMock(side_effect=Exception)
-        
+
         res_t = client.get("/admin/tenants", headers=auth_headers)
         assert res_t.json() == []
-        
+
         res_s = client.get("/admin/sessions", headers=auth_headers)
         assert res_s.json() == []
 
@@ -187,7 +186,7 @@ def test_get_agentic_stats(auth_headers):
         ]
         with patch("api.routes.dashboard_routes.agentic_state_manager") as mock_manager:
             mock_manager.stats.return_value = {"active_sessions": 2}
-            
+
             response = client.get("/admin/agentic", headers=auth_headers)
             assert response.status_code == 200
             data = response.json()

@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import Any
 
+
 class BaseMemoryStore(ABC):
     """Abstract interface for session memory backends."""
-    
+
     @abstractmethod
     async def create_session(self, session_id: str, metadata: dict[str, Any] | None = None) -> None:
         pass
@@ -94,7 +96,7 @@ class BaseMemoryStore(ABC):
     async def get_thread(self, session_id: str) -> list[dict[str, Any]]:
         """Retrieve the ordered list of messages for a stateful thread."""
         pass
-        
+
     @abstractmethod
     async def append_to_thread(self, session_id: str, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Append messages to a stateful thread and return the full updated thread history."""

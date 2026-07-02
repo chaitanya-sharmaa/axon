@@ -1,12 +1,13 @@
-import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
+
 import httpx
+import pytest
+
 import core.app_config
 
 # --- Proxy Routes Tests ---
 
 def test_proxy_upstream_forbidden(client):
-    import core.app_config
     with patch.object(core.app_config.security_config, "allow_all_domains", False):
         req = {
             "upstream_url": "https://not-allowed.com/api",
@@ -29,7 +30,7 @@ def test_proxy_upstream_success(client, mock_httpx_request):
         200, request=httpx.Request("POST", "http://testserver"), headers={"content-type": "application/json"},
         content=b'{"mock": "response"}'
     )
-    
+
     req = {
         "upstream_url": "https://api.github.com/test",
         "method": "POST",
@@ -88,7 +89,7 @@ def test_chat_completions_stream(client):
     async def mock_stream_openai(*args, **kwargs):
         yield "data: {\"id\": \"1\"}\n\n"
         yield "data: [DONE]\n\n"
-        
+
     with patch("api.routes.v1_openai_routes._stream_openai", new=mock_stream_openai):
         req = {
             "model": "gpt-4",
@@ -129,7 +130,7 @@ def test_request_id_middleware(client):
     res = client.get("/health/live", headers={"X-Request-ID": "test-id-123"})
     assert res.status_code == 200
     assert res.headers.get("X-Request-ID") == "test-id-123"
-    
+
     # Auto-generate
     res2 = client.get("/health/live")
     assert res2.status_code == 200
@@ -137,7 +138,6 @@ def test_request_id_middleware(client):
     assert len(res2.headers["X-Request-ID"]) > 10
 
 def test_proxy_upstream_invalid_api_key(client):
-    import core.app_config
     with patch.object(core.app_config.security_config, "require_api_key", True), \
          patch.object(core.app_config.security_config, "api_key", "secret"):
         req = {"upstream_url": "https://api.github.com/test", "method": "POST"}
@@ -183,7 +183,7 @@ def test_chat_completions_compression_savings(client, mock_litellm_acompletion):
         def model_dump(self):
             return {"id": "cmpl", "choices": [{"message": {"content": "ok"}}]}
     mock_litellm_acompletion.return_value = MockResponse()
-    
+
     # Mock token optimizer to force savings > 0
     with patch("core.app_config.axon_service._optimizer.optimize") as mock_opt:
         class DummyWinner:
@@ -198,9 +198,9 @@ def test_chat_completions_compression_savings(client, mock_litellm_acompletion):
             def winner(self): return DummyWinner()
             @property
             def json_baseline_tokens(self): return 10
-            
+
         mock_opt.return_value = DummyResult()
-        
+
         req = {"model": "gpt-4", "messages": [{"role": "user", "content": "A" * 100}]}
         res = client.post("/v1/chat/completions", json=req)
         assert res.status_code == 200
@@ -210,7 +210,7 @@ async def test_stream_openai_error():
     from api.routes.v1_openai_routes import _stream_openai
     with patch("litellm.acompletion") as mock_stream:
         mock_stream.side_effect = Exception("Stream timeout")
-        
+
         gen = _stream_openai("http://fake", {}, {})
         with pytest.raises(Exception):
             lines = [line async for line in gen]

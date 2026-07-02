@@ -28,10 +28,10 @@ SAVINGS: 40–70% reduction on historical tool result tokens in long loops.
 """
 from __future__ import annotations
 
-import math
 import logging
+import math
 from collections import Counter
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -89,9 +89,9 @@ def _content_str(content: Any) -> str:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def apply(
-    messages: List[Dict[str, Any]],
+    messages: list[dict[str, Any]],
     current_turn: int,
-) -> Tuple[List[Dict[str, Any]], int]:
+) -> tuple[list[dict[str, Any]], int]:
     """
     Score and prune tool result (observation) messages by entropy × recency.
 
@@ -102,7 +102,7 @@ def apply(
     (pruned_messages, estimated_tokens_saved)
     """
     # Split into (original_index, message) pairs by role
-    tool_entries: List[Tuple[int, Dict[str, Any]]] = [
+    tool_entries: list[tuple[int, dict[str, Any]]] = [
         (i, m) for i, m in enumerate(messages)
         if m.get("role") == "tool"
     ]

@@ -1,6 +1,6 @@
-import pytest
 from services.dom_pruner import compress_html_to_markdown
 from services.token_optimizer import minify_scratchpad, prune_tools
+
 
 def test_compress_html_to_markdown():
     raw_html = """
@@ -42,11 +42,11 @@ def test_minify_scratchpad():
         {"role": "user", "content": "Third query"},
     ]
     minified = minify_scratchpad(messages)
-    
+
     # First assistant message (older) should have thought stripped
     assert "<thought>" not in minified[1]["content"]
     assert "Action: success" in minified[1]["content"]
-    
+
     # Second assistant message (recent, last 2 msgs) should NOT have thought stripped
     # Wait, the last message is "user". The assistant is at index 3 (len=5, i=3, 3 < 3 is False, so it's not stripped!)
     assert "<thought>I should do that</thought>" in minified[3]["content"]
@@ -59,17 +59,18 @@ def test_prune_tools():
         {"type": "function", "function": {"name": "send_email", "description": "Send an email to a user"}},
     ]
     query = "What is the weather in London?"
-    
+
     pruned = prune_tools(tools, query, top_k=2)
-    
+
     assert len(pruned) == 2
     # The weather tool should definitely be in the top 2
     assert pruned[0]["function"]["name"] == "get_weather"
 
 def test_parallel_deduplicator():
-    from services.agentic.parallel_deduplicator import apply, _try_parse_json
     import json
-    
+
+    from services.agentic.parallel_deduplicator import _try_parse_json, apply
+
     assert _try_parse_json("not json") is None
     assert _try_parse_json('{"a": 1}') == {"a": 1}
 
@@ -108,7 +109,7 @@ def test_parallel_deduplicator():
         },
         {"role": "user", "content": "next"}
     ]
-    
+
     modified, saved = apply(messages)
     assert saved > 0
     assert "John Doe" in modified[1]["content"] # First occurrence kept
@@ -116,34 +117,39 @@ def test_parallel_deduplicator():
     assert "user_123" in modified[2]["content"] # Short values not deduplicated
 
 def test_loop_detector():
-    from services.agentic.loop_detector import check_and_cache, record, find_loops_in_history, _call_hash
+
+    from services.agentic.loop_detector import (
+        _call_hash,
+        check_and_cache,
+        find_loops_in_history,
+        record,
+    )
     from services.agentic.session_state import AgenticSessionState
-    import time
-    
+
     # Hash function fallback check
     class Unserializable:
         pass
     assert _call_hash("tool", Unserializable())
-    
+
     circular = {}
     circular["a"] = circular
     assert _call_hash("tool", circular)
-    
+
     state = AgenticSessionState(session_id="loop_test")
-    
+
     # 1. First call, should not be loop
     is_loop, cached = check_and_cache("get_weather", {"loc": "NYC"}, state)
     assert is_loop is False
     assert cached is None
-    
+
     # Record the result
     record("get_weather", {"loc": "NYC"}, "Sunny", state)
-    
+
     # 2. Second call, still not loop (threshold is 3)
     is_loop, cached = check_and_cache("get_weather", {"loc": "NYC"}, state)
     assert is_loop is False
     record("get_weather", {"loc": "NYC"}, "Sunny", state)
-    
+
     # 3. Third call, LOOP!
     is_loop, cached = check_and_cache("get_weather", {"loc": "NYC"}, state)
     assert is_loop is True
@@ -156,12 +162,12 @@ def test_loop_detector():
     is_loop, cached_json = check_and_cache("get_json", {}, state)
     assert is_loop is True
     assert '"status": "ok"' in cached_json
-    
+
     # Test record bounds (max 200)
     for i in range(250):
         record("spam", i, "res", state)
     assert len(state.tool_call_history) == 200
-    
+
     # Test find_loops_in_history
     msgs = [
         {"role": "assistant", "tool_calls": [{"function": {"name": "f1", "arguments": "{}"}}]},
@@ -174,22 +180,22 @@ def test_loop_detector():
     assert loops[0]["repeated"] is True
 
 def test_observation_window():
-    from services.agentic.observation_window import apply, _shannon_entropy, _content_str
-    
+    from services.agentic.observation_window import _content_str, _shannon_entropy, apply
+
     assert _shannon_entropy("") == 0.0
     assert _shannon_entropy("a") == 0.0
     assert _shannon_entropy("ab") > 0.0
-    
+
     assert _content_str("str") == "str"
     assert _content_str([{"text": "t1"}, "t2"]) == "t1 t2"
     assert _content_str(123) == "123"
-    
+
     msgs = [{"role": "tool", "content": "hello"} for _ in range(5)]
     # Under minimum (6)
     pruned, saved = apply(msgs, current_turn=1)
     assert len(pruned) == 5
     assert saved == 0
-    
+
     # Exceed minimum and drop fraction
     # 10 tools, DROP_FRACTION=0.4 => drop 4
     # ALWAYS_KEEP_RECENT=3, MAX_TOOL_RESULTS=30
@@ -198,7 +204,7 @@ def test_observation_window():
         # We need a low entropy string so R < 0.25
         # "a"*10 has H=0, R=0
         msgs.append({"role": "tool", "content": "a" * 10})
-        
+
     pruned, saved = apply(msgs, current_turn=1)
     # Expected dropped: 4 (since max_to_drop=4)
     assert len(pruned) == 6
@@ -215,7 +221,7 @@ def test_observation_window():
         assert saved > 0
     finally:
         obs_win.LAMBDA = old_lambda
-    
+
     # Test none dropped (no low scores and below max)
     msgs = []
     for i in range(10):
@@ -231,22 +237,22 @@ def test_observation_window():
         obs_win.LAMBDA = old_lambda
 
 def test_tool_schema_diff():
-    from services.agentic.tool_schema_diff import apply, update_after_response
     from services.agentic.session_state import AgenticSessionState
-    
+    from services.agentic.tool_schema_diff import apply, update_after_response
+
     state = AgenticSessionState(session_id="schema_test")
-    
+
     # Tool without name or function name
     tools = [{"type": "unknown"}]
     filtered, saved = apply(tools, state)
     assert len(filtered) == 1
     assert saved == 0
-    
+
     tools = [
         {"name": "tool1", "description": "t1"},
         {"function": {"name": "tool2"}, "description": "t2"}
     ]
-    
+
     # Empty tools
     assert apply([], state) == ([], 0)
 
@@ -255,16 +261,16 @@ def test_tool_schema_diff():
     filtered, saved = apply(tools, state)
     assert len(filtered) == 2
     assert saved == 0
-    
+
     # Turn 2: grace period
     state.turn = 2
     filtered, saved = apply(tools, state)
     assert len(filtered) == 2
-    
+
     # Update after response (tool1 called at turn 2)
     update_after_response(["tool1"], state)
     assert state.schemas_last_called["tool1"] == 2
-    
+
     # Turn 3: out of grace period (GRACE_TURNS=2)
     state.turn = 3
     filtered, saved = apply(tools, state)
@@ -273,13 +279,13 @@ def test_tool_schema_diff():
     assert len(filtered) == 1
     assert filtered[0].get("name") == "tool1"
     assert saved > 0
-    
+
     # Change schema of tool2
     tools[1]["description"] = "new description"
     filtered, saved = apply(tools, state)
     # tool2 schema changed, keep it.
     assert len(filtered) == 2
-    
+
     # Turn 10: out of retention period
     state.turn = 10
     filtered, saved = apply(tools, state)
@@ -290,7 +296,12 @@ def test_tool_schema_diff():
     assert saved > 0
 
 def test_error_truncator():
-    from services.agentic.error_truncator import apply, truncate, _is_stack_trace, _extract_final_error
+    from services.agentic.error_truncator import (
+        _extract_final_error,
+        _is_stack_trace,
+        apply,
+        truncate,
+    )
 
     # Short string
     assert truncate("short") == ("short", 0)
@@ -350,7 +361,7 @@ Some line
    
 \n"""
     assert _extract_final_error(empty_lines) == "[Tool Error] Some line"
-    
+
     # Empty string fallback
     assert _extract_final_error("") == "[Tool Error] (unknown)"
 
@@ -366,18 +377,22 @@ Some line
     assert saved > 0
 
 def test_scratchpad_compressor():
-    from services.agentic.scratchpad_compressor import apply, compress_content, _has_scratchpad, MIN_LEN
-    
+    from services.agentic.scratchpad_compressor import (
+        MIN_LEN,
+        apply,
+        compress_content,
+    )
+
     # Short string
     assert compress_content("short") == ("short", 0)
-    
+
     # Non-string
     assert compress_content(123) == (123, 0)
-    
+
     # Not a scratchpad
     long_str = "a " * (MIN_LEN + 10)
     assert compress_content(long_str) == (long_str, 0)
-    
+
     # Explicit thinking tags
     long_thought = "This is a sentence. " * 20
     content_tag = f"Start <thinking>Let me think about this. {long_thought}</thinking> End"
@@ -390,20 +405,20 @@ def test_scratchpad_compressor():
     assert "Let me think about this" not in compressed # filler stripped
     assert "<thinking>" in compressed
     assert saved > 0
-    
+
     # Explicit bracket tags
     content_bracket = f"Start [THINKING]Let me think about this. {long_thought}[/THINKING] End"
     compressed, saved = compress_content(content_bracket)
     assert "[THINKING]" in compressed
     assert saved > 0
-    
+
     # Implicit scratchpad (heuristic)
     content_heuristic = f"Thought: Let me think about this. {long_thought} I will now call the tool."
     compressed, saved = compress_content(content_heuristic)
     assert "Thought:" in compressed
     assert "Let me think about this" not in compressed
     assert saved > 0
-    
+
     # Test apply
     msgs = [{"role": "assistant", "content": content_heuristic}]
     modified, saved = apply(msgs)

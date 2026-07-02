@@ -17,7 +17,6 @@ import json
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 log = logging.getLogger(__name__)
 
@@ -74,7 +73,7 @@ def _load_overrides() -> dict[str, ModelPrice]:
 _PRICES: dict[str, ModelPrice] = {**_DEFAULT_PRICES, **_load_overrides()}
 
 
-def get_price(model: str) -> Optional[ModelPrice]:
+def get_price(model: str) -> ModelPrice | None:
     """Return the ``ModelPrice`` for *model*, or ``None`` if unknown.
 
     Performs prefix matching so ``"gpt-4o-2024-11-20"`` matches ``"gpt-4o"``.
@@ -87,7 +86,7 @@ def get_price(model: str) -> Optional[ModelPrice]:
     return None
 
 
-def estimate_cost_usd(tokens: int, model: str, direction: str = "input") -> Optional[float]:
+def estimate_cost_usd(tokens: int, model: str, direction: str = "input") -> float | None:
     """Estimate the cost in USD for *tokens* tokens on *model*.
 
     Parameters
@@ -110,7 +109,7 @@ def estimate_cost_usd(tokens: int, model: str, direction: str = "input") -> Opti
     return round(tokens / 1000 * rate, 8)
 
 
-def estimate_savings_usd(json_tokens: int, optimized_tokens: int, model: str) -> Optional[float]:
+def estimate_savings_usd(json_tokens: int, optimized_tokens: int, model: str) -> float | None:
     """Return the estimated dollar saving from using the optimized payload."""
     json_cost = estimate_cost_usd(json_tokens, model)
     opt_cost = estimate_cost_usd(optimized_tokens, model)

@@ -1,5 +1,6 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock
 
 # --- Core Routes Tests ---
 
@@ -123,8 +124,8 @@ def test_get_session_missing(client):
 def test_get_session_symbols(client):
     # create session first
     client.post("/process", json={"inbound": {}, "handler": "echo", "session_id": "mem_sess"})
-    # wait, there's no route /symbols on memory_routes.py! The route only has /session/{session_id}. Wait, /memory/session/{session_id} returns symbols. 
-    # Let me check if /memory/session/{session_id}/symbols exists... no it doesn't! 
+    # wait, there's no route /symbols on memory_routes.py! The route only has /session/{session_id}. Wait, /memory/session/{session_id} returns symbols.
+    # Let me check if /memory/session/{session_id}/symbols exists... no it doesn't!
     # Ah, I see from my view_file that the route /session/{session_id} returns them inside the response! So no need to test /symbols.
     pass
 
@@ -156,7 +157,7 @@ def test_add_domain(client):
     res = client.post("/security/domain/allow", params={"domain": "test-add.com"})
     assert res.status_code == 200
     assert res.json()["action"] == "added"
-    
+
     # Check it was added
     res2 = client.get("/security/config")
     assert "test-add.com" in res2.json()["allowed_domains"]
@@ -185,8 +186,8 @@ def test_openapi_schema(client):
     assert res2.status_code == 200
 
 def test_openapi_schema_with_logo(client):
-    from core.settings import settings as app_settings
     from app import app
+    from core.settings import settings as app_settings
     old_logo = app_settings.openapi_logo_url
     object.__setattr__(app_settings, "openapi_logo_url", "http://logo.png")
     app.openapi_schema = None # clear cache

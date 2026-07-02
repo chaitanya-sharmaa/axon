@@ -7,19 +7,14 @@ and synthesizes the results into a single final answer.
 from __future__ import annotations
 
 import asyncio
-import json
 import time
-from typing import Any
-
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.responses import StreamingResponse, JSONResponse
-from pydantic import BaseModel, Field
 
 import litellm
+from fastapi import APIRouter, Header, Request
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field
 
 from api.routes.v1_openai_routes import ChatMessage, _compress_messages
-from core.app_config import axon_service
-from services.pricing import estimate_cost_usd
 
 router = APIRouter(tags=["swarm-proxy"])
 
@@ -48,7 +43,7 @@ async def swarm_completions(
     """Fan-out to multiple models and synthesize."""
     start_t = time.time()
     api_key = authorization.replace("Bearer ", "") if authorization else None
-    
+
     # 1. Compress the prompt
     # We use the synthesizer_model to dictate compression constraints for the base prompt
     compressed_messages, metrics = _compress_messages(req.messages, x_axon_session_id, req.synthesizer_model)
@@ -81,7 +76,7 @@ async def swarm_completions(
 
     # 4. Synthesize Final Output
     extra = req.model_extra or {}
-    
+
     if req.stream:
         async def _stream_synthesis():
             stream_resp = await litellm.acompletion(

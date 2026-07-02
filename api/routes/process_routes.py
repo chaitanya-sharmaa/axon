@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
+
 from fastapi import APIRouter, HTTPException
 
-from domain.api_models import ProcessRequest
 from core.app_config import axon_service, memory_store, token_optimizer
+from domain.api_models import ProcessRequest
 from domain.process_handlers import get_handler, list_handlers
-
 
 router = APIRouter(tags=["process"])
 
@@ -36,7 +35,7 @@ async def process(req: ProcessRequest) -> dict[str, Any]:
     # This is what saves tokens: the bridge compresses the prompt/context before
     # it reaches the LLM, regardless of what the handler does with it.
     opt = token_optimizer.optimize(
-        normalized, 
+        normalized,
         session_id=req.session_id,
         model=req.target_model # Use model-specific tokenizer
     )

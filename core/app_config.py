@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
+from core.settings import settings
+from domain.process_handlers import (
+    handler_active_items,
+    handler_echo,
+    handler_graph_processor,
+)
+from services.agent_orchestrator import AgentDefinition, AgentOrchestrator
 from services.bridge_service import AxonService
 from services.security_policy import SecurityConfig
 from services.token_optimizer import TokenOptimizer
-from services.agent_orchestrator import AgentOrchestrator, AgentDefinition
-from domain.process_handlers import (
-    handler_echo,
-    handler_active_items,
-    handler_graph_processor,
-)
-from core.settings import settings
-
 
 # ── Security ──────────────────────────────────────────────────────────────────
 security_config = SecurityConfig(
@@ -34,8 +33,8 @@ axon_service = AxonService(
     include_json_fallback=settings.include_json_fallback,
 )
 
-from services.memory_store import BaseMemoryStore
 from services.libsql_memory_store import LibsqlMemoryStore
+from services.memory_store import BaseMemoryStore
 from services.redis_memory_store import RedisMemoryStore
 
 memory_store: BaseMemoryStore

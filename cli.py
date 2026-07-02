@@ -1,11 +1,11 @@
 import json
+
 import typer
 from rich.console import Console
 from rich.table import Table
-from typing import Optional
 
-from services.token_optimizer import TokenOptimizer, ALL_STRATEGIES
 from services.pricing import estimate_cost_usd
+from services.token_optimizer import ALL_STRATEGIES, TokenOptimizer
 
 app = typer.Typer(help="Axon Bridge CLI Tools")
 console = Console()
@@ -20,7 +20,7 @@ def benchmark(
     See exactly how much money and tokens you would save.
     """
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             obj = json.load(f)
     except FileNotFoundError:
         console.print(f"[red]Error: File '{file_path}' not found.[/red]")
@@ -46,7 +46,7 @@ def benchmark(
     for res in sorted_results:
         is_winner = res.strategy == result.winner.strategy
         strategy_name = f"{res.strategy} [bold](Winner)[/bold]" if is_winner else res.strategy
-        
+
         cost = estimate_cost_usd(res.token_estimate, model, direction="input")
         cost_str = f"${cost:.6f}" if cost is not None else "Unknown"
 
@@ -64,7 +64,7 @@ def benchmark(
         )
 
     console.print(table)
-    
+
     baseline_cost = estimate_cost_usd(result.json_baseline_tokens, model, direction="input") or 0.0
     winner_cost = estimate_cost_usd(result.winner.token_estimate, model, direction="input") or 0.0
     saved_usd = baseline_cost - winner_cost

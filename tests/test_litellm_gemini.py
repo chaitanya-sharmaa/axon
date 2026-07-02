@@ -1,6 +1,7 @@
 import os
-from dotenv import load_dotenv
+
 import litellm
+from dotenv import load_dotenv
 
 load_dotenv(override=True)
 os.environ.pop("OPENAI_BASE_URL", None)

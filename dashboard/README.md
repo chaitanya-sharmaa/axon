@@ -1,16 +1,32 @@
-# React + Vite
+# Axon Bridge Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+This is the React-based Observability Dashboard for Axon Bridge. It visualizes real-time metrics, cache contents, and agentic token compression savings.
 
-Currently, two official plugins are available:
+## Development Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+The dashboard is built with [Vite](https://vitejs.dev/) and React.
 
-## React Compiler
+1. **Install Dependencies**
+   ```bash
+   cd dashboard
+   npm ci
+   ```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+2. **Start the Development Server**
+   ```bash
+   npm run dev
+   ```
+   *Note: Ensure the main Axon Bridge Python server is running concurrently so the dashboard can fetch live metrics via the API.*
 
-## Expanding the Oxlint configuration
+3. **Build for Production**
+   ```bash
+   npm run build
+   ```
+   This will generate static assets in `dashboard/dist`. The Axon FastAPI application is configured to serve these assets directly when you visit `http://localhost:8080/dashboard`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## UI Components
+
+If you are developing new UI components, we use Storybook (optional) for component-driven development:
+```bash
+npm run storybook
+```

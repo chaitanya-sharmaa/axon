@@ -1,6 +1,4 @@
-import os
 import requests
-import litellm
 
 key = "REDACTED_API_KEY"
 

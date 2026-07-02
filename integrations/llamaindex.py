@@ -1,6 +1,6 @@
 import json
-from typing import Optional, List
-from pydantic import Field, ConfigDict
+
+from pydantic import ConfigDict, Field
 
 try:
     from llama_index.core.postprocessor.types import BaseNodePostprocessor
@@ -8,8 +8,9 @@ try:
 except ImportError:
     raise ImportError("Please install llama-index-core to use the AxonNodePostprocessor: pip install llama-index-core")
 
-from services.token_optimizer import TokenOptimizer
 from services.text_pruner import prune_text
+from services.token_optimizer import TokenOptimizer
+
 
 class AxonNodePostprocessor(BaseNodePostprocessor):
     """
@@ -20,7 +21,7 @@ class AxonNodePostprocessor(BaseNodePostprocessor):
     before they are injected into the final LLM prompt.
     """
     optimizer: TokenOptimizer = Field(description="The Axon TokenOptimizer instance")
-    session_id: Optional[str] = Field(default=None, description="Optional session ID for tracking")
+    session_id: str | None = Field(default=None, description="Optional session ID for tracking")
     model: str = Field(default="gpt-4o", description="The target LLM model for accurate tokenization")
     enable_pruning: bool = Field(default=True, description="Whether to apply semantic pruning before compression")
 
@@ -28,10 +29,10 @@ class AxonNodePostprocessor(BaseNodePostprocessor):
 
     def _postprocess_nodes(
         self,
-        nodes: List[NodeWithScore],
-        query_bundle: Optional[QueryBundle] = None,
-    ) -> List[NodeWithScore]:
-        
+        nodes: list[NodeWithScore],
+        query_bundle: QueryBundle | None = None,
+    ) -> list[NodeWithScore]:
+
         for node_with_score in nodes:
             original_text = node_with_score.node.text
             if not original_text or len(original_text) < 50:
@@ -44,11 +45,11 @@ class AxonNodePostprocessor(BaseNodePostprocessor):
 
             # 2. Structural Token Optimization
             result = self.optimizer.optimize(
-                {"text": working_text}, 
-                session_id=self.session_id, 
+                {"text": working_text},
+                session_id=self.session_id,
                 model=self.model
             )
-            
+
             # 3. Update Node Text
             if result.winner.savings_vs_json_pct > 0:
                 # If it compressed effectively, substitute the text
@@ -65,5 +66,5 @@ class AxonNodePostprocessor(BaseNodePostprocessor):
             node_with_score.node.metadata["axon_compressed_tokens"] = result.winner.token_estimate
             node_with_score.node.metadata["axon_tokens_saved"] = saved
             node_with_score.node.metadata["axon_strategy"] = result.winner.strategy
-            
+
         return nodes

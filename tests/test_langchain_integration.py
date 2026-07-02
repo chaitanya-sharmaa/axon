@@ -1,7 +1,10 @@
-import pytest
-from unittest.mock import MagicMock, patch
 import uuid
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from integrations.langchain import AxonCallbackHandler
+
 
 def test_langchain_handler_init_error():
     with patch("integrations.langchain._LANGCHAIN_AVAILABLE", False):
@@ -20,7 +23,7 @@ def test_langchain_handler_on_llm_start():
     mock_res.json_baseline_tokens = 100
     mock_res.winner.token_estimate = 50
     mock_opt.optimize.return_value = mock_res
-    
+
     handler = AxonCallbackHandler(optimizer=mock_opt, session_id="test")
     handler.on_llm_start({}, ["prompt 1"], run_id=uuid.uuid4())
     assert handler._total_original_tokens == 100
@@ -38,7 +41,7 @@ def test_langchain_handler_on_chat_model_start():
     mock_res.json_baseline_tokens = 100
     mock_res.winner.token_estimate = 50
     mock_opt.optimize.return_value = mock_res
-    
+
     handler = AxonCallbackHandler(optimizer=mock_opt)
     mock_msg = MagicMock()
     mock_msg.content = "hello"

@@ -1,13 +1,12 @@
-import pytest
 import os
-import json
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from fastapi.testclient import TestClient
-from litellm import RateLimitError, ServiceUnavailableError, APIError, Timeout
+from litellm import APIError, ServiceUnavailableError
 
 from app import app
 from core.settings import settings
-from services.schema_validator import schema_validator
 
 client = TestClient(app)
 
@@ -48,15 +47,15 @@ def test_anthropic_prompt_caching(mock_litellm):
     }
     resp = client.post("/v1/chat/completions", json=req)
     assert resp.status_code == 200
-    
+
     # Check that Litellm was called with cache_control
     call_kwargs = mock_litellm.call_args.kwargs
     messages = call_kwargs["messages"]
-    
+
     system_msg = messages[0]["content"]
     assert isinstance(system_msg, list)
     assert system_msg[0]["cache_control"]["type"] == "ephemeral"
-    
+
     user_msg = messages[1]["content"]
     assert isinstance(user_msg, list)
     assert user_msg[0]["cache_control"]["type"] == "ephemeral"
@@ -68,7 +67,7 @@ def test_direct_gemini_api_call(mock_litellm):
         "usage": {"completion_tokens": 10}
     }
     mock_litellm.return_value = mock_resp
-    
+
     import uuid
     req = {
         "model": "gemini/gemini-pro",
@@ -83,24 +82,24 @@ def test_json_healing_loop(mock_litellm):
     # Mock Litellm to return bad JSON twice, then good JSON
     mock_resp1 = MagicMock()
     mock_resp1.model_dump.return_value = {"choices": [{"message": {"content": "{bad json"}}]}
-    
+
     mock_resp2 = MagicMock()
     mock_resp2.model_dump.return_value = {"choices": [{"message": {"content": '{"valid": "but wrong schema"}'}}]}
-    
+
     mock_resp3 = MagicMock()
     mock_resp3.model_dump.return_value = {"choices": [{"message": {"content": '{"name": "ok"}'}}]}
-    
+
     mock_litellm.side_effect = [mock_resp1, mock_resp2, mock_resp3]
-    
+
     req = {
         "model": "gpt-4",
         "messages": [{"role": "user", "content": f"give json {uuid.uuid4()}"}],
         "response_format": {
-            "type": "json_schema", 
+            "type": "json_schema",
             "json_schema": {"schema": {"type": "object", "required": ["name"]}}
         }
     }
-    
+
     resp = client.post("/v1/chat/completions", json=req)
     assert resp.status_code == 200
     assert mock_litellm.call_count == 3
@@ -113,7 +112,7 @@ def test_fallback_retry_loop(mock_litellm):
         ServiceUnavailableError(message="down", response=MagicMock(), llm_provider="openai", model="gpt-4o"),
         MagicMock(model_dump=lambda: {"choices": [{"message": {"content": "fallback works"}}]})
     ]
-    
+
     with patch.dict(os.environ, {"AXON_AUTO_ROUTING": "true"}):
         req = {
             "model": "gpt-4o",
@@ -130,9 +129,9 @@ def test_streaming_exception_handling():
         async def mock_stream(*args, **kwargs):
             raise APIError(message="stream err", status_code=500, request=MagicMock(), llm_provider="openai", model="gpt-4o")
             yield  # To make it an async generator
-            
+
         mock_lite.side_effect = mock_stream
-        
+
         req = {
             "model": "gpt-4o",
             "messages": [{"role": "user", "content": "stream me"}],
@@ -152,6 +151,6 @@ def test_tracking_and_background_tasks(mock_litellm):
             }
             resp = client.post("/v1/chat/completions", json=req, headers={"X-Axon-Tenant-ID": "t1"})
             assert resp.status_code == 200
-            
-            # The background task was added. We can't easily wait for it in TestClient, 
+
+            # The background task was added. We can't easily wait for it in TestClient,
             # but we can ensure it doesn't throw.

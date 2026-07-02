@@ -30,9 +30,9 @@ SAVINGS: 30–50% on scratchpad-heavy ReAct assistant messages.
 """
 from __future__ import annotations
 
-import re
 import logging
-from typing import Any, Dict, List, Tuple
+import re
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def _compress_text(text: str) -> str:
     # 3. Deduplicate repeated sentences
     sentences = re.split(r'(?<=[.!?])\s+', text)
     seen: set = set()
-    deduped: List[str] = []
+    deduped: list[str] = []
     for s in sentences:
         key = re.sub(r'\s+', ' ', s.strip().lower())
         if len(key) > 15 and key in seen:
@@ -114,7 +114,7 @@ def _has_scratchpad(content: str) -> bool:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def compress_content(content: str) -> Tuple[str, int]:
+def compress_content(content: str) -> tuple[str, int]:
     """
     Apply scratchpad compression to a single assistant message content string.
 
@@ -157,7 +157,7 @@ def compress_content(content: str) -> Tuple[str, int]:
     return compressed, saved
 
 
-def apply(messages: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]:
+def apply(messages: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
     """
     Apply scratchpad compression to all assistant messages.
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hmac
-from typing import Optional
 from urllib.parse import urlparse
 
 
@@ -12,8 +11,8 @@ class SecurityConfig:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        allowed_domains: Optional[list[str]] = None,
+        api_key: str | None = None,
+        allowed_domains: list[str] | None = None,
         require_api_key: bool = False,
         allow_all_domains: bool = False,
     ):
@@ -28,7 +27,7 @@ class SecurityConfig:
         self.api_key = api_key
         self.require_api_key = require_api_key
         self.allow_all_domains = allow_all_domains
-        
+
         # Default allowlist for common APIs
         self.allowed_domains = allowed_domains or [
             "httpbin.org",
@@ -38,7 +37,7 @@ class SecurityConfig:
             "127.0.0.1",
         ]
 
-    def validate_api_key(self, provided_key: Optional[str]) -> bool:
+    def validate_api_key(self, provided_key: str | None) -> bool:
         """Validate provided API key against configured key (constant-time comparison)."""
         if not self.require_api_key:
             return True
@@ -50,7 +49,7 @@ class SecurityConfig:
         """Check if URL domain is in allowlist."""
         if self.allow_all_domains:
             return True
-        
+
         try:
             parsed = urlparse(url)
             domain = parsed.netloc.split(":")[0]  # Remove port if present

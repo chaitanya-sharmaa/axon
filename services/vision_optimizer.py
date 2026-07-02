@@ -1,6 +1,7 @@
 import base64
 import io
 import logging
+
 from PIL import Image
 
 log = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ def downscale_base64_image(b64_string: str, max_size: int = 768) -> str:
         # Convert back to bytes
         # Save as the original format if known, otherwise JPEG
         img_format = img.format if img.format else "JPEG"
-        
+
         # JPEG does not support RGBA
         if img_format == "JPEG" and img.mode in ("RGBA", "P"):
             img_resized = img_resized.convert("RGB")
@@ -53,7 +54,7 @@ def downscale_base64_image(b64_string: str, max_size: int = 768) -> str:
         out_bytes = out_io.getvalue()
 
         new_data = base64.b64encode(out_bytes).decode("utf-8")
-        
+
         log.info(f"Vision Optimizer: Downscaled image from {width}x{height} to {new_width}x{new_height}.")
         return prefix + new_data
 

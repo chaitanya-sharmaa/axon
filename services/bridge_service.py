@@ -6,21 +6,22 @@ convert responses to Axon, and optionally keep JSON alongside for compatibility.
 
 from __future__ import annotations
 
-from dataclasses import asdict, is_dataclass
 import inspect
-import json
 import logging
-from typing import Any, Awaitable, Callable, Dict, Mapping
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import asdict, is_dataclass
+from typing import Any
 
-from gcf import ( # These are used in from_any_to_object and to_compact_text
+import orjson
+from gcf import (  # These are used in from_any_to_object and to_compact_text
     Edge,
     Payload,
     Session,
     Symbol,
-    decode_generic,
     decode,
+    decode_generic,
 )
-from core.settings import settings
+
 from services.token_optimizer import TokenOptimizer
 
 
@@ -30,7 +31,7 @@ class AxonService:
     def __init__(
         self, token_optimizer: TokenOptimizer, include_json_fallback: bool = True
     ) -> None:
-        
+
         self.include_json_fallback = include_json_fallback
         # Use the optimizer as the single source of truth for session state
         self._optimizer = token_optimizer
@@ -94,9 +95,9 @@ class AxonService:
                     return self._normalize_object(decode(stripped))
                 return decode_generic(stripped)
             try:
-                parsed = json.loads(stripped)
+                parsed = orjson.loads(stripped)
                 return self._normalize_object(parsed)
-            except json.JSONDecodeError:
+            except orjson.JSONDecodeError:
                 return {"_text": value}
 
         return self._normalize_object(value)
@@ -113,7 +114,7 @@ class AxonService:
         for item in symbols_raw:
             if not isinstance(item, Mapping):
                 return None
-            
+
             # Support both strict format (qualified_name) and flexible format (name + module)
             qualified_name = item.get("qualified_name")
             if not qualified_name:
@@ -123,10 +124,10 @@ class AxonService:
                     return None
                 module = item.get("module", "")
                 qualified_name = f"{module}:{name}" if module else name
-            
+
             if not isinstance(qualified_name, str) or not qualified_name:
                 return None
-            
+
             symbols.append(
                 Symbol(
                     qualified_name=qualified_name,
@@ -141,7 +142,7 @@ class AxonService:
         edges_raw = obj.get("edges", [])
         if not isinstance(edges_raw, list):
             return None
-        
+
         for item in edges_raw:
             if not isinstance(item, Mapping):
                 return None
@@ -193,10 +194,10 @@ class AxonService:
         """Decode compact generic profile text back to object form."""
         return decode_generic(compact_text)
 
-    def convert_output(self, value: Any, session_id: str | None = None, model: str | None = None) -> Dict[str, Any]:
+    def convert_output(self, value: Any, session_id: str | None = None, model: str | None = None) -> dict[str, Any]:
         """Convert output to a wire envelope with compact format and token stats."""
         obj = self.from_any_to_object(value)
-        json_text = json.dumps(obj, separators=(",", ":"), ensure_ascii=True)
+        json_text = orjson.dumps(obj).decode("utf-8")
         compact_text = self.to_compact_text(obj, session_id=session_id)
 
         profile = self._get_profile(compact_text) or "generic"
@@ -205,7 +206,7 @@ class AxonService:
         compact_tokens = self._estimate_tokens(compact_text, model=model)
         savings_pct = round((1 - (compact_tokens / json_tokens)) * 100, 2) if json_tokens else 0.0
 
-        envelope: Dict[str, Any] = {
+        envelope: dict[str, Any] = {
             "compact_text": compact_text,
             "profile": profile,
             "metrics": {
@@ -225,7 +226,7 @@ class AxonService:
         inbound: Any,
         handler: Callable[[Any], Any],
         session_id: str | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run a sync handler with normalized input and emit Axon-first output."""
         normalized_input = self.from_any_to_object(inbound)
         result = handler(normalized_input)
@@ -236,7 +237,7 @@ class AxonService:
         inbound: Any,
         handler: Callable[[Any], Any] | Callable[[Any], Awaitable[Any]],
         session_id: str | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run a sync/async handler with normalized input and emit Axon-first output."""
         normalized_input = self.from_any_to_object(inbound)
         result = handler(normalized_input)

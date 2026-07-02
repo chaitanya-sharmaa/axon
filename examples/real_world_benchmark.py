@@ -1,11 +1,11 @@
-import time
 import json
 import os
-import sys
-from fastapi.testclient import TestClient
-from app import app
+import time
+
 from dotenv import load_dotenv
-import litellm
+from fastapi.testclient import TestClient
+
+from app import app
 
 load_dotenv()
 
@@ -23,7 +23,7 @@ def send_request(name, model, messages, expected_cache=False):
         "messages": messages,
         "temperature": 0.0
     }
-    
+
     start_time = time.time()
     response = client.post(
         "/v1/chat/completions",
@@ -31,37 +31,37 @@ def send_request(name, model, messages, expected_cache=False):
         headers={"Authorization": f"Bearer {api_key}"}
     )
     latency = time.time() - start_time
-    
+
     # We gracefully catch 429 and 503 so the benchmark doesn't crash
     if response.status_code not in (200, 429, 502, 503):
         print(f"  ❌ Error {response.status_code}: {response.text}")
         return None
-        
+
     metrics_str = response.headers.get("x-axon-metrics")
     cache_header = response.headers.get("x-axon-cache")
-    
+
     if metrics_str:
         metrics = json.loads(metrics_str)
         print(f"  ✅ Success ({latency:.2f}s)")
         if cache_header == "HIT":
             print("  ⚡ CACHE HIT! Zero provider latency.")
-            
+
         print(f"  - Model Requested: {model}")
-        
+
         # Check actual upstream model used if available
         resp_json = response.json() if response.status_code == 200 else {}
         upstream_model = resp_json.get("model", "unknown")
         if upstream_model != "unknown":
             print(f"  - Upstream Model Executed: {upstream_model}")
-            
+
         print(f"  - Strategy Used: {metrics.get('strategy_used', 'N/A')}")
         print(f"  - Original Tokens: {metrics.get('original_tokens')}")
         print(f"  - Compressed Tokens: {metrics.get('compressed_tokens')}")
         print(f"  - Savings: {metrics.get('savings_pct')}%")
-            
+
     elif response.status_code in (429, 502, 503):
         print(f"  ⚠️ Upstream Provider Rate Limited (Status {response.status_code}). But proxy logic completed successfully.")
-        
+
     return response
 
 def test_json_minification():
@@ -127,7 +127,7 @@ def test_semantic_caching():
     ]
     print("\n--- Sending First Request (Cache Miss) ---")
     send_request("Test 6A: Semantic Caching (Miss)", "ollama/llama3", messages)
-    
+
     print("\n--- Sending Second Request (Cache Hit) ---")
     send_request("Test 6B: Semantic Caching (Hit)", "ollama/llama3", messages)
 

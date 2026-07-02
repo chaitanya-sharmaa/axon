@@ -5,6 +5,7 @@ so users with OpenAI-only setups do not need ``ANTHROPIC_API_KEY`` set.
 """
 
 import functools
+
 import tiktoken
 
 

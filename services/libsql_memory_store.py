@@ -7,8 +7,10 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from services.memory_store import BaseMemoryStore
+
 import libsql_client
+
+from services.memory_store import BaseMemoryStore
 
 log = logging.getLogger(__name__)
 
@@ -46,10 +48,10 @@ class LibsqlMemoryStore(BaseMemoryStore):
         """Return (or lazily create) the shared persistent connection."""
         if self._lock is None:
             self._lock = asyncio.Lock()
-        
+
         if self._client is None:
             self._client = libsql_client.create_client(self.url, auth_token=self.auth_token)
-            
+
             # Pragma execution (only run if local file, remote Turso doesn't need/allow PRAGMA journal_mode)
             if self.url.startswith("file:"):
                 try:
@@ -263,7 +265,7 @@ class LibsqlMemoryStore(BaseMemoryStore):
                     elif isinstance(part, str):
                         text_parts.append(part)
                 content_val = " ".join(text_parts)
-                
+
             messages.append({
                 "id": f"msg_{session_id}_{i}",
                 "object": "thread.message",
@@ -295,18 +297,18 @@ class LibsqlMemoryStore(BaseMemoryStore):
                 row = res.rows[0].asdict()
                 if row["messages_json"]:
                     history = json.loads(row["messages_json"])
-            
+
             # Append new messages
             history.extend(messages)
             new_json = json.dumps(history)
             now = datetime.now(timezone.utc).isoformat()
-            
+
             # Ensure metadata exists
             await client.execute(
                 "INSERT OR IGNORE INTO sessions (session_id, created_at, last_accessed, metadata) VALUES (?, ?, ?, ?)",
                 [session_id, now, now, "{}"]
             )
-            
+
             # Upsert
             await client.execute(
                 """

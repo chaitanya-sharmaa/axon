@@ -1,8 +1,10 @@
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import orjson
+import pytest
+
 from services.semantic_cache import SemanticCache
+
 
 @pytest.fixture
 def cache():
@@ -17,7 +19,7 @@ async def test_fast_cosine(cache):
 async def test_extract_context_and_question(cache):
     # Empty
     assert cache._extract_context_and_question([]) == ("", "")
-    
+
     # Last is not user
     msgs = [{"role": "assistant", "content": "hi"}]
     ctx, q = cache._extract_context_and_question(msgs)
@@ -28,7 +30,7 @@ async def test_extract_context_and_question(cache):
 async def test_get_embedding(cache):
     # Empty string
     assert await cache.get_embedding("   ", "key") is None
-    
+
     # Embedder failure
     with patch("services.intent_classifier.get_embedder", return_value=None):
         assert await cache.get_embedding("test", "key") is None
@@ -50,10 +52,10 @@ async def test_get_embedding(cache):
 async def test_check_cache_edge_cases(cache):
     # Empty messages
     assert await cache.check_cache([], "key") == (None, None)
-    
+
     # Last not user
     assert await cache.check_cache([{"role": "assistant"}], "key") == (None, None)
-    
+
     # No embedding
     with patch.object(cache, "get_embedding", return_value=None):
         res, state = await cache.check_cache([{"role": "user", "content": "hi"}], "key")
@@ -81,7 +83,7 @@ async def test_store_response_edge_cases(cache):
     # Empty
     await cache.store_response(None, {})
     await cache.store_response({}, None)
-    
+
     # Missing fields
     await cache.store_response({"context_hash": "123"}, {"a": 1})
 
@@ -90,7 +92,7 @@ async def test_get_all_entries(cache):
     # No support
     with patch("services.semantic_cache.memory_store", spec=[]):
         assert await cache.get_all_entries() == []
-        
+
     # Valid support
     mock_store = MagicMock()
     mock_store.get_all_semantic_cache_entries = AsyncMock(return_value=[

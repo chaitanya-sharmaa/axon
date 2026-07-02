@@ -1,6 +1,6 @@
-import json
-from services.token_optimizer import TokenOptimizer
 from tests.verify_llm_comprehension import highest_complexity_payload
+
+from services.token_optimizer import TokenOptimizer
 
 opt = TokenOptimizer(enabled_strategies=["generic_session"])
 result1 = opt.optimize({"role": "user", "content": highest_complexity_payload}, session_id="test_opt2")

@@ -6,9 +6,8 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 
-from domain.api_models import SecurityConfigResponse
 from core.app_config import security_config
-
+from domain.api_models import SecurityConfigResponse
 
 router = APIRouter(tags=["security"])
 

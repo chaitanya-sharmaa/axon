@@ -25,19 +25,19 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from services.agentic.session_state import AgenticSessionState, agentic_state_manager
 from services.agentic import (
     error_truncator,
-    whitespace_normalizer,
-    scratchpad_compressor,
+    loop_detector,
+    observation_window,
     parallel_deduplicator,
     prefix_cacher,
+    scratchpad_compressor,
     tool_schema_diff,
-    observation_window,
-    loop_detector,
+    whitespace_normalizer,
 )
+from services.agentic.session_state import AgenticSessionState, agentic_state_manager
 
 log = logging.getLogger(__name__)
 
@@ -48,26 +48,26 @@ log = logging.getLogger(__name__)
 class AgenticOptimizationResult:
     """Output of ``optimize_request()``.  All fields are safe to read."""
 
-    messages: List[Dict[str, Any]]
-    tools: Optional[List[Dict[str, Any]]]
+    messages: list[dict[str, Any]]
+    tools: list[dict[str, Any]] | None
 
     # How many tokens the pipeline saved this turn
     tokens_saved: int = 0
 
     # Per-module breakdown for the dashboard / metrics
-    savings_breakdown: Dict[str, int] = field(default_factory=dict)
+    savings_breakdown: dict[str, int] = field(default_factory=dict)
 
     # Any loop detections this turn
-    loop_detections: List[Dict[str, Any]] = field(default_factory=list)
+    loop_detections: list[dict[str, Any]] = field(default_factory=list)
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def optimize_request(
-    messages: List[Dict[str, Any]],
-    tools: Optional[List[Dict[str, Any]]],
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]] | None,
     model: str,
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
 ) -> AgenticOptimizationResult:
     """
     Run all agentic optimizations on the *messages* + *tools* payload.
@@ -95,7 +95,7 @@ def optimize_request(
         return AgenticOptimizationResult(messages=messages, tools=tools)
 
     total_saved = 0
-    breakdown: Dict[str, int] = {}
+    breakdown: dict[str, int] = {}
 
     # ── Pass 1: Error truncation (stateless, always runs) ─────────────────────
     try:
@@ -132,7 +132,7 @@ def optimize_request(
         log.warning(f"AgenticPipeline: parallel_deduplicator failed: {e}")
 
     # ── Session-aware passes (require session_id) ─────────────────────────────
-    state: Optional[AgenticSessionState] = None
+    state: AgenticSessionState | None = None
     if session_id:
         try:
             state = agentic_state_manager.get(session_id)
@@ -191,7 +191,7 @@ def optimize_request(
 
 def update_after_response(
     session_id: str,
-    tool_calls_made: Optional[List[str]] = None,
+    tool_calls_made: list[str] | None = None,
 ) -> None:
     """
     Call this AFTER the LLM response is received.
@@ -215,7 +215,7 @@ def check_loop(
     tool_name: str,
     arguments: Any,
     session_id: str,
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Check if calling *tool_name* with *arguments* would be a loop.
 

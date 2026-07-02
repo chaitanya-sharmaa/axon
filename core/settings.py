@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 
 try:
     from dotenv import load_dotenv
     load_dotenv()  # Load .env file before reading any os.getenv() calls
 except ImportError:
     pass  # python-dotenv is optional during testing
+
+# Map AXON namespace back to standard OpenAI variables for internal usage
+if "AXON_OPENAI_API_KEY" in os.environ:
+    os.environ["OPENAI_API_KEY"] = os.environ["AXON_OPENAI_API_KEY"]
+if "AXON_OPENAI_BASE_URL" in os.environ:
+    os.environ["OPENAI_BASE_URL"] = os.environ["AXON_OPENAI_BASE_URL"]
 
 
 _DEFAULT_ALLOWED_DOMAINS = [
@@ -45,6 +51,7 @@ def _as_list(raw: str | None, default: list[str]) -> list[str]:
 
 @dataclass
 class AppSettings:
+    axon_env: str
     app_title: str
     app_version: str
     app_description: str
@@ -80,7 +87,7 @@ class AppSettings:
     enable_security_routes: bool
     enable_agent_routes: bool
     enable_openai_routes: bool
-    
+
     # ── Token-Compression Feature Flags (ON by default) ──────────────────────
     enable_exact_match_cache: bool       # L1 KV cache — 100% savings on repeated requests
     enable_semantic_cache: bool          # L2 semantic vector cache — catches paraphrased questions
@@ -102,6 +109,7 @@ class AppSettings:
     enable_hallucination_guard: bool     # Shannon entropy guard on logprobs (blocks low-confidence)
     enable_fact_extraction: bool         # Extract & store semantic facts from conversations
     enable_assistants_routes: bool       # OpenAI Assistants API (beta.threads.*)
+    enable_llmlingua_compression: bool   # Semantic NLP compression via LLMLingua-2
 
     # Admin & Quotas
     enable_tenant_quotas: bool
@@ -120,6 +128,13 @@ class AppSettings:
 
 
 def load_settings() -> AppSettings:
+    """Load settings from environment variables."""
+    axon_env = os.getenv("AXON_ENV", "development").lower()
+    admin_api_key = os.getenv("AXON_ADMIN_API_KEY")
+
+    if axon_env == "production" and not admin_api_key:
+        raise ValueError("AXON_ADMIN_API_KEY must be set when AXON_ENV is 'production' to secure the admin endpoints.")
+
     port_raw = os.getenv("AXON_PORT", "8080")
     try:
         port = int(port_raw)
@@ -127,6 +142,7 @@ def load_settings() -> AppSettings:
         port = 8080
 
     return AppSettings(
+        axon_env=axon_env,
         app_title=os.getenv("AXON_APP_TITLE", "Axon Token Bridge"),
         app_version=os.getenv("AXON_APP_VERSION", "0.3.0"),
         app_description=os.getenv(
@@ -183,8 +199,9 @@ def load_settings() -> AppSettings:
         enable_hallucination_guard=_as_bool(os.getenv("AXON_ENABLE_HALLUCINATION_GUARD"), False),
         enable_fact_extraction=_as_bool(os.getenv("AXON_ENABLE_FACT_EXTRACTION"), False),
         enable_assistants_routes=_as_bool(os.getenv("AXON_ENABLE_ASSISTANTS_ROUTES"), False),
+        enable_llmlingua_compression=_as_bool(os.getenv("AXON_ENABLE_LLMLINGUA_COMPRESSION"), False),
         enable_tenant_quotas=_as_bool(os.getenv("AXON_ENABLE_TENANT_QUOTAS"), False),
-        admin_api_key=os.getenv("AXON_ADMIN_API_KEY"),
+        admin_api_key=admin_api_key,
         log_format=os.getenv("AXON_LOG_FORMAT", "text"),
         log_level=os.getenv("AXON_LOG_LEVEL", "INFO"),
         tokenizer_model=os.getenv("AXON_TOKENIZER_MODEL", "cl100k_base"),

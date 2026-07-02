@@ -26,7 +26,6 @@ from __future__ import annotations
 import hashlib
 import threading
 from collections import OrderedDict
-from typing import Optional
 
 
 class PayloadCache:
@@ -42,7 +41,7 @@ class PayloadCache:
     def _key(self, json_text: str) -> str:
         return hashlib.sha256(json_text.encode()).hexdigest()
 
-    def get(self, json_text: str) -> Optional[str]:
+    def get(self, json_text: str) -> str | None:
         """Return the cached encoded string, or ``None`` on a miss."""
         key = self._key(json_text)
         with self._lock:

@@ -163,6 +163,14 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
                     largest_msg_len = len(content)
                     largest_msg_idx = idx
 
+                # 2a. Semantic NLP Compression (LLMLingua)
+                if settings.enable_llmlingua_compression and len(content) > 1000:
+                    from services.llmlingua_compressor import llmlingua_compressor
+                    compressed_text = llmlingua_compressor.compress_text(content)
+                    if compressed_text and len(compressed_text) < len(content):
+                        content = compressed_text
+
+                # 2b. Structural Text Pruning
                 if prune_enabled and len(content) > 2000:
                     content = prune_text(content)
 
@@ -257,7 +265,8 @@ async def _stream_openai(
     model: str = "gpt-4o",
     tenant_id: str | None = None,
     input_cost: float = 0.0,
-    api_key: str = ""
+    api_key: str = "",
+    upstream_base_url: str | None = None
 ) -> AsyncIterator[str]:
     """Async generator that proxies a stream using LiteLLM with an optional budget circuit breaker."""
     accumulated_tokens = 0
@@ -280,14 +289,18 @@ async def _stream_openai(
 
         while True:
             try:
-                response = await litellm.acompletion(
-                    model=current_model,
-                    messages=messages,
-                    api_key=api_key,
-                    stream=True,
-                    num_retries=2,
+                kwargs = {
+                    "model": current_model,
+                    "messages": messages,
+                    "api_key": api_key,
+                    "stream": True,
+                    "num_retries": 2,
                     **body
-                )
+                }
+                if upstream_base_url:
+                    kwargs["api_base"] = upstream_base_url
+                    
+                response = await litellm.acompletion(**kwargs)
                 break
             except (RateLimitError, ServiceUnavailableError, Timeout) as exc:
                 last_exc = exc
@@ -372,9 +385,13 @@ async def chat_completions(
     Token savings are reported in the ``x-axon-metrics`` response header.
     """
     start_t = time.time()
+    # BYOK: Prioritize the client's provided key.
+    # If the client provides no key, fall back to the server's configured key.
     api_key = (authorization or "").removeprefix("Bearer ").strip()
     if not api_key:
         api_key = os.getenv("OPENAI_API_KEY", "")
+        
+    upstream_base_url = request.headers.get("X-Upstream-Base-Url") or os.getenv("OPENAI_BASE_URL")
 
     api_key = get_load_balanced_key(api_key)
 
@@ -571,7 +588,7 @@ async def chat_completions(
         input_cost = estimate_cost_usd(metrics["compressed_tokens"], routed_model, direction="input") or 0.0
 
         return StreamingResponse(
-            _stream_openai(url, upstream_headers, upstream_body, max_spend, routed_model, tenant_id, input_cost, api_key),
+            _stream_openai(url, upstream_headers, upstream_body, max_spend, routed_model, tenant_id, input_cost, api_key, upstream_base_url),
             media_type="text/event-stream",
             headers=headers_to_send,
         )
@@ -586,7 +603,7 @@ async def chat_completions(
     # served via the OpenAI API or locally via Ollama (which mirrors the OpenAI spec).
     # Gemini and Anthropic either reject it or return incompatible formats, so we
     # gate it to known-good providers.
-    _LOGPROB_PROVIDERS = ("gpt", "openai/")
+    _LOGPROB_PROVIDERS = ("gpt",) # Removed openai/ so it doesn't break custom endpoints
     _logprobs_enabled = (
         not req.stream
         and any(routed_model.startswith(p) for p in _LOGPROB_PROVIDERS)
@@ -609,14 +626,19 @@ async def chat_completions(
         _request_logprobs = current_body.get("logprobs", False)
         _should_drop = not _request_logprobs
         try:
-            response = await litellm.acompletion(
-                model=model,
-                messages=messages,
-                api_key=api_key,
-                num_retries=2,
-                drop_params=_should_drop,
+            # Prepare kwargs for litellm.acompletion
+            kwargs = {
+                "model": model,
+                "messages": messages,
+                "api_key": api_key,
+                "num_retries": 2,
+                "drop_params": _should_drop,
                 **current_body
-            )
+            }
+            if upstream_base_url:
+                kwargs["api_base"] = upstream_base_url
+                
+            response = await litellm.acompletion(**kwargs)
             resp_dict = response.model_dump()
 
             # Shannon Entropy Calculation
@@ -814,18 +836,21 @@ async def chat_completions(
 @router.post("/v1/embeddings")
 async def embeddings(
     req: EmbeddingRequest,
+    request: Request,
     authorization: str | None = Header(None),
 ) -> ORJSONResponse:
     """Proxy embeddings requests (no compression — embeddings benefit less)."""
     api_key = (authorization or "").removeprefix("Bearer ").strip()
     if not api_key:
         api_key = os.getenv("OPENAI_API_KEY", "")
+        
+    upstream_base_url = request.headers.get("X-Upstream-Base-Url") or f"{_OPENAI_BASE}"
 
     try:
         # BUG FIX: Use litellm.aembedding for the /embeddings endpoint, not acompletion
         response = await litellm.aembedding(
             model=req.model,
-            api_base=f"{_OPENAI_BASE}",
+            api_base=upstream_base_url,
             api_key=api_key,
             input=req.input,
             num_retries=2

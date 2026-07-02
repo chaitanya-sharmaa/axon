@@ -1,0 +1,37 @@
+name: Bug report
+description: Create a report to help us improve Axon Bridge
+title: "[BUG] "
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: To Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Send request '...'
+        2. With config '...'
+        3. See error '...'
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Axon Version
+      description: E.g., v0.3.0
+    validations:
+      required: true

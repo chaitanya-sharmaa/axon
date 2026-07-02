@@ -151,6 +151,12 @@ def create_app() -> FastAPI:
     if os.path.exists(DASHBOARD_BUILD_DIR):
         app.mount("/assets", StaticFiles(directory=os.path.join(DASHBOARD_BUILD_DIR, "assets")), name="dashboard_assets")
 
+    # Health Check
+    @app.get("/health", tags=["Ops"])
+    def health_check():
+        """Health check endpoint for load balancers."""
+        return {"status": "ok", "version": settings.app_version}
+
     # Metrics
     @app.get("/metrics", tags=["Ops"])
     def get_metrics():

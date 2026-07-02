@@ -1,34 +1,41 @@
 # Contributing to Axon Bridge
 
-Thank you for taking the time to contribute! 🎉
+Thank you for taking the time to contribute! 🎉 Axon Bridge is designed to be a lightweight, token-saving middleware. We appreciate all PRs, from bug fixes to new compression strategies.
 
 ---
 
 ## Table of Contents
 
-1. [Getting Started](#getting-started)
+1. [Prerequisites](#prerequisites)
 2. [Development Setup](#development-setup)
-3. [Running Tests](#running-tests)
-4. [Code Style](#code-style)
-5. [How to Add an Encoding Strategy](#how-to-add-an-encoding-strategy)
-6. [Submitting a Pull Request](#submitting-a-pull-request)
-7. [Reporting Bugs](#reporting-bugs)
+3. [Running Tests & Linting (CI Requirements)](#running-tests--linting-ci-requirements)
+4. [How to Add an Encoding Strategy](#how-to-add-an-encoding-strategy)
+5. [Submitting a Pull Request](#submitting-a-pull-request)
 
 ---
 
-## Getting Started
+## Prerequisites
+
+- **Python 3.10+**
+- **Node.js 20+** (only required if you are editing the `dashboard` UI)
+
+---
+
+## Development Setup
+
+We use `pyproject.toml` as the single source of truth for dependencies.
 
 1. Fork the repository and clone your fork:
    ```bash
-   git clone https://github.com/chaitanya-sharmaa/axon.git
-   cd axon/bridge
+   git clone https://github.com/YOUR_USERNAME/axon.git
+   cd axon
    ```
 
 2. Create a virtual environment and install all dev dependencies:
    ```bash
    python -m venv .venv
    source .venv/bin/activate
-   pip install -e ".[dev,redis,claude,langchain]"
+   pip install -e ".[dev,redis,claude,langchain,lingua]"
    ```
 
 3. Copy the env template and adjust as needed:
@@ -36,58 +43,30 @@ Thank you for taking the time to contribute! 🎉
    cp .env.example .env
    ```
 
----
-
-## Development Setup
-
-Start the server in hot-reload mode:
-```bash
-axon serve --reload
-# or
-uvicorn app:app --reload --host 127.0.0.1 --port 8080
-```
+4. Start the server in hot-reload mode:
+   ```bash
+   axon serve --reload
+   # or
+   uvicorn app:app --reload --host 127.0.0.1 --port 8080
+   ```
 
 The interactive API docs are available at http://localhost:8080/docs.
 
 ---
 
-## Running Tests
+## Running Tests & Linting (CI Requirements)
+
+Axon uses GitHub Actions to run automated checks on every Pull Request. **Your PR will not be merged if these checks fail.** Please run them locally before pushing!
 
 ```bash
-# Run the full test suite
+# 1. Run the full test suite
 pytest tests/ -v
 
-# Run a single test file
-pytest tests/test_token_optimizer.py -v
-
-# Run with coverage
-pytest tests/ --cov=. --cov-report=term-missing
-```
-
-### Linting & Type Checking
-
-```bash
-# Lint (auto-fix where possible)
+# 2. Lint (auto-fix where possible)
 ruff check . --fix
 
-# Type check
-mypy . --ignore-missing-imports
-```
-
----
-
-## Code Style
-
-- **Formatter**: `ruff format` (Black-compatible)
-- **Linter**: `ruff check`
-- **Type hints**: all public functions must have full type annotations
-- **Docstrings**: Google-style for public classes and functions
-- **Line length**: 100 characters
-
-Pre-commit hooks (optional but recommended):
-```bash
-pip install pre-commit
-pre-commit install
+# 3. Type check (Strict mode is enforced!)
+mypy .
 ```
 
 ---
@@ -98,21 +77,8 @@ Axon's token optimizer is designed to be extended. There are two ways to add a s
 
 ### Option A — Built-in (core contribution)
 
-1. Add a strategy constant in `services/token_optimizer.py`:
-   ```python
-   STRATEGY_MY_STRATEGY = "my_strategy"
-   ALL_STRATEGIES = [..., STRATEGY_MY_STRATEGY]
-   ```
-
-2. Add an encode block in `TokenOptimizer.optimize()`:
-   ```python
-   if STRATEGY_MY_STRATEGY in active:
-       try:
-           _add(STRATEGY_MY_STRATEGY, my_encoder(obj))
-       except Exception as e:
-           logging.warning(f"Strategy {STRATEGY_MY_STRATEGY} failed: {e}")
-   ```
-
+1. Add a strategy constant in `services/token_optimizer.py`.
+2. Add an encode block in `TokenOptimizer.optimize()`.
 3. Add tests in `tests/test_token_optimizer.py`.
 
 ### Option B — Plugin (third-party, no fork needed)
@@ -126,43 +92,12 @@ def encode_brotli(obj: Any, session_id: str | None = None) -> str:
     return brotli.compress(json.dumps(obj).encode()).hex()
 ```
 
-Then include your module in your app's startup code.
-
 ---
 
 ## Submitting a Pull Request
 
-1. Create a feature branch:
-   ```bash
-   git checkout -b feat/my-new-feature
-   ```
-
-2. Make your changes, add tests, update `CHANGELOG.md` under `[Unreleased]`.
-
-3. Ensure all checks pass:
-   ```bash
-   pytest tests/ -v
-   ruff check .
-   mypy . --ignore-missing-imports
-   ```
-
-4. Push and open a PR against `main`. Fill in the PR template.
-
-### PR Checklist
-
-- [ ] Tests added / updated for all changed behaviour
-- [ ] `CHANGELOG.md` updated under `[Unreleased]`
-- [ ] All existing tests pass
-- [ ] Type annotations added for new public functions
-- [ ] Docstrings updated
-
----
-
-## Reporting Bugs
-
-Please open a GitHub Issue with:
-- Axon version (`axon --version` or from `pyproject.toml`)
-- Python version
-- Minimal reproducible example
-- Expected vs actual behaviour
-- Relevant log output (use `AXON_LOG_FORMAT=json AXON_LOG_LEVEL=DEBUG`)
+1. Create a feature branch: `git checkout -b feat/my-new-feature`
+2. Make your changes and add tests.
+3. Run `pytest`, `ruff check .`, and `mypy .` to ensure CI will pass.
+4. Push and open a PR against `main`. 
+5. Fill out the provided PR template. If your PR fixes an issue, link it (e.g. `Fixes #12`).

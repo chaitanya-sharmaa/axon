@@ -21,7 +21,8 @@ import openai
 # 1. Point the client to your local Axon Bridge
 client = openai.OpenAI(
     base_url="http://localhost:8080/v1",
-    api_key="your-api-key",  # Pass ANY provider's API key
+    api_key="your-api-key",  # Pass ANY provider's API key (BYOK)
+    # default_headers={"X-Upstream-Base-Url": "https://api.groq.com/openai/v1"} # Optional: Route to a custom API
 )
 
 # 2. Seamlessly route to Gemini, Claude, or any 100+ model using OpenAI's SDK!

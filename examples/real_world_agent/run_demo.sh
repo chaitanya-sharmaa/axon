@@ -8,8 +8,8 @@ echo "=========================================="
 cd "$(dirname "$0")/../../"
 
 # 1. Start the Axon Bridge server in the background
-echo "[Bash] Starting Axon Bridge (uvicorn app:app)..."
-./.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000 &
+echo "[Bash] Starting Axon Bridge (granian)..."
+./.venv/bin/python -m granian --interface asgi app:app --host 127.0.0.1 --port 8000 &
 SERVER_PID=$!
 
 # Wait for server to boot

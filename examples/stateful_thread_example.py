@@ -21,7 +21,7 @@ import uuid
 
 import requests
 
-# Ensure your proxy is running: `uvicorn main:app --port 8080`
+# Ensure your proxy is running: `python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080`
 AXON_URL = "http://127.0.0.1:8080/v1/chat/completions"
 
 # Create a unique thread ID for this session

@@ -67,7 +67,7 @@
       </div>
       <div class="install-strip">
         <span class="dollar">$</span>
-        <span id="icode">python -m uvicorn app:app --host 127.0.0.1 --port 8080</span>
+        <span id="icode">python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080</span>
         <button id="copyBtn" onclick="copyCmd()" title="Copy">
           <svg id="copyIco" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         </button>
@@ -460,7 +460,7 @@ response = client.chat.completions.create(
         <div class="qs-step"><div class="qs-n">2</div><div class="qs-body"><h3>Configure</h3><pre><code>cp .env.example .env
 <span class="cm"># Set AXON_OPENAI_API_KEY=your-groq-or-openai-key
 # Set AXON_OPENAI_BASE_URL=https://api.groq.com/openai/v1</span></code></pre></div></div>
-        <div class="qs-step"><div class="qs-n">3</div><div class="qs-body"><h3>Serve</h3><pre><code>python -m uvicorn app:app --host 127.0.0.1 --port 8080
+        <div class="qs-step"><div class="qs-n">3</div><div class="qs-body"><h3>Serve</h3><pre><code>python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080
 <span class="cm"># Dashboard → http://localhost:8080/dashboard</span></code></pre></div></div>
         <div class="qs-step"><div class="qs-n">4</div><div class="qs-body"><h3>Point your SDK at Axon</h3><pre><code><span class="kw">import</span> openai
 client = openai.OpenAI(

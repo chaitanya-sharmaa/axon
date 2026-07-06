@@ -8,7 +8,7 @@
 # Clone and run from source (pip package coming soon)
 git clone https://github.com/chaitanya-sharmaa/axon
 cd axon && pip install -r requirements.txt
-python -m uvicorn app:app --host 127.0.0.1 --port 8080
+python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080
 # Dashboard → http://localhost:8080/dashboard
 ```
 
@@ -309,7 +309,7 @@ cp .env.example .env
 # Example for Groq: AXON_OPENAI_BASE_URL=https://api.groq.com/openai/v1
 
 # 3. Run
-python -m uvicorn app:app --host 127.0.0.1 --port 8080
+python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080
 
 # 4. Point your app at Axon (BYOK — client passes its own key)
 import openai

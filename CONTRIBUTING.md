@@ -47,7 +47,7 @@ We use `pyproject.toml` as the single source of truth for dependencies.
    ```bash
    axon serve --reload
    # or
-   uvicorn app:app --reload --host 127.0.0.1 --port 8080
+   python -m granian --interface asgi app:app --reload --host 127.0.0.1 --port 8080
    ```
 
 The interactive API docs are available at http://localhost:8080/docs.

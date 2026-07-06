@@ -41,7 +41,7 @@ def run_multiturn_test():
     print("🤖 STARTING REAL-WORLD MULTI-TURN AGENT SIMULATION")
     print("==================================================")
 
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.environ.get("AXON_OPENAI_API_KEY") or os.environ.get("AXON_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "dummy-key")
     session_id = "real_world_agent_session_001"
 
     # Base system context (persists across turns)

@@ -30,7 +30,7 @@ async def main():
     # NOTE: If connected directly to the Flint MCP Server (e.g. via Claude Desktop),
     # the agent could use the MCP tools automatically. Here, we just prompt it directly.
     response = await client.chat.completions.create(
-        model="gpt-4o",
+        model="groq/llama-3.1-8b-instant",
         messages=[
             {"role": "system", "content": "You are an AI assistant who writes Microsoft Flint Chart specifications (JSON). Output ONLY raw JSON, no markdown formatting. The output should be a ChartAssemblyInput with 'data' and 'chart_spec' defined."},
             {"role": "user", "content": f"Given the following data, write a Flint chart spec that creates a Stacked Bar Chart showing token savings over time, grouped by the optimization type.\n\nData:\n{telemetry_data}"}

@@ -5,8 +5,10 @@
 **Author:** [Chaitanya Sharma](https://github.com/chaitanya-sharmaa/axon) · chaitanyasharma04uk@gmail.com
 
 ```bash
-pip install axon-bridge
-axon serve
+# Clone and run from source (pip package coming soon)
+git clone https://github.com/chaitanya-sharmaa/axon
+cd axon && pip install -r requirements.txt
+python -m uvicorn app:app --host 127.0.0.1 --port 8080
 # Dashboard → http://localhost:8080/dashboard
 ```
 
@@ -43,17 +45,47 @@ Your App (OpenAI SDK)
 
 ## 📊 Verified Benchmarking Results
 
-All **254/254** tests in CI are passing with 100% Core Coverage. Benchmarks run against real-world complex JSON payloads.
+All **271/271** tests are passing with 100% Core Coverage. All benchmarks were run against real-world complex JSON payloads with a live LLM (Groq `llama-3.1-8b-instant`) or locally via the token optimizer.
 
-### Scenario: Codebase Context for AI Coding Agents (AST Graph)
+### Scenario A: Real-World Agent Payload (Architecture Context, live LLM test)
 
-*Payload: A 4,800+ token JSON graph representing a React codebase's Abstract Syntax Tree, typical of agentic coding workflows.*
+*Payload: A 23,662-character JSON graph representing 150 modules and their dependencies — a typical AI coding agent payload.*
 
-| Turn | Action | Axon Strategy | Result |
+| Metric | Result |
+|---|---|
+| **Raw payload size** | 23,662 characters / 5,507 tokens |
+| **After Axon compression** | 3,318 tokens |
+| **Token savings** | ✅ **39.75%** API Token Savings |
+| **Upstream LLM** | Groq `llama-3.1-8b-instant` (live, end-to-end verified) |
+
+### Scenario B: Generic JSON Payload Compression Strategies (local benchmark)
+
+*Payload: A structured user-profile JSON object (~21 tokens) benchmarked across all 8 strategies.*
+
+| Turn | Action | Axon Strategy | Proven Result |
 |---|---|---|---|
-| **Turn 1** | Architecture question | *Axon Graph Compression* | ✅ **39.3% API Token Savings** |
-| **Turn 2** | Identical repeated question | *Exact-Match KV Cache* | ✅ **100% Token Savings** — $0 cost, 5ms latency |
-| **Turn 3** | Follow-up question | *Stateful Threads* | ✅ **99.9% Network Bandwidth Saved** + 39.1% API savings |
+| **Turn 1** | First send, new session | *schema_values* | ✅ **28.6% token savings** (21t → 15t) |
+| **Turn 2** | Same data repeated | *generic_delta* | ✅ **76.2% token savings** (21t → 5t) |
+| **Turn 3** | One field changed | *generic_delta* | ✅ **57.1% token savings** (21t → 9t) |
+
+### Scenario C: Code Context Graph Payload (local benchmark)
+
+*Payload: AST dependency graph with 150 nodes and 149 edges (~117 tokens in JSON).*
+
+| Turn | Action | Axon Strategy | Proven Result |
+|---|---|---|---|
+| **Turn 1** | Fresh graph context | *graph* | ✅ **53.9% token savings** (117t → 54t) |
+| **Turn 2** | One symbol added | *graph_delta* | ✅ **62.4% token savings** (157t → 59t) |
+
+### Scenario D: Caching (local benchmark)
+
+| Turn | Action | Axon Strategy | Proven Result |
+|---|---|---|---|
+| **Any** | Identical repeated request | *Exact-Match KV Cache* | ✅ **100% token savings** — $0 cost |
+| **Any** | Semantically similar question | *Semantic Vector Cache* | ✅ **100% savings** — served from cache (verified via `x-axon-cache: HIT` header) |
+
+> [!NOTE]
+> The Firewall and PII Redaction features were also live-verified: the Prompt Firewall correctly returned `SYSTEM HALTED.` for jailbreak attempts, and PII Redaction correctly refused to echo back SSN data.
 
 ---
 
@@ -110,7 +142,7 @@ client.chat.completions.create(
 # Once $10 is spent → 429 Too Many Requests
 ```
 
-Spend is tracked atomically in SQLite or Redis. Supports multiple API keys with round-robin load balancing via comma-separated `OPENAI_API_KEY`.
+Spend is tracked atomically in Turso/libSQL or Redis. Supports multiple API keys with round-robin load balancing via comma-separated `AXON_OPENAI_API_KEY`.
 
 ---
 
@@ -265,32 +297,34 @@ To keep this README clean, the full **Configuration Variables** and **API Endpoi
 ## 🏃 Quick Start
 
 ```bash
-# 1. Install
-pip install axon-bridge
+# 1. Clone and install
+git clone https://github.com/chaitanya-sharmaa/axon
+cd axon
+pip install -r requirements.txt
 
 # 2. Configure
 cp .env.example .env
-# Edit .env and set AXON_OPENAI_API_KEY if you want a server-default key
-# Otherwise, agents can Bring Their Own Key (BYOK)
+# Edit .env and set AXON_OPENAI_API_KEY (your Groq / OpenAI key)
+# Set AXON_OPENAI_BASE_URL to your provider's base URL
+# Example for Groq: AXON_OPENAI_BASE_URL=https://api.groq.com/openai/v1
 
 # 3. Run
-axon serve
+python -m uvicorn app:app --host 127.0.0.1 --port 8080
 
-# 4. Point your app at Axon (BYOK Example)
+# 4. Point your app at Axon (BYOK — client passes its own key)
 import openai
 import httpx
 
 client = openai.OpenAI(
     base_url="http://localhost:8080/v1",
-    api_key="your-real-api-key",  # Axon uses the agent's key by default (BYOK)
-    # Optional: Pass a custom upstream base URL via header
+    api_key="your-real-api-key",  # The key is forwarded directly to the upstream provider
     http_client=httpx.Client(headers={"X-Upstream-Base-Url": "https://api.groq.com/openai/v1"})
 )
 response = client.chat.completions.create(
-    model="openai/llama-3.1-8b-instant", # Use litellm provider prefixes
+    model="groq/llama-3.1-8b-instant",  # Use litellm provider prefixes
     messages=[{"role": "user", "content": "Hello!"}]
 )
-# Check x-axon-metrics header for savings report
+# Check x-axon-metrics response header for live savings report
 ```
 
 ### Docker

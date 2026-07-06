@@ -299,7 +299,7 @@ async def create_run(
         messages.insert(0, ChatMessage(role="system", content=req.instructions))
 
     model = req.model or os.getenv("AXON_DEFAULT_MODEL", "gpt-4o")
-    compressed_messages, metrics = _compress_messages(messages, session_id=None, model_name=model)
+    compressed_messages, metrics = await _compress_messages(messages, session_id=None, model_name=model)
 
     run_id = f"run_{uuid.uuid4().hex}"
 

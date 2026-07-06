@@ -25,34 +25,78 @@ class PIIRedactor:
 
     def __init__(self, enable_redaction: bool = True):
         self.enable_redaction = enable_redaction
+        self._analyzer = None
+        self._loaded_presidio = False
+
+    def _lazy_load_presidio(self):
+        if self._loaded_presidio:
+            return
+        self._loaded_presidio = True
+        try:
+            from presidio_analyzer import AnalyzerEngine
+            # Disable noisy logging from Presidio
+            import logging as sys_logging
+            sys_logging.getLogger("presidio-analyzer").setLevel(sys_logging.ERROR)
+            self._analyzer = AnalyzerEngine()
+            log.info("Presidio Analyzer loaded successfully for PII redaction.")
+        except ImportError:
+            log.info("presidio-analyzer not found. Falling back to regex PII redaction.")
+        except Exception as e:
+            log.warning(f"Failed to load Presidio Analyzer: {e}")
 
     def redact(self, text: str, tenant_id: str = "default") -> str:
         """Replace detected PII with tokens (e.g. [EMAIL_REDACTED])."""
         if not self.enable_redaction or not text:
             return text
 
+        self._lazy_load_presidio()
         original_text = text
         hit_types = []
 
-        # Redact SSNs
-        new_text = SSN_REGEX.sub("[SSN_REDACTED]", text)
-        if new_text != text: hit_types.append("ssn")
-        text = new_text
+        if self._analyzer:
+            try:
+                results = self._analyzer.analyze(
+                    text=text,
+                    language="en",
+                    entities=["EMAIL_ADDRESS", "US_SSN", "CREDIT_CARD", "PHONE_NUMBER"]
+                )
+                if results:
+                    # Sort results in reverse order to replace without messing up indices
+                    results = sorted(results, key=lambda x: x.start, reverse=True)
+                    entity_map = {
+                        "EMAIL_ADDRESS": "EMAIL",
+                        "US_SSN": "SSN",
+                        "CREDIT_CARD": "CREDIT_CARD",
+                        "PHONE_NUMBER": "PHONE"
+                    }
+                    for r in results:
+                        entity_type = entity_map.get(r.entity_type, r.entity_type)
+                        text = text[:r.start] + f"[{entity_type}_REDACTED]" + text[r.end:]
+                        hit_types.append(entity_type.lower())
+            except Exception as e:
+                log.warning(f"Presidio analysis failed: {e}. Falling back to regex.")
 
-        # Redact Credit Cards
-        new_text = CREDIT_CARD_REGEX.sub("[CREDIT_CARD_REDACTED]", text)
-        if new_text != text: hit_types.append("credit_card")
-        text = new_text
+        # Fallback / Regex pass if Presidio is not installed or text wasn't modified
+        if not self._analyzer or hit_types == []:
+            # Redact SSNs
+            new_text = SSN_REGEX.sub("[SSN_REDACTED]", text)
+            if new_text != text: hit_types.append("ssn")
+            text = new_text
 
-        # Redact Phones
-        new_text = PHONE_REGEX.sub("[PHONE_REDACTED]", text)
-        if new_text != text: hit_types.append("phone")
-        text = new_text
+            # Redact Credit Cards
+            new_text = CREDIT_CARD_REGEX.sub("[CREDIT_CARD_REDACTED]", text)
+            if new_text != text: hit_types.append("credit_card")
+            text = new_text
 
-        # Redact Emails
-        new_text = EMAIL_REGEX.sub("[EMAIL_REDACTED]", text)
-        if new_text != text: hit_types.append("email")
-        text = new_text
+            # Redact Phones
+            new_text = PHONE_REGEX.sub("[PHONE_REDACTED]", text)
+            if new_text != text: hit_types.append("phone")
+            text = new_text
+
+            # Redact Emails
+            new_text = EMAIL_REGEX.sub("[EMAIL_REDACTED]", text)
+            if new_text != text: hit_types.append("email")
+            text = new_text
 
         if text != original_text:
             log.info(f"PII Redactor: Detected and masked: {hit_types}")

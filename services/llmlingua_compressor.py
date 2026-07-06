@@ -64,4 +64,9 @@ class LLMLinguaCompressor:
             log.error(f"LLMLingua compression failed: {e}")
             return text
 
+    async def compress_text_async(self, text: str, target_token=None, rate=0.33) -> str:
+        """Async wrapper for compress_text to prevent blocking the event loop."""
+        import asyncio
+        return await asyncio.to_thread(self.compress_text, text, target_token, rate)
+
 llmlingua_compressor = LLMLinguaCompressor()

@@ -31,8 +31,8 @@ def test_upload_file_success_txt():
 
 def test_upload_file_pdf():
     # Make a dummy PDF
-    import PyPDF2
-    writer = PyPDF2.PdfWriter()
+    import pypdf
+    writer = pypdf.PdfWriter()
     writer.add_blank_page(width=72, height=72)
     pdf_bytes = BytesIO()
     writer.write(pdf_bytes)

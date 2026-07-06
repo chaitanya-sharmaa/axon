@@ -1,9 +1,6 @@
 import logging
 from typing import Any
 
-import torch
-import torch.nn.functional as F
-
 from services.intent_classifier import get_embedder
 
 log = logging.getLogger(__name__)
@@ -35,6 +32,13 @@ class VectorStore:
 
     def add_file(self, file_id: str, text: str) -> None:
         """Chunks the text, embeds it, and stores it in memory."""
+        try:
+            import torch
+        except ImportError:
+            log.warning("torch not available. Storing chunks without vectors.")
+            self.files[file_id] = {"chunks": self.chunk_text(text), "embeddings": None}
+            return
+
         embedder = get_embedder()
         if not embedder:
             log.warning("Embedder not available. Storing chunks without vectors.")
@@ -53,6 +57,12 @@ class VectorStore:
 
     def search(self, file_ids: list[str], query: str, top_k: int = 3) -> list[str]:
         """Search across specific files for the most relevant chunks using Cosine Similarity."""
+        try:
+            import torch
+            import torch.nn.functional as F
+        except ImportError:
+            return []
+
         embedder = get_embedder()
         if not embedder or not query.strip():
             return []

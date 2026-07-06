@@ -26,6 +26,28 @@ def get_tokenizer_for_model(model_name: str):
         client = Anthropic()
         return client.get_tokenizer()  # type: ignore
 
+    if "gemini" in model_name.lower():
+        try:
+            import google.generativeai as genai
+            class GeminiTokenizer:
+                def __init__(self, model_id):
+                    # GenerativeModel requires the model name without providers like 'gemini/' prefix if any
+                    clean_name = model_id.split("/")[-1] if "/" in model_id else model_id
+                    self.model = genai.GenerativeModel(clean_name)
+                
+                def encode(self, text: str) -> list[int]:
+                    try:
+                        resp = self.model.count_tokens(text)
+                        return [0] * resp.total_tokens
+                    except Exception as e:
+                        import logging
+                        logging.warning(f"Gemini count_tokens failed: {e}. Falling back to tiktoken.")
+                        import tiktoken
+                        return tiktoken.get_encoding("cl100k_base").encode(text)
+            return GeminiTokenizer(model_name)
+        except ImportError:
+            pass
+
     # Unknown model — fall back to the GPT-4 / GPT-3.5-turbo encoding
     import logging  # noqa: PLC0415
     logging.warning(

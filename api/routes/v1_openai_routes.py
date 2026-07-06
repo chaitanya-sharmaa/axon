@@ -115,7 +115,7 @@ class EmbeddingRequest(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _compress_messages(messages: list[ChatMessage], session_id: str | None, model_name: str | None = None) -> tuple[list[dict], dict]:
+async def _compress_messages(messages: list[ChatMessage], session_id: str | None, model_name: str | None = None, enabled_strategies: list[str] | None = None) -> tuple[list[dict], dict]:
     """Compress each message's content and return (compressed_messages, savings_metrics)."""
     if not settings.enable_tool_compression:
         return [m.model_dump(exclude_none=True) for m in messages], {
@@ -166,7 +166,7 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
                 # 2a. Semantic NLP Compression (LLMLingua)
                 if settings.enable_llmlingua_compression and len(content) > 1000:
                     from services.llmlingua_compressor import llmlingua_compressor
-                    compressed_text = llmlingua_compressor.compress_text(content)
+                    compressed_text = await llmlingua_compressor.compress_text_async(content)
                     if compressed_text and len(compressed_text) < len(content):
                         content = compressed_text
 
@@ -187,6 +187,7 @@ def _compress_messages(messages: list[ChatMessage], session_id: str | None, mode
                 result = axon_service._optimizer.optimize(
                     {"role": msg.role, "content": parsed_content},
                     session_id=msg_session_id,
+                    enabled_strategies=enabled_strategies,
                 )
                 original_tokens += result.json_baseline_tokens
                 compressed_tokens += result.winner.token_estimate
@@ -312,22 +313,23 @@ async def _stream_openai(
                 current_model = next_fb_model
 
         async for chunk in response:
-            if max_spend is not None and tokenizer is not None:
+            if tokenizer is not None:
                 delta_text = chunk.choices[0].delta.content or ""
                 if delta_text:
                     accumulated_tokens += len(tokenizer.encode(delta_text))
 
-                    # Calculate true output cost for the specific model
-                    from services.pricing import estimate_cost_usd
-                    cost = estimate_cost_usd(accumulated_tokens, current_model, direction="output")
-                    if cost is None:
-                        cost = (accumulated_tokens / 1000.0) * 0.015 # fallback
+                    if max_spend is not None:
+                        # Calculate true output cost for the specific model
+                        from services.pricing import estimate_cost_usd
+                        cost = estimate_cost_usd(accumulated_tokens, current_model, direction="output")
+                        if cost is None:
+                            cost = (accumulated_tokens / 1000.0) * 0.015 # fallback
 
-                    if cost > max_spend:
-                        log.warning(f"Circuit Breaker Triggered! Cost ${cost:.4f} exceeded budget ${max_spend}")
-                        yield 'data: {"choices": [{"delta": {"content": "\\n\\n[AXON BUDGET EXCEEDED - STREAM TERMINATED]"}}]}\n\n'
-                        yield "data: [DONE]\n\n"
-                        return
+                        if cost > max_spend:
+                            log.warning(f"Circuit Breaker Triggered! Cost ${cost:.4f} exceeded budget ${max_spend}")
+                            yield 'data: {"choices": [{"delta": {"content": "\\n\\n[AXON BUDGET EXCEEDED - STREAM TERMINATED]"}}]}\n\n'
+                            yield "data: [DONE]\n\n"
+                            return
 
             yield f"data: {chunk.model_dump_json(exclude_none=True)}\n\n"
 
@@ -477,11 +479,17 @@ async def chat_completions(
         req.tools = agentic_result.tools
     agentic_tokens_saved = agentic_result.tokens_saved
 
+    # Strategy overrides
+    strategy_profile = request.headers.get("X-Axon-Strategy-Profile")
+    enabled_strategies = None
+    if strategy_profile:
+        enabled_strategies = [s.strip() for s in strategy_profile.split(",") if s.strip()]
+
     # Compress messages
     # If stateful thread is enabled, pass session_id=None to disable stateful TRON/TOON
     # delta deduplication, forcing safe structural compression (GCF).
     compress_session_id = None if is_stateful_thread else session_id
-    compressed_messages, metrics = _compress_messages(req.messages, compress_session_id, req.model)
+    compressed_messages, metrics = await _compress_messages(req.messages, compress_session_id, req.model, enabled_strategies)
 
     # Tool Compression (Phase 2)
     has_tools = False

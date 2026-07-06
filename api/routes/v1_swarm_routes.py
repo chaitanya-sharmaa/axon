@@ -46,7 +46,7 @@ async def swarm_completions(
 
     # 1. Compress the prompt
     # We use the synthesizer_model to dictate compression constraints for the base prompt
-    compressed_messages, metrics = _compress_messages(req.messages, x_axon_session_id, req.synthesizer_model)
+    compressed_messages, metrics = await _compress_messages(req.messages, x_axon_session_id, req.synthesizer_model)
 
     # 2. Fan-out to all models
     async def _call_model(model_name: str) -> str:

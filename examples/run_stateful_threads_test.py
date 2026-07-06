@@ -42,7 +42,7 @@ def run_stateful_threads_test():
     print("🤖 STARTING STATEFUL THREADS ARCHITECTURE TEST")
     print("==================================================")
 
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.environ.get("AXON_OPENAI_API_KEY") or os.environ.get("AXON_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "dummy-key")
     # Generate a unique thread ID for this test run
     session_id = f"thread_demo_{uuid.uuid4().hex[:8]}"
 

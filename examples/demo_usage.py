@@ -6,7 +6,7 @@ Shows all core capabilities of the bridge against a running server.
 Usage
 -----
   # 1. Start the server in one terminal (from the project root directory):
-  python3 -m uvicorn app:app --host 127.0.0.1 --port 8080
+  python3 -m granian --interface asgi app:app --host 127.0.0.1 --port 8080
 
   # 2. Run this demo in another terminal (also from the project root):
   python3 bridge/examples/demo_usage.py
@@ -206,7 +206,7 @@ def main() -> None:
         get("/health/live")
     except urllib.error.URLError:
         print(f"\n  ERROR: Server not reachable at {BASE_URL}")
-        print("  Start it first from the project root:\n    axon serve  (or: uvicorn app:app --host 127.0.0.1 --port 8080)")
+        print("  Start it first from the project root:\n    axon serve  (or: python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080)")
         sys.exit(1)
 
     demo_health()

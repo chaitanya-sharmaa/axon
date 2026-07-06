@@ -66,7 +66,7 @@ def run_multiturn_test():
         messages.append({"role": "user", "content": question})
 
         req_body = {
-            "model": "ollama/llama3",
+            "model": "groq/llama-3.1-8b-instant",
             "messages": messages,
             "temperature": 0.0
         }

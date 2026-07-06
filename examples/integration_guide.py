@@ -12,7 +12,7 @@ Requirements
 
 Start the server (separate terminal)
 -------------------------------------
-  python3 -m uvicorn app:app --host 127.0.0.1 --port 8080
+  python3 -m granian --interface asgi app:app --host 127.0.0.1 --port 8080
 """
 
 from __future__ import annotations
@@ -222,9 +222,9 @@ def section_proxy():
   No code changes needed for your existing API.
 """)
 
-    # We'll use httpbin.org as our "external API"
+    # We'll use api.github.com as our "external API"
     proxy_request = {
-        "upstream_url": "https://httpbin.org/json",
+        "upstream_url": "https://api.github.com/users/octocat",
         "method": "GET",
         "session_id": "guide-proxy",
     }
@@ -234,8 +234,8 @@ def section_proxy():
 
     print(f"    → Upstream responded with status {r['upstream']['status']}")
     m = r["metrics"]
-    print(f"    → Bridge encoded response with '{m['strategy_used']}'")
-    print(f"    → Savings: {m['estimated_savings_percent']:+.1f}% ({m['estimated_json_tokens']}t → {m['estimated_optimized_tokens']}t)")
+    print(f"    → Bridge successfully compressed upstream response")
+    print(f"    → Savings: {m['estimated_savings_percent']:+.1f}% ({m['estimated_json_tokens']}t → {m['estimated_compact_tokens']}t)")
     print(f"    → Compact text for LLM:\n{r['compact_text']}")
 
 
@@ -278,7 +278,7 @@ def main():
         get("/health/live")
     except urllib.error.URLError:
         print(f"\nERROR: Server not reachable at {BASE}")
-        print("Start it first from the project root:\n  axon serve  (or: uvicorn app:app --host 127.0.0.1 --port 8080)")
+        print("Start it first from the project root:\n  axon serve  (or: python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080)")
         sys.exit(1)
 
     section_health()

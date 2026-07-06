@@ -23,14 +23,20 @@ Axon does not require downtime for most configuration changes, but secret rotati
 
 ## 💾 Memory & Storage in Production
 
-By default, Axon uses a local SQLite file (`axon_sessions.db`) for caching and stateful thread memory.
+By default, Axon uses a local **Turso/libSQL** file (`axon_sessions.db`) for caching and stateful thread memory. The `turso` driver is a superset of SQLite — it works identically for local files but can also point at a remote Turso edge database.
 
 > [!WARNING]  
-> If you deploy to a serverless environment (e.g. AWS Fargate, Google Cloud Run) or run multiple load-balanced Axon instances, **local SQLite will not work** (data is lost on restart or out-of-sync across instances).
+> If you deploy to a serverless environment (e.g. AWS Fargate, Google Cloud Run) or run multiple load-balanced Axon instances, **local file storage will not work** (data is lost on restart or out-of-sync across instances).
 
 **Production Solution:**
-Change `AXON_MEMORY_TYPE` to `redis` or `turso`.
+For multi-instance deployments, switch to Redis or a remote Turso edge database:
 ```env
+# Option A: Remote Turso edge (recommended — zero-latency globally distributed)
+AXON_MEMORY_TYPE="turso"
+AXON_TURSO_URL="libsql://your-db.turso.io"
+AXON_TURSO_AUTH_TOKEN="your-turso-auth-token"
+
+# Option B: Redis
 AXON_MEMORY_TYPE="redis"
 AXON_REDIS_URL="redis://your-production-redis-cluster:6379/0"
 ```

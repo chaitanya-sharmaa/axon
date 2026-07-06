@@ -79,7 +79,7 @@ def test_json_minification():
         {"role": "system", "content": "Analyze catalog."},
         {"role": "user", "content": json.dumps(items)}
     ]
-    send_request("Test 1: JSON Array Minification", "ollama/llama3", messages)
+    send_request("Test 1: JSON Array Minification", "groq/llama-3.1-8b-instant", messages)
 
 def test_graph_deduplication():
     # Format: Graph Payload with shared references
@@ -97,14 +97,14 @@ def test_graph_deduplication():
         {"role": "system", "content": "Analyze graph."},
         {"role": "user", "content": json.dumps(graph_payload)}
     ]
-    send_request("Test 2: Graph Deduplication", "ollama/llama3", messages)
+    send_request("Test 2: Graph Deduplication", "groq/llama-3.1-8b-instant", messages)
 
 def test_low_complexity_routing():
     # Format: Simple string
     messages = [
         {"role": "user", "content": "What is 2+2?"}
     ]
-    send_request("Test 3: Low Complexity Auto-Routing", "ollama/llama3", messages)
+    send_request("Test 3: Low Complexity Auto-Routing", "groq/llama-3.1-8b-instant", messages)
 
 def test_high_complexity_routing():
     # Format: Deep reasoning trigger
@@ -112,12 +112,12 @@ def test_high_complexity_routing():
         {"role": "user", "content": "Think step by step and deduce the architectural constraints of the system."}
     ]
     # Even if they request a mini model, it should auto-upgrade
-    send_request("Test 4: High Complexity Auto-Routing", "ollama/llama3", messages)
+    send_request("Test 4: High Complexity Auto-Routing", "groq/llama-3.1-8b-instant", messages)
 
 def test_pii_redaction():
     # Should automatically redact the SSN
     messages = [{"role": "user", "content": "My social security number is 123-45-6789 and email is john@example.com."}]
-    send_request("Test 5: PII Redaction", "ollama/llama3", messages)
+    send_request("Test 5: PII Redaction", "groq/llama-3.1-8b-instant", messages)
     # The actual upstream request is hidden in test, but the output works in full E2E
 
 def test_semantic_caching():
@@ -126,10 +126,10 @@ def test_semantic_caching():
         {"role": "user", "content": "Explain quantum physics in exactly 153 words."}
     ]
     print("\n--- Sending First Request (Cache Miss) ---")
-    send_request("Test 6A: Semantic Caching (Miss)", "ollama/llama3", messages)
+    send_request("Test 6A: Semantic Caching (Miss)", "groq/llama-3.1-8b-instant", messages)
 
     print("\n--- Sending Second Request (Cache Hit) ---")
-    send_request("Test 6B: Semantic Caching (Hit)", "ollama/llama3", messages)
+    send_request("Test 6B: Semantic Caching (Hit)", "groq/llama-3.1-8b-instant", messages)
 
 
 if __name__ == "__main__":

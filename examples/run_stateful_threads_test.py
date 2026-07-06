@@ -77,7 +77,7 @@ def run_stateful_threads_test():
             print("  🔥 99% Network Bandwidth Saved between Client and Proxy!")
 
         req_body = {
-            "model": "ollama/llama3",
+            "model": "groq/llama-3.1-8b-instant",
             "messages": messages_from_client,
             "temperature": 0.0
         }

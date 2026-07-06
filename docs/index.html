@@ -27,6 +27,7 @@
         <a href="#benchmarks">Benchmarks</a>
         <a href="#pipeline">Pipeline</a>
         <a href="#quickstart">Quickstart</a>
+        <a href="docs/api-reference.md" target="_blank">Docs</a>
         <a href="https://github.com/chaitanya-sharmaa/axon" target="_blank" class="nav-github">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
           GitHub
@@ -66,7 +67,7 @@
       </div>
       <div class="install-strip">
         <span class="dollar">$</span>
-        <span id="icode">pip install axon-bridge &amp;&amp; axon serve</span>
+        <span id="icode">python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080</span>
         <button id="copyBtn" onclick="copyCmd()" title="Copy">
           <svg id="copyIco" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         </button>
@@ -195,8 +196,8 @@
   <section class="section section-dark" id="pipeline">
     <div class="container">
       <p class="eyebrow">Agentic Pipeline</p>
-      <h2 class="section-h2">98% reduction on agentic token loops.</h2>
-      <p class="section-p">8 mathematical compression passes run before any structural compression, specifically designed for ReAct, Plan-Execute, and tool-calling agent workflows.</p>
+      <h2 class="section-h2">Up to 100% reduction on agentic loops.</h2>
+      <p class="section-p">8 mathematical compression passes run sequentially before structural compression, specifically designed for ReAct, Plan-Execute, and tool-calling agent workflows. The Loop Circuit Breaker (Pass 8) achieves <strong>100% LLM bypass</strong> on repeated tool calls.</p>
       <div class="pipeline-grid">
         <div class="pipe-card"><div class="pipe-pass">Pass 1</div><h4>Error Truncation</h4><p>Compresses 50-line stack traces to the single error headline.</p><div class="pipe-savings">~90% on failed tools</div></div>
         <div class="pipe-card"><div class="pipe-pass">Pass 2</div><h4>Whitespace Normalization</h4><p>Strips invisible Unicode, normalizes line endings, collapses spacing.</p><div class="pipe-savings">5–15% savings</div></div>
@@ -263,8 +264,8 @@ response = client.chat.completions.create(
   <section class="section" id="features">
     <div class="container">
       <p class="eyebrow">Features</p>
-      <h2 class="section-h2">11 production features. Zero configuration.</h2>
-      <p class="section-p">Everything ships out of the box and activates automatically on every request.</p>
+      <h2 class="section-h2">11 features. Compression always on.</h2>
+      <p class="section-p">Compression, caching, and agentic pipeline activate <strong>automatically</strong> on every request. Security, routing, and memory features are opt-in via <code>.env</code>.</p>
       <div class="feat-grid">
         <div class="feat feat-wide">
           <div class="feat-ico">🗜️</div>
@@ -275,13 +276,13 @@ response = client.chat.completions.create(
         <div class="feat">
           <div class="feat-ico">🤖</div>
           <h3>ML Smart Router</h3>
-          <p>Local sentence-transformer classifies prompt intent and routes casual queries to 75%-cheaper lite models automatically.</p>
+          <p>Local sentence-transformer classifies prompt intent and routes casual queries to 75%-cheaper lite models. <em>Opt-in: <code>AXON_ENABLE_SEMANTIC_ROUTING=true</code></em></p>
           <span class="feat-tag">AI Powered</span>
         </div>
         <div class="feat">
           <div class="feat-ico">🧠</div>
           <h3>Semantic NLP Compression</h3>
-          <p>Shrinks massive blocks of natural language (like RAG contexts) using LLMLingua-2 to significantly reduce tokens while preserving semantic meaning.</p>
+          <p>Shrinks massive RAG context blocks using LLMLingua-2 while preserving semantic meaning. <em>Opt-in: <code>AXON_ENABLE_LLMLINGUA_COMPRESSION=true</code></em></p>
           <span class="feat-tag">AI Powered</span>
         </div>
         <div class="feat">
@@ -329,8 +330,14 @@ response = client.chat.completions.create(
         <div class="feat">
           <div class="feat-ico">🤝</div>
           <h3>Assistants API Compatibility</h3>
-          <p>Full drop-in <code>client.beta.threads.*</code> support. Streaming, tool use, and file attachments all work.</p>
+          <p>Full drop-in <code>client.beta.threads.*</code> support. Streaming, tool use, and file attachments all work. <em>Opt-in: <code>AXON_ENABLE_ASSISTANTS_ROUTES=true</code></em></p>
           <span class="feat-tag">Compatibility</span>
+        </div>
+        <div class="feat">
+          <div class="feat-ico">🤖</div>
+          <h3>Agent Swarm Routing</h3>
+          <p>Register named agents, dispatch tasks to the best agent, and run parallel fan-out swarms. 3/3 agents verified in live parallel test. <em>Opt-in: <code>AXON_ENABLE_AGENT_ROUTES=true</code></em></p>
+          <span class="feat-tag">Agents</span>
         </div>
         <div class="feat feat-wide">
           <div class="feat-ico">📊</div>
@@ -435,9 +442,10 @@ response = client.chat.completions.create(
         <div class="prov-card"><div class="prov-logo logo-openai">GPT</div><div class="prov-name">OpenAI</div><div class="prov-models">gpt-4o ↔ gpt-4o-mini</div></div>
         <div class="prov-card"><div class="prov-logo logo-gemini">G</div><div class="prov-name">Google Gemini</div><div class="prov-models">2.5-pro ↔ flash</div></div>
         <div class="prov-card"><div class="prov-logo logo-anthropic">A</div><div class="prov-name">Anthropic</div><div class="prov-models">sonnet ↔ haiku</div></div>
+        <div class="prov-card"><div class="prov-logo" style="background:linear-gradient(135deg,#f97316,#ea580c);color:#fff">GQ</div><div class="prov-name">Groq</div><div class="prov-models">llama-3.1-8b-instant ✅ verified</div></div>
         <div class="prov-card"><div class="prov-logo logo-aws">AWS</div><div class="prov-name">AWS Bedrock</div><div class="prov-models">Any Bedrock model</div></div>
         <div class="prov-card"><div class="prov-logo logo-ollama">Ol</div><div class="prov-name">Ollama</div><div class="prov-models">Any local model</div></div>
-        <div class="prov-card prov-more"><div class="prov-logo logo-more">+95</div><div class="prov-name">More providers</div><div class="prov-models">Via LiteLLM</div></div>
+        <div class="prov-card prov-more"><div class="prov-logo logo-more">+94</div><div class="prov-name">More providers</div><div class="prov-models">Via LiteLLM</div></div>
       </div>
     </div>
   </section>
@@ -452,7 +460,7 @@ response = client.chat.completions.create(
         <div class="qs-step"><div class="qs-n">2</div><div class="qs-body"><h3>Configure</h3><pre><code>cp .env.example .env
 <span class="cm"># Set AXON_OPENAI_API_KEY=your-groq-or-openai-key
 # Set AXON_OPENAI_BASE_URL=https://api.groq.com/openai/v1</span></code></pre></div></div>
-        <div class="qs-step"><div class="qs-n">3</div><div class="qs-body"><h3>Serve</h3><pre><code>python -m uvicorn app:app --host 127.0.0.1 --port 8080
+        <div class="qs-step"><div class="qs-n">3</div><div class="qs-body"><h3>Serve</h3><pre><code>python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080
 <span class="cm"># Dashboard → http://localhost:8080/dashboard</span></code></pre></div></div>
         <div class="qs-step"><div class="qs-n">4</div><div class="qs-body"><h3>Point your SDK at Axon</h3><pre><code><span class="kw">import</span> openai
 client = openai.OpenAI(

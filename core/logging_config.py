@@ -84,5 +84,5 @@ def configure_logging(log_format: str = "text", log_level: str = "INFO") -> None
     root.setLevel(level)
 
     # Quieten noisy third-party loggers
-    for noisy in ("uvicorn.access", "httpx", "httpcore"):
+    for noisy in ("granian.access", "httpx", "httpcore"):
         logging.getLogger(noisy).setLevel(logging.WARNING)

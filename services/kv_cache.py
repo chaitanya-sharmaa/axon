@@ -20,7 +20,12 @@ class ExactMatchCache:
         self.ttl_seconds = ttl_seconds
         # req_hash -> (response_dict, timestamp)
         self._cache: dict[str, tuple[dict, float]] = {}
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
+
+    def _get_lock(self) -> asyncio.Lock:
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     def _compute_hash(self, req_body: dict) -> str:
         """Deterministically serialize and hash the request."""
@@ -33,7 +38,7 @@ class ExactMatchCache:
         """Retrieve a cached response if an exact match exists."""
         req_hash = self._compute_hash(req_body)
 
-        async with self._lock:
+        async with self._get_lock():
             if req_hash in self._cache:
                 response, ts = self._cache[req_hash]
                 if time.time() - ts > self.ttl_seconds:
@@ -50,7 +55,7 @@ class ExactMatchCache:
         """Store a successful LLM response in the exact-match cache."""
         req_hash = self._compute_hash(req_body)
 
-        async with self._lock:
+        async with self._get_lock():
             # Simple eviction: if at capacity, pop a random item
             if len(self._cache) >= self.maxsize and req_hash not in self._cache:
                 # In Python 3.7+, dicts maintain insertion order, so this pops the oldest

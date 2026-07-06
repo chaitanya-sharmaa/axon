@@ -67,7 +67,20 @@ def create_app() -> FastAPI:
 
     # ── OpenTelemetry Setup ──────────────────────────────────────────────────
     # Tracing
-    trace.set_tracer_provider(TracerProvider())
+    tracer_provider = TracerProvider()
+
+    otlp_endpoint = os.getenv("AXON_OTLP_ENDPOINT")
+    if otlp_endpoint:
+        try:
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor
+            otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
+            tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+            log.info(f"OTLP Trace Exporter configured for {otlp_endpoint}")
+        except ImportError:
+            log.warning("opentelemetry-exporter-otlp not installed. Run `pip install opentelemetry-exporter-otlp` to enable OTLP traces.")
+
+    trace.set_tracer_provider(tracer_provider)
 
     # Metrics via Prometheus
     metric_reader = PrometheusMetricReader()
@@ -105,6 +118,8 @@ def create_app() -> FastAPI:
 
     # ── Middleware ────────────────────────────────────────────────────────────
     app.add_middleware(RequestIDMiddleware)
+    from api.middleware.cost_guard import CostBudgetGuardMiddleware
+    app.add_middleware(CostBudgetGuardMiddleware)
 
     cors_origins = os.getenv("AXON_CORS_ORIGINS", "")
     app.add_middleware(

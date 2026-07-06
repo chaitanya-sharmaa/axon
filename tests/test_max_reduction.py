@@ -1,6 +1,7 @@
 import base64
 import io
 import os
+import pytest
 
 from PIL import Image
 
@@ -46,15 +47,15 @@ def test_text_pruner():
     assert "quick brown fox" in pruned.lower() or "quick brown fox" in pruned
 
 # --- Test 3: Prompt Caching ---
-def test_anthropic_prompt_caching():
-    os.environ["AXON_PRUNE_TEXT"] = "false"
+@pytest.mark.asyncio
+async def test_anthropic_prompt_caching():
+    # Setup test messages
     messages = [
         ChatMessage(role="system", content="This is a huge system message with instructions" * 50),
-        ChatMessage(role="user", content="Hello!")
+        ChatMessage(role="user", content="Here is a massive text string " * 200)
     ]
-
-    # Should inject ephemeral cache_control for claude-3
-    compressed, metrics = _compress_messages(messages, "test_sess", "claude-3-haiku-20240307")
+    # Act
+    compressed, metrics = await _compress_messages(messages, "test_sess", "claude-3-haiku-20240307")
 
     sys_content = compressed[0]["content"]
     assert isinstance(sys_content, list), "Anthropic cache control should wrap string in list"
@@ -62,4 +63,5 @@ def test_anthropic_prompt_caching():
     assert sys_content[0]["cache_control"]["type"] == "ephemeral"
 
     user_content = compressed[1]["content"]
-    assert isinstance(user_content, str), "Shorter message should remain string"
+    assert isinstance(user_content, list), "Largest message should also be cached"
+    assert user_content[0]["cache_control"]["type"] == "ephemeral"

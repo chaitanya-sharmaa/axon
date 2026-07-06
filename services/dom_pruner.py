@@ -1,7 +1,4 @@
 import logging
-
-import trafilatura
-
 log = logging.getLogger(__name__)
 
 def compress_html_to_markdown(html_content: str) -> str:
@@ -11,6 +8,7 @@ def compress_html_to_markdown(html_content: str) -> str:
     Useful for compressing payloads from browser-automation agents.
     """
     try:
+        import trafilatura
         # Extract main content and convert to markdown without links/images to save tokens
         compressed_md = trafilatura.extract(
             html_content,

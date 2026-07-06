@@ -16,27 +16,27 @@ def test_health_endpoint():
     assert response.json()["version"] == settings.app_version
 
 
-@patch("api.routes.v1_openai_routes.bridge_service.process_chat_completion")
+@patch("api.routes.v1_openai_routes.litellm.acompletion")
 def test_e2e_proxy_chat_completion(mock_process):
-    # Mock the return value of process_chat_completion
-    # process_chat_completion is async, but TestClient handles the event loop.
-    # We need an AsyncMock since process_chat_completion is an async function.
     import asyncio
     
     async def mock_coro(*args, **kwargs):
-        from api.routes.v1_openai_routes import ChatCompletionResponse
-        return ChatCompletionResponse(
-            id="chatcmpl-mock",
-            object="chat.completion",
-            created=1234567890,
-            model="gpt-4o",
-            choices=[{
-                "index": 0,
-                "message": {"role": "assistant", "content": "Mocked response!"},
-                "finish_reason": "stop"
-            }],
-            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
-        ), {"x-axon-metrics": json.dumps({"original_tokens": 10, "compressed_tokens": 5, "savings_pct": 50})}
+        class MockChoice:
+            def __init__(self):
+                self.message = type('obj', (object,), {'role': 'assistant', 'content': 'Mocked response!'})()
+        
+        class MockResponse:
+            def __init__(self):
+                self.id = "chatcmpl-mock"
+                self.choices = [MockChoice()]
+                self.usage = type('obj', (object,), {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15})()
+            def model_dump(self, **kwargs):
+                return {
+                    "id": self.id,
+                    "choices": [{"message": {"role": "assistant", "content": "Mocked response!"}}],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+                }
+        return MockResponse()
         
     mock_process.side_effect = mock_coro
 

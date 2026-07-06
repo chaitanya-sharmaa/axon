@@ -11,12 +11,6 @@ try:
 except ImportError:
     pass  # python-dotenv is optional during testing
 
-# Map AXON namespace back to standard OpenAI variables for internal usage
-if "AXON_OPENAI_API_KEY" in os.environ:
-    os.environ["OPENAI_API_KEY"] = os.environ["AXON_OPENAI_API_KEY"]
-if "AXON_OPENAI_BASE_URL" in os.environ:
-    os.environ["OPENAI_BASE_URL"] = os.environ["AXON_OPENAI_BASE_URL"]
-
 
 _DEFAULT_ALLOWED_DOMAINS = [
     "httpbin.org",
@@ -129,6 +123,12 @@ class AppSettings:
 
 def load_settings() -> AppSettings:
     """Load settings from environment variables."""
+    # Map AXON namespace back to standard OpenAI variables for internal usage
+    if "AXON_OPENAI_API_KEY" in os.environ:
+        os.environ["OPENAI_API_KEY"] = os.environ["AXON_OPENAI_API_KEY"]
+    if "AXON_OPENAI_BASE_URL" in os.environ:
+        os.environ["OPENAI_BASE_URL"] = os.environ["AXON_OPENAI_BASE_URL"]
+
     axon_env = os.getenv("AXON_ENV", "development").lower()
     admin_api_key = os.getenv("AXON_ADMIN_API_KEY")
 

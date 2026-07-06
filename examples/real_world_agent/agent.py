@@ -11,8 +11,8 @@ print("=== Starting Real-World Agent Integration ===")
 # 1. Initialize the standard OpenAI Client
 # We trick it into using the Axon Bridge running on localhost!
 client = OpenAI(
-    api_key=os.environ.get("OPENAI_API_KEY", "dummy"),
-    base_url="http://localhost:8000/v1"
+    api_key=os.environ.get("AXON_OPENAI_API_KEY") or os.environ.get("AXON_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "dummy-key"),
+    base_url="http://localhost:8080/v1"
 )
 
 # 2. Simulate an Agent Payload (e.g. a RAG pipeline or Code Analyzer)
@@ -39,7 +39,7 @@ print("[Agent] Sending request to OpenAI (routed through Axon Bridge proxy)...")
 
 try:
     raw_response = client.chat.completions.with_raw_response.create(
-        model="gemini/gemini-2.5-flash",
+        model="groq/llama-3.1-8b-instant",
         messages=[
             {
                 "role": "system",

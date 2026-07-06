@@ -43,7 +43,8 @@ async def health_ready() -> dict:
 # Keep the legacy /health endpoint for backward compatibility
 @router.get("/health", response_model=HealthResponse, include_in_schema=False)
 async def health_legacy() -> dict:
-    return {"status": "ok"}
+    from core.settings import settings
+    return {"status": "ok", "version": settings.app_version}
 
 
 # ── Translation utilities ──────────────────────────────────────────────────────
@@ -58,3 +59,22 @@ async def translate_in(payload: Any = Body(...)) -> dict[str, Any]:
 async def translate_out(req: TranslateOutRequest) -> dict[str, Any]:
     """Convert a Python object to the Axon compact envelope with token metrics."""
     return axon_service.convert_output(req.data, session_id=req.session_id)
+
+from pydantic import BaseModel
+class TokenEstimateRequest(BaseModel):
+    payload: Any
+    model: str | None = None
+    session_id: str | None = None
+    enabled_strategies: list[str] | None = None
+
+@router.post("/v1/token-estimate", summary="Dry-run token optimization estimation")
+async def token_estimate(req: TokenEstimateRequest) -> dict[str, Any]:
+    """Estimate token usage across all valid compression strategies without calling an LLM."""
+    obj = axon_service.from_any_to_object(req.payload)
+    result = axon_service._optimizer.optimize(
+        obj,
+        session_id=req.session_id,
+        model=req.model,
+        enabled_strategies=req.enabled_strategies
+    )
+    return result.to_metrics()

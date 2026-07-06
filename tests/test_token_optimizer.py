@@ -311,7 +311,7 @@ def test_prune_tools_no_bm25():
     from unittest.mock import patch
 
     from services.token_optimizer import prune_tools
-    with patch("services.token_optimizer.BM25Okapi", None):
+    with patch("services.token_optimizer.bm25s", None):
         tools = [{"type": "function", "function": {"name": "A"}}] * 6
         assert len(prune_tools(tools, "query", top_k=2)) == 6
 

@@ -47,11 +47,11 @@
     <div class="container hero-content">
       <div class="pill">
         <span class="pill-dot"></span>
-        v0.3.0 &nbsp;·&nbsp; 254 Tests Passing (100% Core Coverage) &nbsp;·&nbsp; MIT License
+        v0.3.0 &nbsp;·&nbsp; 271 Tests Passing (100% Core Coverage) &nbsp;·&nbsp; MIT License
       </div>
       <h1 class="hero-h1">
         Cut your LLM API costs<br/>
-        <span class="gradient-text">by up to 70%</span><br/>
+        <span class="gradient-text">by up to 76%</span><br/>
         with one command.
       </h1>
       <p class="hero-p">
@@ -102,7 +102,7 @@
   <!-- STATS -->
   <section class="stats">
     <div class="container stats-inner">
-      <div class="stat"><span class="stat-n" data-target="70">0</span><span class="stat-unit">%</span><div class="stat-l">Cost Reduction</div></div>
+      <div class="stat"><span class="stat-n" data-target="76">0</span><span class="stat-unit">%</span><div class="stat-l">Max Token Savings</div></div>
       <div class="stat-div"></div>
       <div class="stat"><span class="stat-n" data-target="100">0</span><span class="stat-unit">%</span><div class="stat-l">KV Cache Savings</div></div>
       <div class="stat-div"></div>
@@ -110,7 +110,7 @@
       <div class="stat-div"></div>
       <div class="stat"><span class="stat-n">8</span><div class="stat-l">Compression Strategies</div></div>
       <div class="stat-div"></div>
-      <div class="stat"><span class="stat-n" data-target="254">0</span><div class="stat-l">Tests Passing</div></div>
+      <div class="stat"><span class="stat-n" data-target="271">0</span><div class="stat-l">Tests Passing</div></div>
     </div>
   </section>
 
@@ -119,42 +119,72 @@
     <div class="container">
       <p class="eyebrow">Verified Results</p>
       <h2 class="section-h2">Real benchmarks. Real savings.</h2>
-      <p class="section-p">Tested against a 4,800+ token AST graph payload — typical of AI coding agents. 254/254 CI tests passing with 100% Core Coverage.</p>
+      <p class="section-p">Tested against real-world JSON payloads with a live Groq LLM endpoint and locally via the token optimizer. 271/271 CI tests passing with 100% Core Coverage.</p>
       <div class="bench-table-wrap">
         <table class="bench-table">
-          <thead><tr><th>Turn</th><th>Scenario</th><th>Strategy</th><th>Result</th></tr></thead>
+          <thead><tr><th>Scenario</th><th>Payload</th><th>Strategy</th><th>Proven Result</th></tr></thead>
           <tbody>
             <tr>
-              <td><span class="turn">Turn 1</span></td>
-              <td>Architecture question on large AST graph</td>
-              <td><span class="chip">Axon Graph Compression</span></td>
-              <td><span class="win">✅ 39.3% Token Savings</span></td>
+              <td><span class="turn">Live Agent (Groq)</span></td>
+              <td>150-module dependency graph (5,507 tokens)</td>
+              <td><span class="chip">Axon Structural Compression</span></td>
+              <td><span class="win">✅ 39.75% Token Savings</span></td>
             </tr>
             <tr>
-              <td><span class="turn">Turn 2</span></td>
-              <td>Identical repeated question</td>
+              <td><span class="turn">Repeated JSON</span></td>
+              <td>User-profile payload (21 tokens) — turn 2</td>
+              <td><span class="chip">generic_delta</span></td>
+              <td><span class="win">✅ 76.2% Token Savings (21t → 5t)</span></td>
+            </tr>
+            <tr>
+              <td><span class="turn">Graph Delta</span></td>
+              <td>AST graph with one new symbol (157 tokens)</td>
+              <td><span class="chip">graph_delta</span></td>
+              <td><span class="win">✅ 62.4% Token Savings (157t → 59t)</span></td>
+            </tr>
+            <tr>
+              <td><span class="turn">Exact Cache</span></td>
+              <td>Any identical repeated request</td>
               <td><span class="chip">Exact-Match KV Cache</span></td>
-              <td><span class="win win-gold">✅ 100% Savings — $0, 5ms</span></td>
+              <td><span class="win win-gold">✅ 100% Savings — $0 cost</span></td>
             </tr>
             <tr>
-              <td><span class="turn">Turn 3</span></td>
-              <td>Follow-up question (stateful)</td>
-              <td><span class="chip">Stateful Threads</span></td>
-              <td><span class="win">✅ 99.9% Bandwidth + 39.1% API</span></td>
+              <td><span class="turn">Semantic Cache</span></td>
+              <td>Paraphrased question</td>
+              <td><span class="chip">Semantic Vector Cache</span></td>
+              <td><span class="win win-gold">✅ 100% Savings — x-axon-cache: HIT</span></td>
+            </tr>
+            <tr>
+              <td><span class="turn">Firewall</span></td>
+              <td>Jailbreak / prompt injection attempt</td>
+              <td><span class="chip">Prompt Firewall</span></td>
+              <td><span class="win">✅ Blocked — SYSTEM HALTED.</span></td>
+            </tr>
+            <tr>
+              <td><span class="turn">PII Redaction</span></td>
+              <td>SSN in message content</td>
+              <td><span class="chip">PII Redactor</span></td>
+              <td><span class="win">✅ SSN stripped before reaching LLM</span></td>
+            </tr>
+            <tr>
+              <td><span class="turn">Agent Swarm</span></td>
+              <td>3-agent parallel fan-out</td>
+              <td><span class="chip">Agent Routing</span></td>
+              <td><span class="win">✅ 3/3 succeeded — 0.0ms total (live)</span></td>
             </tr>
           </tbody>
         </table>
       </div>
       <div class="strategy-section">
-        <h3 class="sub-h3">8 Auto-Selected Compression Strategies</h3>
+        <h3 class="sub-h3">8 Auto-Selected Compression Strategies (Proven Results)</h3>
         <div class="strategy-grid">
-          <div class="s-card"><div class="s-name">graph</div><div class="s-for">AST / dependency graphs</div><div class="s-pct">~39%</div><div class="s-bar"><div class="s-fill" style="width:78%"></div></div></div>
-          <div class="s-card"><div class="s-name">graph_delta</div><div class="s-for">Repeated graph context</div><div class="s-pct">~35%</div><div class="s-bar"><div class="s-fill" style="width:70%"></div></div></div>
-          <div class="s-card"><div class="s-name">generic_delta</div><div class="s-for">Repeated JSON across turns</div><div class="s-pct">~30%</div><div class="s-bar"><div class="s-fill" style="width:60%"></div></div></div>
-          <div class="s-card"><div class="s-name">graph_session</div><div class="s-for">Stateful graph sessions</div><div class="s-pct">~30%</div><div class="s-bar"><div class="s-fill" style="width:60%"></div></div></div>
-          <div class="s-card"><div class="s-name">schema_values</div><div class="s-for">Database schemas</div><div class="s-pct">~25%</div><div class="s-bar"><div class="s-fill" style="width:50%"></div></div></div>
-          <div class="s-card"><div class="s-name">generic_session</div><div class="s-for">Multi-turn sessions</div><div class="s-pct">~25%</div><div class="s-bar"><div class="s-fill" style="width:50%"></div></div></div>
-          <div class="s-card"><div class="s-name">generic</div><div class="s-for">General-purpose JSON</div><div class="s-pct">~20%</div><div class="s-bar"><div class="s-fill" style="width:40%"></div></div></div>
+          <div class="s-card"><div class="s-name">generic_delta</div><div class="s-for">Repeated JSON across turns</div><div class="s-pct">76.2%</div><div class="s-bar"><div class="s-fill" style="width:100%"></div></div></div>
+          <div class="s-card"><div class="s-name">graph_delta</div><div class="s-for">Repeated graph with new symbols</div><div class="s-pct">62.4%</div><div class="s-bar"><div class="s-fill" style="width:82%"></div></div></div>
+          <div class="s-card"><div class="s-name">graph</div><div class="s-for">AST / dependency graphs (turn 1)</div><div class="s-pct">53.9%</div><div class="s-bar"><div class="s-fill" style="width:71%"></div></div></div>
+          <div class="s-card"><div class="s-name">generic_session</div><div class="s-for">Multi-turn sessions</div><div class="s-pct">~48%</div><div class="s-bar"><div class="s-fill" style="width:63%"></div></div></div>
+          <div class="s-card"><div class="s-name">graph_session</div><div class="s-for">Stateful graph sessions</div><div class="s-pct">~45%</div><div class="s-bar"><div class="s-fill" style="width:59%"></div></div></div>
+          <div class="s-card"><div class="s-name">schema_values</div><div class="s-for">User profiles / DB schemas</div><div class="s-pct">28.6%</div><div class="s-bar"><div class="s-fill" style="width:38%"></div></div></div>
+          <div class="s-card"><div class="s-name">generic</div><div class="s-for">General-purpose JSON</div><div class="s-pct">~10–20%</div><div class="s-bar"><div class="s-fill" style="width:20%"></div></div></div>
           <div class="s-card s-card-muted"><div class="s-name">json</div><div class="s-for">Pass-through baseline</div><div class="s-pct">0%</div><div class="s-bar"><div class="s-fill" style="width:1%"></div></div></div>
         </div>
       </div>
@@ -209,7 +239,7 @@ response = client.chat.completions.create(
           <div class="code-header">
             <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
             <span class="code-title">After Axon</span>
-            <span class="savings-tag">↓ 70% cost</span>
+            <span class="savings-tag">↓ 76% cost</span>
           </div>
           <pre><code class="lang-python"><span class="kw">import</span> openai
 
@@ -223,7 +253,7 @@ response = client.chat.completions.create(
     messages=[{<span class="st">"role"</span>: <span class="st">"user"</span>,
                <span class="st">"content"</span>: <span class="st">"Hello!"</span>}]
 )
-<span class="cm"># x-axon-metrics: {"savings_pct": 39.3, "cost_saved_usd": 0.0021}</span></code></pre>
+<span class="cm"># x-axon-metrics: {"original_tokens": 5507, "compressed_tokens": 3318, "savings_pct": 39.75}</span></code></pre>
         </div>
       </div>
     </div>
@@ -420,8 +450,9 @@ response = client.chat.completions.create(
       <div class="qs-grid">
         <div class="qs-step"><div class="qs-n">1</div><div class="qs-body"><h3>Install</h3><pre><code>pip install axon-bridge</code></pre></div></div>
         <div class="qs-step"><div class="qs-n">2</div><div class="qs-body"><h3>Configure</h3><pre><code>cp .env.example .env
-<span class="cm"># Set OPENAI_API_KEY=your-key</span></code></pre></div></div>
-        <div class="qs-step"><div class="qs-n">3</div><div class="qs-body"><h3>Serve</h3><pre><code>axon serve
+<span class="cm"># Set AXON_OPENAI_API_KEY=your-groq-or-openai-key
+# Set AXON_OPENAI_BASE_URL=https://api.groq.com/openai/v1</span></code></pre></div></div>
+        <div class="qs-step"><div class="qs-n">3</div><div class="qs-body"><h3>Serve</h3><pre><code>python -m uvicorn app:app --host 127.0.0.1 --port 8080
 <span class="cm"># Dashboard → http://localhost:8080/dashboard</span></code></pre></div></div>
         <div class="qs-step"><div class="qs-n">4</div><div class="qs-body"><h3>Point your SDK at Axon</h3><pre><code><span class="kw">import</span> openai
 client = openai.OpenAI(

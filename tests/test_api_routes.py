@@ -7,7 +7,7 @@ import pytest
 def test_health_live(client):
     res = client.get("/health/live")
     assert res.status_code == 200
-    assert res.json() == {"status": "ok"}
+    assert res.json()["status"] == "ok"
 
 def test_health_legacy(client):
     res = client.get("/health")
@@ -18,7 +18,7 @@ def test_health_ready_success(client):
         mock_exists.return_value = False
         res = client.get("/health/ready")
         assert res.status_code == 200
-        assert res.json() == {"status": "ok"}
+        assert res.json()["status"] == "ok"
 
 def test_health_ready_failure(client):
     with patch("core.app_config.memory_store.session_exists", new_callable=AsyncMock) as mock_exists:

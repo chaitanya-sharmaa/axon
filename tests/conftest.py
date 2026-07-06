@@ -30,6 +30,12 @@ os.environ["AXON_ENABLE_HALLUCINATION_GUARD"] = "true"
 os.environ["AXON_ENABLE_FACT_EXTRACTION"] = "true"
 os.environ["AXON_ENABLE_ASSISTANTS_ROUTES"] = "true"
 os.environ["AXON_ENABLE_TENANT_QUOTAS"] = "true"
+os.environ["AXON_ENABLE_AGENT_ROUTES"] = "true"
+os.environ["AXON_ENABLE_MEMORY_ROUTES"] = "true"
+os.environ["AXON_ENABLE_PROXY_ROUTES"] = "true"
+os.environ["AXON_ENABLE_SECURITY_ROUTES"] = "true"
+os.environ["AXON_ENABLE_PROCESS_ROUTES"] = "true"
+os.environ["AXON_ENABLE_CORE_ROUTES"] = "true"
 
 
 @pytest.fixture

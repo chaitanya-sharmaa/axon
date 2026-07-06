@@ -556,36 +556,31 @@ class TokenOptimizer:
                 _add(STRATEGY_AXON_SESSION, encode_with_session(payload, sess))
             except Exception as e:
                 logging.warning(f"Strategy {STRATEGY_AXON_SESSION} failed: {e}", exc_info=False)
-        if STRATEGY_AXON_DELTA in active and payload is not None and session_id:
+        if (STRATEGY_AXON_DELTA in active or STRATEGY_TOON in active) and payload is not None and session_id:
             try:
                 prev = self._get_prev_symbols(session_id)
                 delta = _build_delta(payload, prev)
                 if delta is not None:
-                    _add(STRATEGY_AXON_DELTA, encode_delta(delta))
+                    strat_name = STRATEGY_TOON if STRATEGY_TOON in active else STRATEGY_AXON_DELTA
+                    _add(strat_name, encode_delta(delta))
             except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_AXON_DELTA} failed: {e}", exc_info=False)
-        if STRATEGY_TOON in active and session_id and payload is not None:
-            try:
-                prev = self._get_prev_symbols(session_id)
-                delta = _build_delta(payload, prev)
-                if delta is not None:
-                    _add(STRATEGY_TOON, encode_delta(delta))
-            except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_TOON} failed: {e}", exc_info=False)
+                logging.warning(f"Strategy delta/toon failed: {e}", exc_info=False)
 
     def _eval_generic_strategies(self, active: set[str], obj: Any, is_graph: bool, session_id: str | None, _add: Callable[[str, str], None]) -> None:
-        if STRATEGY_AXON_GENERIC in active:
+        if (STRATEGY_AXON_GENERIC in active or STRATEGY_GCF in active):
             try:
-                _add(STRATEGY_AXON_GENERIC, encode_generic(obj))
+                strat_name = STRATEGY_GCF if STRATEGY_GCF in active else STRATEGY_AXON_GENERIC
+                _add(strat_name, encode_generic(obj))
             except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_AXON_GENERIC} failed: {e}", exc_info=False)
-        if STRATEGY_AXON_GENERIC_DELTA in active and session_id and not is_graph:
+                logging.warning(f"Strategy generic/gcf failed: {e}", exc_info=False)
+        if (STRATEGY_AXON_GENERIC_DELTA in active or STRATEGY_TOON in active) and session_id and not is_graph:
             try:
                 prev = self._prev_generic.get(session_id)
                 delta_obj = _build_generic_delta(obj, prev)
-                _add(STRATEGY_AXON_GENERIC_DELTA, encode_generic(delta_obj))
+                strat_name = STRATEGY_TOON if STRATEGY_TOON in active else STRATEGY_AXON_GENERIC_DELTA
+                _add(strat_name, encode_generic(delta_obj))
             except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_AXON_GENERIC_DELTA} failed: {e}", exc_info=False)
+                logging.warning(f"Strategy generic_delta/toon failed: {e}", exc_info=False)
         if (STRATEGY_AXON_GENERIC_SESSION in active or STRATEGY_TRON in active) and session_id and not is_graph:
             try:
                 seen = self._seen_values.setdefault(session_id, {})
@@ -594,18 +589,6 @@ class TokenOptimizer:
                 _add(strat_name, encode_generic(session_obj))
             except Exception as e:
                 logging.warning(f"Strategy {STRATEGY_TRON} failed: {e}", exc_info=False)
-        if STRATEGY_GCF in active:
-            try:
-                _add(STRATEGY_GCF, encode_generic(obj))
-            except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_GCF} failed: {e}", exc_info=False)
-        if STRATEGY_TOON in active and session_id and not is_graph:
-            try:
-                prev = self._prev_generic.get(session_id)
-                delta_obj = _build_generic_delta(obj, prev)
-                _add(STRATEGY_TOON, encode_generic(delta_obj))
-            except Exception as e:
-                logging.warning(f"Strategy {STRATEGY_TOON} failed: {e}", exc_info=False)
 
     def _eval_schema_strategies(self, active: set[str], obj: Any, is_graph: bool, session_id: str | None, _add: Callable[[str, str], None]) -> None:
         if STRATEGY_SCHEMA_VALUES in active and session_id and not is_graph and isinstance(obj, dict):

@@ -59,3 +59,19 @@ async def set_tenant_quota(tenant_id: str, request: QuotaUpdateRequest):
         monthly_quota_usd=quota,
         current_spend_usd=spend
     )
+
+@router.get("/audit-log")
+async def get_audit_log(limit: int = 50):
+    """Retrieve the recent request logs and firewall events."""
+    try:
+        from services.request_logger import request_logger
+        from services.event_logger import event_logger
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Logging services not available")
+
+    return {
+        "requests": request_logger.get_recent_logs(limit=limit),
+        "firewall_events": event_logger.get_firewall_events(limit=limit),
+        "pii_events": event_logger.get_pii_events(limit=limit),
+        "entropy_events": event_logger.get_entropy_events(limit=limit)
+    }

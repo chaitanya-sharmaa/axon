@@ -7,6 +7,7 @@ convert responses to Axon, and optionally keep JSON alongside for compatibility.
 from __future__ import annotations
 
 import inspect
+import json
 import logging
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import asdict, is_dataclass

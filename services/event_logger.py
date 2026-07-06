@@ -21,6 +21,15 @@ class EventLogger:
             "matched_phrase": phrase,
             "tenant_id": tenant_id,
         })
+        try:
+            from services.webhook_notifier import webhook_notifier
+            webhook_notifier.notify(
+                event_type="firewall_block",
+                message=f"Prompt Firewall blocked a request. Matched phrase: {phrase}",
+                tenant_id=tenant_id
+            )
+        except Exception:
+            pass
 
     def get_firewall_events(self, limit: int = 50) -> list[dict[str, Any]]:
         return list(self._firewall)[:limit]

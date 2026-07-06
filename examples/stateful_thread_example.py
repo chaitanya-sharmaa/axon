@@ -18,7 +18,10 @@ import json
 import textwrap
 import time
 import uuid
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 import requests
 
 # Ensure your proxy is running: `python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080`
@@ -27,9 +30,9 @@ AXON_URL = "http://127.0.0.1:8080/v1/chat/completions"
 # Create a unique thread ID for this session
 thread_id = f"thread_{uuid.uuid4().hex[:8]}"
 
-# Generate a large fake product catalog (100 items) to act as massive context
+# Generate a fake product catalog (30 items) to stay under 6k tokens
 catalog = []
-for i in range(100):
+for i in range(30):
     catalog.append({
         "product_id": f"SKU-{1000+i}",
         "name": "Enterprise Flux Capacitor Model X",
@@ -44,8 +47,8 @@ for i in range(100):
     })
 
 # Add an unobtanium item to test if the model actually remembers the catalog
-catalog[50]["name"] = "Unobtanium Alloy Wrench"
-catalog[50]["description"] = "A special wrench made of unobtanium."
+catalog[15]["name"] = "Unobtanium Alloy Wrench"
+catalog[15]["description"] = "A special wrench made of unobtanium."
 
 # Helper to send a message
 def send_message(turn_name: str, message: str, context: list = None):
@@ -69,7 +72,7 @@ def send_message(turn_name: str, message: str, context: list = None):
     })
 
     payload = {
-        "model": "ollama/llama3",
+        "model": "groq/llama-3.1-8b-instant",
         "messages": messages,
         "temperature": 0.0
     }
@@ -78,7 +81,7 @@ def send_message(turn_name: str, message: str, context: list = None):
     headers = {
         "X-Axon-Session-ID": thread_id,
         "X-Axon-Stateful-Thread": "true",
-        "Authorization": "Bearer AQ.test"
+        "Authorization": f"Bearer {os.environ.get('AXON_OPENAI_API_KEY') or 'dummy-key'}"
     }
 
     # Calculate bytes sent to proxy
@@ -89,6 +92,9 @@ def send_message(turn_name: str, message: str, context: list = None):
     try:
         resp = requests.post(AXON_URL, json=payload, headers=headers, timeout=60)
         resp.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        print(f"❌ Error hitting proxy: {e.response.text}")
+        return
     except Exception as e:
         print(f"❌ Error hitting proxy: {e}")
         return

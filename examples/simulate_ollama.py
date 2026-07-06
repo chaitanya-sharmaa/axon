@@ -134,7 +134,7 @@ print("Requesting JSON format (dummy server will intentionally break it)...")
 try:
     response = client.chat.completions.with_raw_response.create(
         model="groq/llama-3.1-8b-instant",
-        messages=[{"role": "user", "content": "Give me data"}],
+        messages=[{"role": "user", "content": "Give me data in json"}],
         response_format={"type": "json_object"}
     )
     print(f"Response: {response.parse().choices[0].message.content}")

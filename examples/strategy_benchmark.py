@@ -29,9 +29,7 @@ from services.token_optimizer import (
     _build_generic_delta,
     _build_generic_session,
     _build_payload,
-    _encode_schema_values_strategy,
-    _SessionState,
-    tokenizer,
+    _estimate_tokens,
 )
 
 NUMBER_OF_RUNS = 1000
@@ -87,7 +85,7 @@ def run_benchmark(title: str, payload: Any, strategies: dict[str, Callable[[], s
             avg_latency_us = (total_time / NUMBER_OF_RUNS) * 1_000_000
 
             # Token estimation
-            tokens = tokenizer.estimate_tokens(encoded_text)
+            tokens = _estimate_tokens(encoded_text)
             if name == "json":
                 json_tokens = tokens
 
@@ -113,41 +111,39 @@ def main():
     """Define and run all benchmarks."""
 
     # --- Benchmark 1: Small, Flat Payload ---
-    session_state_flat = _SessionState()
-    _encode_schema_values_strategy(small_flat_payload, session_state_flat)  # Prime schema
+    seen_values_flat = {}
 
     flat_strategies = {
         "json": lambda: json.dumps(small_flat_payload_2),
         "generic": lambda: encode_generic(small_flat_payload_2),
         "generic_delta": lambda: encode_generic(_build_generic_delta(small_flat_payload_2, small_flat_payload.copy())),
-        "generic_session": lambda: encode_generic(_build_generic_session(small_flat_payload_2, session_state_flat.seen_values.copy())),
-        "schema_values": lambda: _encode_schema_values_strategy(small_flat_payload_2, session_state_flat),
+        "generic_session": lambda: encode_generic(_build_generic_session(small_flat_payload_2, seen_values_flat.copy())),
     }
     run_benchmark("Small, Flat Payload (e.g., Telemetry)", small_flat_payload_2, flat_strategies)
 
     # --- Benchmark 2: Medium, Nested Payload ---
-    session_state_nested = _SessionState()
-    _build_generic_session(medium_nested_payload, session_state_nested.seen_values)  # Prime session
+    seen_values_nested = {}
+    _build_generic_session(medium_nested_payload, seen_values_nested)  # Prime session
 
     nested_strategies = {
         "json": lambda: json.dumps(medium_nested_payload_2),
         "generic": lambda: encode_generic(medium_nested_payload_2),
         "generic_delta": lambda: encode_generic(_build_generic_delta(medium_nested_payload_2, medium_nested_payload.copy())),
-        "generic_session": lambda: encode_generic(_build_generic_session(medium_nested_payload_2, session_state_nested.seen_values.copy())),
+        "generic_session": lambda: encode_generic(_build_generic_session(medium_nested_payload_2, seen_values_nested.copy())),
     }
     run_benchmark("Medium, Nested Payload (e.g., API Response)", medium_nested_payload_2, nested_strategies)
 
     # --- Benchmark 3: Large Graph Payload ---
     p1 = _build_payload(large_graph_payload)
     p2 = _build_payload(large_graph_payload_2)
-    session_state_graph = _SessionState()
-    encode_with_session(p1, session_state_graph.axon_session)  # Prime session
+    session_state_graph = Session()
+    encode_with_session(p1, session_state_graph)  # Prime session
 
     graph_strategies = {
         "json": lambda: json.dumps(large_graph_payload_2),
         "graph": lambda: encode(p2),
         "graph_delta": lambda: encode_delta(_build_delta(p2, [s.qualified_name for s in p1.symbols])),
-        "graph_session": lambda: encode_with_session(p2, Session(state=session_state_graph.axon_session.state)),
+        "graph_session": lambda: encode_with_session(p2, session_state_graph),
     }
     run_benchmark("Large Graph Payload (e.g., Code Context)", large_graph_payload_2, graph_strategies)
 

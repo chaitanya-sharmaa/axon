@@ -54,7 +54,19 @@ AXON_LOG_FORMAT="json"
 AXON_LOG_LEVEL="INFO"
 ```
 
-Example output:
+Example output (based on live-verified agent run):
 ```json
-{"timestamp": "2026-07-02T12:00:00Z", "level": "INFO", "message": "Proxying request to gpt-4o", "tokens_saved": 450, "savings_pct": 39.5}
+{"timestamp": "2026-07-06T12:00:00Z", "level": "INFO", "message": "Proxying request to groq/llama-3.1-8b-instant", "original_tokens": 5507, "compressed_tokens": 3318, "savings_pct": 39.75}
 ```
+
+## Response Headers Reference
+
+Every proxied response includes the following headers for real-time observability:
+
+| Header | Example Value | Description |
+|---|---|---|
+| `x-axon-metrics` | `{"original_tokens": 5507, "compressed_tokens": 3318, "savings_pct": 39.75, "agentic_tokens_saved": 0}` | JSON blob with token counts and savings percentage |
+| `x-axon-cost-saved-usd` | `0.00156` | Estimated USD saved by compression on this request |
+| `x-axon-cache` | `HIT` | Present only when the response was served from L1 or L2 cache |
+
+All three headers were confirmed in live end-to-end testing against Groq `llama-3.1-8b-instant`.

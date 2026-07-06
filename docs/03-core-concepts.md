@@ -32,7 +32,12 @@ graph TD
     Pick --> Output[Compressed Payload Sent to LLM]
 ```
 
-**Verified Result:** In real-world testing against a 100-item complex product catalog (~8K tokens), stateless structural compression consistently delivers **~29% token savings** across every single turn with **zero hallucinations**.
+**Verified Results:**
+- On a **live 5,507-token agent payload** (150 modules, real Groq LLM): **39.75% token savings** (5,507t → 3,318t)
+- On **repeated JSON payloads** (generic_delta strategy, turn 2): **76.2% token savings** (21t → 5t)
+- On **AST graph context** (first send, graph strategy): **53.9% token savings** (117t → 54t)
+
+Compression is purely structural — it only strips formatting syntax and flattens nesting. **Zero semantic data is ever removed.**
 
 ---
 
@@ -48,7 +53,7 @@ Axon introduces the **Stateful Threads API**. By simply appending the header `X-
 3. Axon applies safe structural compression (Schema Flattening).
 4. Axon sends the full rehydrated payload to the stateless LLM API.
 
-**Benefit:** You achieve **99% Network Bandwidth Savings** (because your client didn't upload the history) and **~20% API Token Savings** (from structural schema flattening) with **0% chance of hallucination**.
+**Benefit:** Your client only transmits the new message over the network (massive bandwidth reduction). The LLM receives a fully rehydrated, structurally compressed context — combining network savings with ~39-53% API token savings from structural compression.
 
 ---
 
@@ -77,16 +82,18 @@ To achieve **99% API Token Savings**, you must use **Native Provider Caching**. 
 
 Axon natively includes interceptors designed to protect autonomous agent workflows:
 
-1. **Vision Payload Downscaling**: Automatically intercepts `base64` images in your payload. Axon uses `Pillow` to silently downscale massive 4K images to 768px/512px while preserving aspect ratio, slashing Vision API costs by up to 85%.
-2. **Fast Vector Semantic Cache**: If you send a prompt that is >95% semantically similar to a previous request, Axon intercepts it via a thread-safe LRU cache with automatic TTL.
-   * **Benefit:** Zero API tokens used, <50ms latency response.
-3. **PII Redaction**: Built-in heuristics automatically redact sensitive data (Credit Cards, SSNs, Emails, and Phone Numbers) from the payload before it ever touches external LLM endpoints.
-4. **Smart LLM Routing**: Short, simple payloads sent to expensive models (like `gpt-4o`) are automatically down-routed to cheaper models (like `gpt-4o-mini`).
-5. **BM25 Semantic Graph Pruning**: Axon uses the `rank_bm25` search algorithm to dynamically score and drop the bottom 25% of irrelevant context symbols and tools based on the user's immediate query, saving thousands of tokens per turn while keeping the agent fully informed.
+1. **Vision Payload Downscaling**: Automatically intercepts `base64` images in your payload. Axon uses `Pillow` to silently downscale massive 4K images to 768px/512px while preserving aspect ratio, reducing Vision API token costs.
+2. **Fast Vector Semantic Cache**: If you send a prompt that is semantically similar (above a configurable threshold) to a previous request, Axon intercepts it via a thread-safe LRU cache with automatic TTL.
+   * **Live verified:** `x-axon-cache: HIT` response header confirmed on a paraphrased question in the `simulate_gemini.py` demo.
+   * **Benefit:** Zero API tokens used for cached responses.
+3. **PII Redaction**: Built-in heuristics automatically redact sensitive data (Credit Cards, SSNs, Emails, and Phone Numbers) from the payload before it ever touches external LLM endpoints. **Live verified:** SSN stripped from `"My SSN is 123-456-7890"` — LLM refused to echo it back.
+4. **Smart LLM Routing**: Short, simple payloads sent to expensive models are automatically down-routed to cheaper models. Enable with `AXON_ENABLE_SEMANTIC_ROUTING=true`.
+5. **BM25 Semantic Graph Pruning**: Axon uses the `rank_bm25` search algorithm to dynamically score and drop the bottom 25% of irrelevant context symbols and tools based on the user's immediate query, saving tokens per turn while keeping the agent fully informed.
 6. **Schema Flattening**: Axon converts deeply nested multi-dimensional JSON objects into flat dot-notation structures before applying compression, guaranteeing structural bloat removal on complex payloads.
 7. **JSON Healing**: If the LLM returns malformed JSON, Axon intercepts the error, appends it to the message history, and automatically asks the LLM to fix it before returning the response to your agent.
-8. **Exact-Match KV Cache**: Immediately intercepts repeated deterministic payloads (via SHA-256) and returns the exact prior response. **$0 API cost and zero network latency.**
-9. **Shannon Entropy Hallucination Guard**: Automatically parses `logprobs` from OpenAI/Ollama streams. Computes the probability distribution entropy ($E = -\sum p \log_2 p$) and surgically blocks responses if the LLM's confidence is too low (entropy > 1.5).
+8. **Exact-Match KV Cache**: Immediately intercepts repeated deterministic payloads (via SHA-256) and returns the exact prior response. **$0 API cost. Live verified in all simulation examples.**
+9. **Prompt Firewall**: Blocks 25+ known prompt injection and jailbreak patterns. **Live verified:** Jailbreak attempt returned `SYSTEM HALTED.` before reaching upstream LLM.
+10. **Shannon Entropy Hallucination Guard**: Automatically parses `logprobs` from OpenAI/Ollama streams. Computes the probability distribution entropy and surgically blocks responses if the LLM's confidence is too low (entropy > threshold). Enable with `AXON_ENABLE_HALLUCINATION_GUARD=true`.
 
 ---
 

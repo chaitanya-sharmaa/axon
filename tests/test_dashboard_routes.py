@@ -19,7 +19,7 @@ def auth_headers():
 @pytest.fixture(autouse=True)
 def setup_settings():
     old_key = settings.admin_api_key
-    old_dict = vars(settings).copy()
+    old_dict = settings.model_dump().copy()
     settings.admin_api_key = "test_key"
     yield
     settings.admin_api_key = old_key

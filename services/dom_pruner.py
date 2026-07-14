@@ -25,6 +25,9 @@ def compress_html_to_markdown(html_content: str) -> str:
             # For purely structural DOM dumps without a main article, fallback to simple HTML-to-text.
             return trafilatura.html2txt(html_content) or html_content
 
+    except ImportError:
+        log.warning("Trafilatura is not installed. To enable HTML compression, install with: pip install 'axon-bridge[web]'")
+        return html_content
     except Exception as e:
         log.warning(f"Failed to compress HTML to Markdown with Trafilatura: {e}")
         # Fallback to returning original if parsing fails

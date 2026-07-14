@@ -189,12 +189,12 @@ def test_openapi_schema_with_logo(client):
     from app import app
     from core.settings import settings as app_settings
     old_logo = app_settings.openapi_logo_url
-    object.__setattr__(app_settings, "openapi_logo_url", "http://logo.png")
+    app_settings.openapi_logo_url = "http://logo.png"
     app.openapi_schema = None # clear cache
     res = client.get("/openapi.json")
     assert res.status_code == 200
     assert "x-logo" in res.json()["info"]
-    object.__setattr__(app_settings, "openapi_logo_url", old_logo)
+    app_settings.openapi_logo_url = old_logo
 
 @pytest.mark.asyncio
 async def test_app_lifecycle():

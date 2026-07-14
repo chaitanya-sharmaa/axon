@@ -28,16 +28,17 @@ def get_tokenizer_for_model(model_name: str):
 
     if "gemini" in model_name.lower():
         try:
-            import google.generativeai as genai
+            from google import genai
             class GeminiTokenizer:
                 def __init__(self, model_id):
                     # GenerativeModel requires the model name without providers like 'gemini/' prefix if any
-                    clean_name = model_id.split("/")[-1] if "/" in model_id else model_id
-                    self.model = genai.GenerativeModel(clean_name)
+                    self.clean_name = model_id.split("/")[-1] if "/" in model_id else model_id
+                    # The client defaults to os.environ["GEMINI_API_KEY"] if present
+                    self.client = genai.Client()
                 
                 def encode(self, text: str) -> list[int]:
                     try:
-                        resp = self.model.count_tokens(text)
+                        resp = self.client.models.count_tokens(model=self.clean_name, contents=text)
                         return [0] * resp.total_tokens
                     except Exception as e:
                         import logging

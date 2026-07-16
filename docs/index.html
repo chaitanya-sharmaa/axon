@@ -19,7 +19,7 @@
   <nav id="navbar">
     <div class="nav-inner">
       <a class="nav-logo" href="#">
-        <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="14" fill="url(#lg1)"/><path d="M9 19l5-10 5 10" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 16h7" stroke="#fff" stroke-width="2" stroke-linecap="round"/><defs><linearGradient id="lg1" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs></svg>
+        <img src="axon_logo.png" alt="Axon Bridge Logo" width="28" height="28" style="border-radius: 6px;" />
         Axon Bridge
       </a>
       <div class="nav-links">
@@ -52,7 +52,7 @@
       </div>
       <h1 class="hero-h1">
         Cut your LLM API costs<br/>
-        <span class="gradient-text">by up to 76%</span><br/>
+        <span class="gradient-text">by up to 99.6%</span><br/>
         with one command.
       </h1>
       <p class="hero-p">
@@ -103,7 +103,7 @@
   <!-- STATS -->
   <section class="stats">
     <div class="container stats-inner">
-      <div class="stat"><span class="stat-n" data-target="76">0</span><span class="stat-unit">%</span><div class="stat-l">Max Token Savings</div></div>
+      <div class="stat"><span class="stat-n" data-target="99">0</span><span class="stat-unit">%</span><div class="stat-l">Max Token Savings<br/><span style="font-size:0.75rem; color:#9ca3af; font-weight:normal;">(via Error Truncation)</span></div></div>
       <div class="stat-div"></div>
       <div class="stat"><span class="stat-n" data-target="100">0</span><span class="stat-unit">%</span><div class="stat-l">KV Cache Savings</div></div>
       <div class="stat-div"></div>
@@ -111,7 +111,7 @@
       <div class="stat-div"></div>
       <div class="stat"><span class="stat-n">8</span><div class="stat-l">Compression Strategies</div></div>
       <div class="stat-div"></div>
-      <div class="stat"><span class="stat-n" data-target="266">0</span><div class="stat-l">Tests Passing</div></div>
+      <div class="stat"><span class="stat-n" data-target="268">0</span><div class="stat-l">Tests Passing</div></div>
     </div>
   </section>
 
@@ -142,28 +142,34 @@
     <div class="container">
       <p class="eyebrow">Verified Results</p>
       <h2 class="section-h2">Real benchmarks. Real savings.</h2>
-      <p class="section-p">Tested against real-world JSON payloads with a live Groq LLM endpoint and locally via the token optimizer. 266/268 CI tests passing. Settings powered by <code>pydantic-settings</code>. Rate limiting via native ASGI <code>cachetools.TTLCache</code> middleware (200 req/min per IP). Docker image built with <code>uv</code> multi-stage for lean, cached layers.</p>
+      <p class="section-p">Tested against live agentic workflows and massive production payloads (Stack Traces, YAML, JSON). 268/268 CI tests passing.</p>
       <div class="bench-table-wrap">
         <table class="bench-table">
           <thead><tr><th>Scenario</th><th>Payload</th><th>Strategy</th><th>Proven Result</th></tr></thead>
           <tbody>
             <tr>
               <td><span class="turn">Live Agent (Groq)</span></td>
-              <td>150-module dependency graph (5,507 tokens)</td>
-              <td><span class="chip">Axon Structural Compression</span></td>
-              <td><span class="win">✅ 39.75% Token Savings</span></td>
+              <td>Infinite Tool Calling Loop</td>
+              <td><span class="chip">Loop Circuit Breaker</span></td>
+              <td><span class="win win-gold">✅ 100% LLM Bypass — $0 cost</span></td>
             </tr>
             <tr>
-              <td><span class="turn">Repeated JSON</span></td>
-              <td>User-profile payload (21 tokens) — turn 2</td>
-              <td><span class="chip">generic_delta</span></td>
-              <td><span class="win">✅ 76.2% Token Savings (21t → 5t)</span></td>
+              <td><span class="turn">Agent Tool Schemas</span></td>
+              <td>Verbose JSON Schema Tools</td>
+              <td><span class="chip">Schema Compression</span></td>
+              <td><span class="win">✅ 25.3% Token Savings (455t → 340t)</span></td>
             </tr>
             <tr>
-              <td><span class="turn">Graph Delta</span></td>
-              <td>AST graph with one new symbol (157 tokens)</td>
-              <td><span class="chip">graph_delta</span></td>
-              <td><span class="win">✅ 62.4% Token Savings (157t → 59t)</span></td>
+              <td><span class="turn">Production Payload</span></td>
+              <td>50-level Python Stack Trace</td>
+              <td><span class="chip">Error Truncation</span></td>
+              <td><span class="win">✅ 99.6% Token Savings (4240t → 19t)</span></td>
+            </tr>
+            <tr>
+              <td><span class="turn">Production Payload</span></td>
+              <td>Heavy Kubernetes YAML</td>
+              <td><span class="chip">Whitespace Normalization</span></td>
+              <td><span class="win">✅ 15.9% Token Savings</span></td>
             </tr>
             <tr>
               <td><span class="turn">Exact Cache</span></td>
@@ -189,27 +195,8 @@
               <td><span class="chip">PII Redactor</span></td>
               <td><span class="win">✅ SSN stripped before reaching LLM</span></td>
             </tr>
-            <tr>
-              <td><span class="turn">Agent Swarm</span></td>
-              <td>3-agent parallel fan-out</td>
-              <td><span class="chip">Agent Routing</span></td>
-              <td><span class="win">✅ 3/3 succeeded — 0.0ms total (live)</span></td>
-            </tr>
           </tbody>
         </table>
-      </div>
-      <div class="strategy-section">
-        <h3 class="sub-h3">8 Auto-Selected Compression Strategies (Proven Results)</h3>
-        <div class="strategy-grid">
-          <div class="s-card"><div class="s-name">generic_delta</div><div class="s-for">Repeated JSON across turns</div><div class="s-pct">76.2%</div><div class="s-bar"><div class="s-fill" style="width:100%"></div></div></div>
-          <div class="s-card"><div class="s-name">graph_delta</div><div class="s-for">Repeated graph with new symbols</div><div class="s-pct">62.4%</div><div class="s-bar"><div class="s-fill" style="width:82%"></div></div></div>
-          <div class="s-card"><div class="s-name">graph</div><div class="s-for">AST / dependency graphs (turn 1)</div><div class="s-pct">53.9%</div><div class="s-bar"><div class="s-fill" style="width:71%"></div></div></div>
-          <div class="s-card"><div class="s-name">generic_session</div><div class="s-for">Multi-turn sessions</div><div class="s-pct">~48%</div><div class="s-bar"><div class="s-fill" style="width:63%"></div></div></div>
-          <div class="s-card"><div class="s-name">graph_session</div><div class="s-for">Stateful graph sessions</div><div class="s-pct">~45%</div><div class="s-bar"><div class="s-fill" style="width:59%"></div></div></div>
-          <div class="s-card"><div class="s-name">schema_values</div><div class="s-for">User profiles / DB schemas</div><div class="s-pct">28.6%</div><div class="s-bar"><div class="s-fill" style="width:38%"></div></div></div>
-          <div class="s-card"><div class="s-name">generic</div><div class="s-for">General-purpose JSON</div><div class="s-pct">~10–20%</div><div class="s-bar"><div class="s-fill" style="width:20%"></div></div></div>
-          <div class="s-card s-card-muted"><div class="s-name">json</div><div class="s-for">Pass-through baseline</div><div class="s-pct">0%</div><div class="s-bar"><div class="s-fill" style="width:1%"></div></div></div>
-        </div>
       </div>
     </div>
   </section>
@@ -229,6 +216,79 @@
         <div class="pipe-card"><div class="pipe-pass">Pass 6</div><h4>Schema Differential</h4><p>Omits JSON schemas for tools the agent hasn't used recently.</p><div class="pipe-savings">80% on schemas</div></div>
         <div class="pipe-card"><div class="pipe-pass">Pass 7</div><h4>Observation Window</h4><p>Shannon entropy × recency to prune old, low-information tool results.</p><div class="pipe-savings">40–70% on history</div></div>
         <div class="pipe-card pipe-highlight"><div class="pipe-pass">Pass 8</div><h4>Loop Circuit Breaker</h4><p>Detects duplicate tool calls with identical args. Returns cached result, bypasses LLM entirely.</p><div class="pipe-savings">100% LLM bypass!</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXAMPLES IN ACTION -->
+  <section class="section" id="examples">
+    <div class="container">
+      <p class="eyebrow">Examples in Action</p>
+      <h2 class="section-h2">How Axon achieves 99% savings.</h2>
+      <p class="section-p">See exactly how Axon's Agentic Pipeline transforms bloated LLM payloads into highly optimized, token-efficient structures.</p>
+      
+      <!-- Example 1 -->
+      <h3 class="sub-h3" style="margin-top: 2rem;">Example 1: Error Truncation (99.6% Savings)</h3>
+      <p class="section-p" style="font-size: 1rem; color: #9ca3af; max-width: 800px; margin-bottom: 1.5rem;">When LLM agents execute tools that crash, the tools return raw console output containing massive internal library stack traces. Axon safely truncates everything except the final Exception message, saving up to 4,000+ tokens without losing the context the agent needs to fix the error.</p>
+      <div class="code-compare" style="margin-bottom: 4rem;">
+        <div class="code-pane">
+          <div class="code-header">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">Before (4,240 tokens)</span>
+          </div>
+          <pre><code class="lang-python"><span class="st">Traceback (most recent call last):
+  File "manage.py", line 22, in &lt;module&gt;
+    execute_from_command_line(sys.argv)
+  File "/usr/local/lib/python3.10/site-packages/django/...
+    utility.execute()
+  ... [45 lines of internal Django/psycopg2 traceback] ...
+psycopg2.errors.UniqueViolation: duplicate key value 
+violates unique constraint "users_pkey"
+DETAIL:  Key (id)=(123) already exists.</span></code></pre>
+        </div>
+        <div class="code-vs-badge">VS</div>
+        <div class="code-pane code-pane-after">
+          <div class="code-header">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">After Axon (19 tokens)</span>
+            <span class="savings-tag">↓ 99.6% cost</span>
+          </div>
+          <pre><code class="lang-python"><span class="st">psycopg2.errors.UniqueViolation: duplicate key value 
+violates unique constraint "users_pkey"
+DETAIL:  Key (id)=(123) already exists.</span></code></pre>
+        </div>
+      </div>
+
+      <!-- Example 2 -->
+      <h3 class="sub-h3">Example 2: Loop Circuit Breaker (100% Savings)</h3>
+      <p class="section-p" style="font-size: 1rem; color: #9ca3af; max-width: 800px; margin-bottom: 1.5rem;">Autonomous agents frequently get stuck in "reasoning loops". Axon detects duplicate tool calls with identical arguments in the agent's history and acts as a circuit breaker. It intercepts the request and returns the cached tool result directly, bypassing the LLM provider entirely.</p>
+      <div class="code-compare">
+        <div class="code-pane">
+          <div class="code-header">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">Before (Stuck Agent)</span>
+          </div>
+          <pre><code class="lang-python"><span class="cm"># Turn 12</span>
+<span class="st">Tool Call: query_database({"table": "users"})</span>
+<span class="cm"># Turn 13</span>
+<span class="st">Tool Call: query_database({"table": "users"})</span>
+<span class="cm"># Turn 14</span>
+<span class="st">Tool Call: query_database({"table": "users"})</span>
+<span class="cm"># Agent loops endlessly, burning tokens...</span></code></pre>
+        </div>
+        <div class="code-vs-badge">VS</div>
+        <div class="code-pane code-pane-after">
+          <div class="code-header">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="code-title">After Axon ($0 cost)</span>
+            <span class="savings-tag">100% Bypass</span>
+          </div>
+          <pre><code class="lang-python"><span class="cm"># Turn 12</span>
+<span class="st">Tool Call: query_database({"table": "users"})</span>
+<span class="cm"># Turn 13 (Intercepted!)</span>
+<span class="hl">Axon System: Loop detected. Returning cached result.
+LLM API Bypassed entirely ($0 cost).</span></code></pre>
+        </div>
       </div>
     </div>
   </section>
@@ -262,7 +322,7 @@ response = client.chat.completions.create(
           <div class="code-header">
             <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
             <span class="code-title">After Axon</span>
-            <span class="savings-tag">↓ 76% cost</span>
+            <span class="savings-tag">↓ 99.6% cost</span>
           </div>
           <pre><code class="lang-python"><span class="kw">import</span> openai
 

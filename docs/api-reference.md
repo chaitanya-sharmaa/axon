@@ -40,6 +40,7 @@ The fastest way to find what you need. All variables at a glance:
 | `AXON_ENABLE_AGENTIC_SCRATCHPAD` | `true` | ✅ |
 | `AXON_ENABLE_AGENTIC_OBSERVATION_WINDOW` | `true` | ✅ |
 | `AXON_ENABLE_AGENTIC_LOOP_DETECTION` | `true` | ✅ |
+| `AXON_CORS_ORIGINS` | *(none)* | ❌ opt-in |
 | `AXON_ENABLE_SEMANTIC_ROUTING` | `false` | ❌ opt-in |
 | `AXON_ENABLE_RAG_CONTEXT` | `false` | ❌ opt-in |
 | `AXON_ENABLE_PROMPT_FIREWALL` | `false` | ❌ opt-in |
@@ -50,7 +51,6 @@ The fastest way to find what you need. All variables at a glance:
 | `AXON_ENABLE_ASSISTANTS_ROUTES` | `false` | ❌ opt-in |
 | `AXON_ENABLE_AGENT_ROUTES` | `false` | ❌ opt-in |
 | `AXON_ENABLE_TENANT_QUOTAS` | `false` | ❌ opt-in |
-| `AXON_ENABLE_STATEFUL_COMPRESSION` | `false` | ❌ opt-in |
 | `AXON_ENABLE_GEMINI_PROMPT_CACHE` | `false` | ❌ opt-in |
 
 ---
@@ -125,14 +125,13 @@ Axon includes a built-in, zero-dependency **ASGI rate limiter** using `cachetool
 - **Response on limit:** `429 Too Many Requests` with `Retry-After: 60` header
 - **Configuration:** Set via `app.py` middleware — not via `.env` in the current release
 
-### 7. Stateful & Destructive Compression (Advanced)
+### 7. Gemini Prompt Caching
 
 > [!CAUTION]
-> TOON/TRON algorithms **physically delete data** from messages and replace it with `@ref` pointers. They are **only safe** when used with Anthropic Prompt Caching or Gemini `cachedContent`, where the provider's server has the KV state needed to resolve references. Do not enable against stateless APIs.
+> Prompt caching hints are **only safe** when used with provider-native caching (e.g. Gemini `cachedContent`). Do not enable against stateless APIs.
 
 | Variable | Default | Description |
 |---|---|---|
-| `AXON_ENABLE_STATEFUL_COMPRESSION` | `false` | Enable TOON (delta markers) and TRON (integer reference IDs) destructive deduplication. |
 | `AXON_ENABLE_GEMINI_PROMPT_CACHE` | `false` | Inject `cache_control` hints for Gemini Context Caching. Requires a **paid** Gemini API plan. |
 
 ---
@@ -162,12 +161,12 @@ Axon includes a built-in, zero-dependency **ASGI rate limiter** using `cachetool
 |---|---|---|
 | `AXON_ENABLE_SEMANTIC_ROUTING=true` | ML Smart Router — routes casual queries to cheaper lite models | `pip install axon-bridge[semantic]` |
 | `AXON_ENABLE_PII_REDACTION=true` | Auto-redacts emails, SSNs, credit cards, phones before LLM | `pip install axon-bridge[pii]` for presidio NER |
-| `AXON_ENABLE_PROMPT_FIREWALL=true` | Blocks 25+ jailbreak and prompt injection patterns | None |
+| `AXON_ENABLE_PROMPT_FIREWALL=true` | Blocks 27 jailbreak and prompt injection patterns | None |
 | `AXON_ENABLE_HALLUCINATION_GUARD=true` | Shannon entropy guard on `logprobs` — blocks low-confidence responses | None |
 | `AXON_ENABLE_FACT_EXTRACTION=true` | Extracts and stores semantic facts from conversations to persistent memory | None |
 | `AXON_ENABLE_LLMLINGUA_COMPRESSION=true` | Semantic NLP compression via LLMLingua-2 local model | `pip install axon-bridge[lingua]` |
-| `AXON_ENABLE_AGENT_ROUTES=true` | Agent registration, dispatch, and parallel swarm routing | None |
-| `AXON_ENABLE_ASSISTANTS_ROUTES=true` | OpenAI Assistants API (`beta.threads.*`) compatibility | None |
+| `AXON_ENABLE_AGENT_ROUTES=true` | Agent orchestration endpoints (`/agent/dispatch`, `/agent/swarm`, `/agent/parallel`, `/agent/list`) | None |
+| `AXON_ENABLE_ASSISTANTS_ROUTES=true` | OpenAI Assistants API (`beta.threads.*`) + `/v1/swarm/completions` multi-model swarm proxy | None |
 | `AXON_ENABLE_TENANT_QUOTAS=true` | Per-tenant USD spend tracking and enforcement | `pip install axon-bridge[redis]` recommended |
 
 ---
@@ -215,12 +214,25 @@ pip install axon-bridge[gemini,semantic,pii]
 | `POST` | `/v1/chat/completions` | Chat completions — streaming and non-streaming ✅ verified |
 | `GET` | `/v1/models` | List available models |
 | `POST` | `/v1/embeddings` | Embeddings proxy |
+| `POST` | `/v1/swarm/completions` | Multi-model fan-out swarm — synthesizes all responses *(requires `AXON_ENABLE_ASSISTANTS_ROUTES=true`)* |
 | `POST` | `/v1/files` | Upload files for RAG *(requires `AXON_ENABLE_ASSISTANTS_ROUTES=true`)* |
 | `GET` | `/v1/files/{id}` | Retrieve file metadata |
 | `POST` | `/v1/threads` | Create a stateful thread |
 | `POST` | `/v1/threads/{id}/messages` | Add message to thread |
 | `POST` | `/v1/threads/{id}/runs` | Execute a thread run |
 | `GET` | `/v1/threads/{id}/messages` | List thread messages |
+| `POST` | `/batch` | Compress up to 50 payloads in a single HTTP call |
+
+### Agent Orchestration (`/agent/...`)
+
+> Requires `AXON_ENABLE_AGENT_ROUTES=true`.
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/agent/dispatch` | Route payload to the best matching registered agent |
+| `POST` | `/agent/swarm` | Fan out to all registered agents concurrently |
+| `POST` | `/agent/parallel` | Dispatch to multiple agent capabilities concurrently |
+| `GET` | `/agent/list` | List all registered agents and their capabilities |
 
 ### Admin (`/admin/...`)
 

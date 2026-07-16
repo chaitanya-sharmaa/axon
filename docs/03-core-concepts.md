@@ -98,7 +98,7 @@ Axon natively includes protections designed specifically for autonomous agent wo
 6. **Schema Flattening** — Converts deeply nested multi-dimensional JSON into flat dot-notation before compression, removing structural bloat from complex agentic payloads.
 7. **JSON Healing** — If the LLM returns malformed JSON or fails schema validation, Axon intercepts, appends the error to the message history, and retries — up to 3 attempts. Validation uses **Pydantic V2 `TypeAdapter`** (no `jsonschema` dependency).
 8. **Exact-Match KV Cache** — SHA-256 hash of repeated deterministic payloads returns the exact prior response instantly. **$0 API cost.** Live verified.
-9. **Prompt Firewall** — Blocks 25+ known prompt injection and jailbreak patterns. **Live verified:** Jailbreak attempt returned `SYSTEM HALTED.` before reaching LLM.
+9. **Prompt Firewall** — Blocks 27 known prompt injection and jailbreak patterns. **Live verified:** Jailbreak attempt returned `SYSTEM HALTED.` before reaching LLM.
 10. **Shannon Entropy Hallucination Guard** — Parses `logprobs` from OpenAI/Ollama streams and computes probability distribution entropy. Surgically blocks responses when LLM confidence is below threshold. Enable with `AXON_ENABLE_HALLUCINATION_GUARD=true`.
 11. **In-Process Rate Limiter** — Native ASGI middleware using `cachetools.TTLCache`. Default: 200 requests/IP/60s. `/health` and `/metrics` are always exempt.
 

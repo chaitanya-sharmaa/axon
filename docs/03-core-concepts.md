@@ -14,14 +14,14 @@ Instead of relying on a single compression format, Axon's `TokenOptimizer` bench
 graph TD
     Input[Raw JSON Payload] --> Benchmark{TokenOptimizer Benchmarks 8 Strategies}
 
-    Benchmark --> S1[generic_delta<br/>Repeated JSON turns]
-    Benchmark --> S2[graph_delta<br/>AST graph increments]
-    Benchmark --> S3[graph<br/>Full graph payloads]
-    Benchmark --> S4[schema_values<br/>User profiles / DB rows]
-    Benchmark --> S5[generic_session<br/>Multi-turn sessions]
-    Benchmark --> S6[graph_session<br/>Stateful graph sessions]
-    Benchmark --> S7[generic<br/>General-purpose JSON]
-    Benchmark --> S8[json<br/>Pass-through baseline]
+    Benchmark --> S1[Error Truncation<br/>Stack trace minimizer]
+    Benchmark --> S2[Whitespace Normalization<br/>Strips filler]
+    Benchmark --> S3[Scratchpad Compression<br/>Prunes reasoning]
+    Benchmark --> S4[Parallel Deduplication<br/>Removes duplicates]
+    Benchmark --> S5[Prefix Caching<br/>Auto cache_control]
+    Benchmark --> S6[Schema Differential<br/>Prunes old tools]
+    Benchmark --> S7[Observation Window<br/>Entropy pruning]
+    Benchmark --> S8[Loop Circuit Breaker<br/>100% LLM Bypass]
 
     S1 --> Pick{Select Lowest Token Count}
     S2 --> Pick
@@ -39,11 +39,11 @@ graph TD
 
 | Payload | Strategy | Result |
 |---|---|---|
-| 150-module dependency graph — 5,507 tokens (live Groq) | Structural Compression | **39.75% savings** (5,507→3,318 tokens) |
-| Repeated user-profile JSON — turn 2 (21 tokens) | `generic_delta` | **76.2% savings** (21→5 tokens) |
-| AST graph with one new symbol (157 tokens) | `graph_delta` | **62.4% savings** (157→59 tokens) |
-| AST graph — first send (117 tokens) | `graph` | **53.9% savings** (117→54 tokens) |
-| DB schema rows | `schema_values` | **28.6% savings** |
+| Python Stack Trace (Error Log) | Error Truncation | **99.6% savings** (4,240→19 tokens) |
+| Infinite Tool Calling Loop | Loop Circuit Breaker | **100% LLM Bypass** ($0 cost) |
+| Kubernetes YAML | Whitespace/Syntax Normalization | **15.9% savings** |
+| AWS EC2 JSON Response | Structural Compression | **14.3% savings** |
+| Verbose JSON Schema Tools | Tool Schema Optimization | **25.3% savings** (455→340 tokens) |
 
 > Compression is purely structural. It strips JSON syntax and flattens nesting. **Zero semantic data is ever removed.**
 
@@ -61,7 +61,7 @@ Axon's **Stateful Threads API** solves this. By sending the header `X-Axon-State
 3. Axon applies structural compression to the full history.
 4. The compressed full context is forwarded to the stateless LLM.
 
-**Result:** Client transmits ~1 message over the network. LLM receives a fully rehydrated, compressed context — combining 99% bandwidth savings with ~39–76% API token savings.
+**Result:** Client transmits ~1 message over the network. LLM receives a fully rehydrated, compressed context — combining 99% bandwidth savings with up to 99.6% API token savings.
 
 ---
 

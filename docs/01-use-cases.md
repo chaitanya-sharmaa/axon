@@ -26,7 +26,7 @@ Axon Bridge is a drop-in OpenAI proxy that sits between your application and any
 | Without Axon | With Axon |
 |---|---|
 | You must maintain separate SDKs for OpenAI, Anthropic, and Gemini. | Send standard OpenAI-format payloads to Axon — it translates to 100+ providers automatically via LiteLLM. |
-| You pay full price for bloated JSON payloads with repeated keys and whitespace. | Axon benchmarks 8 compression strategies per-request and picks the best. Proven savings: **28.6%–76.2%** depending on payload shape. |
+| You pay full price for bloated JSON payloads with repeated keys and whitespace. | Axon runs an 8-pass Agentic compression pipeline (Error truncation, prefix caching, schema optimizers). Proven savings: **up to 99.6%** depending on payload shape. |
 
 ```python
 import os

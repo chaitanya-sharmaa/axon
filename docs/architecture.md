@@ -109,14 +109,14 @@ The `TokenOptimizer` benchmarks every payload against all 8 strategies and picks
 graph TD
     Input["Raw JSON Payload"]:::input --> Bench{"TokenOptimizer\nBenchmarks All 8 Strategies"}:::axon
 
-    Bench --> S1["generic_delta\nRepeated JSON turns"]
-    Bench --> S2["graph_delta\nAST graph increments"]
-    Bench --> S3["graph\nFull graph payloads"]
-    Bench --> S4["schema_values\nUser profiles / DB rows"]
-    Bench --> S5["generic_session\nMulti-turn sessions"]
-    Bench --> S6["graph_session\nStateful graph sessions"]
-    Bench --> S7["generic\nGeneral-purpose JSON"]
-    Bench --> S8["json\nPass-through baseline"]
+    Bench --> S1["Error Truncation\nStack trace minimizer"]
+    Bench --> S2["Whitespace Normalization\nStrips filler"]
+    Bench --> S3["Scratchpad Compression\nPrunes reasoning"]
+    Bench --> S4["Parallel Deduplication\nRemoves duplicates"]
+    Bench --> S5["Prefix Caching\nAuto cache_control"]
+    Bench --> S6["Schema Differential\nPrunes old tools"]
+    Bench --> S7["Observation Window\nEntropy pruning"]
+    Bench --> S8["Loop Circuit Breaker\n100% LLM Bypass"]
 
     S1 --> Pick{"Select Lowest\nToken Count"}:::axon
     S2 --> Pick
@@ -136,13 +136,13 @@ graph TD
 
 **Verified benchmark results:**
 
-| Payload | Winning Strategy | Token Savings |
+| Payload | Strategy | Token Savings |
 |---|---|---|
-| 150-module dependency graph — 5,507 tokens (live Groq) | Structural Compression | **39.75%** (5,507→3,318) |
-| Repeated user-profile JSON, Turn 2 | `generic_delta` | **76.2%** (21→5 tokens) |
-| AST graph — one new symbol added | `graph_delta` | **62.4%** (157→59 tokens) |
-| AST graph — first send | `graph` | **53.9%** (117→54 tokens) |
-| DB schema rows | `schema_values` | **28.6%** |
+| Python Stack Trace (Error Log) | Error Truncation | **99.6%** (4,240→19 tokens) |
+| Infinite Tool Calling Loop | Loop Circuit Breaker | **100% LLM Bypass** ($0 cost) |
+| Kubernetes YAML | Whitespace/Syntax Normalization | **15.9%** |
+| AWS EC2 JSON Response | Structural Compression | **14.3%** |
+| Verbose JSON Schema Tools | Tool Schema Optimization | **25.3%** (455→340 tokens) |
 
 ---
 

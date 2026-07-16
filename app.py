@@ -23,9 +23,6 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.trace import TracerProvider
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from api.middleware.request_id import RequestIDMiddleware
 from api.routes import (
@@ -61,9 +58,6 @@ def create_app() -> FastAPI:
 
     # ── App components ────────────────────────────────────────────────────────
     initialize_app()
-
-    # ── Rate limiter ──────────────────────────────────────────────────────────
-    limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
     # ── OpenTelemetry Setup ──────────────────────────────────────────────────
     # Tracing
@@ -112,12 +106,12 @@ def create_app() -> FastAPI:
     # Instrument the FastAPI app
     FastAPIInstrumentor.instrument_app(app)
 
-    # Attach limiter to app state (required by slowapi)
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
     # ── Middleware ────────────────────────────────────────────────────────────
     app.add_middleware(RequestIDMiddleware)
+    
+    from api.middleware.rate_limit import RateLimitMiddleware
+    app.add_middleware(RateLimitMiddleware, max_requests=200, window_seconds=60)
+    
     from api.middleware.cost_guard import CostBudgetGuardMiddleware
     app.add_middleware(CostBudgetGuardMiddleware)
 

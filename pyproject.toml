@@ -21,6 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
@@ -28,23 +29,21 @@ classifiers = [
 dependencies = [
     "gcf-python>=2.1.0",
     "fastapi>=0.116.0,<0.137.0",
-    "granian>=1.6.0",
+    "granian>=1.6.0,<2.0.0",
     "httpx>=0.27.0",
     "libsql-client>=0.3.1",
     "tiktoken>=0.7.0",
     "python-dotenv>=1.0.0",
     "orjson>=3.9.0",
-    "slowapi>=0.1.9",
     "typer>=0.12.0",
     "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
     "opentelemetry-api>=1.24.0",
     "opentelemetry-sdk>=1.24.0",
     "opentelemetry-instrumentation-fastapi>=0.45b0",
     "opentelemetry-exporter-prometheus>=0.45b0",
     "prometheus-client>=0.20.0",
-    "trafilatura>=1.12.0",
-    "litellm>=1.40.0",
-    "jsonschema>=4.20.0",
+    "litellm>=1.40.0,<2.0.0",
     "cachetools>=5.0.0",
     "pillow>=10.0.0",
     "pypdf>=4.0.0",
@@ -53,14 +52,15 @@ dependencies = [
 
 [project.optional-dependencies]
 redis = ["redis>=5.0.0"]
-claude = ["anthropic>=0.28.0"]
+claude = ["anthropic>=0.35.0"]
 langchain = ["langchain-core>=0.2.0"]
 llamaindex = ["llama-index-core>=0.10.0"]
 lingua = ["llmlingua>=0.2.2"]
-semantic = ["fastembed>=0.2.0", "numpy>=1.26.0", "bm25s>=0.2.0"]
+semantic = ["fastembed>=0.2.0,<0.5.0", "numpy>=1.26.0", "bm25s>=0.2.0"]
 vector = ["torch>=2.0.0"]
 pii = ["presidio-analyzer>=2.2", "spacy>=3.7"]
-gemini = ["google-generativeai>=0.4.0"]
+gemini = ["google-genai>=1.0.0"]
+web = ["trafilatura>=1.12.0"]
 telemetry = ["opentelemetry-exporter-otlp>=1.24.0"]
 dev = [
     "pytest>=8.0.0",
@@ -92,6 +92,16 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.10"
 strict = true
+
+[[tool.mypy.overrides]]
+module = [
+    "gcf.*",
+    "granian.*",
+    "litellm.*",
+    "libsql_client.*",
+    "trafilatura.*",
+    "google.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

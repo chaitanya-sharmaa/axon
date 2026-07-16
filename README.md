@@ -45,7 +45,7 @@ Your App (OpenAI SDK)
 
 ## 📊 Verified Benchmarking Results
 
-All **271/271** tests are passing with 100% Core Coverage. All benchmarks were run against real-world complex JSON payloads with a live LLM (Groq `llama-3.1-8b-instant`) or locally via the token optimizer.
+All **268/268** tests are passing with 100% Core Coverage. All benchmarks were run against real-world complex JSON payloads with a live LLM (Groq `llama-3.1-8b-instant`) or locally via the token optimizer.
 
 ### Scenario A: Real-World Agent Payload (Architecture Context, live LLM test)
 
@@ -175,7 +175,7 @@ A fully lossless mathematical token compression layer designed specifically for 
 | **Prefix Caching** | Auto-injects provider-native `cache_control` markers on stable system prompts and tools. | **85-90%** on fixed prefixes |
 | **Schema Differential** | Omits JSON schemas for tools that the agent hasn't used recently after an initial grace period. | **80%** on schemas |
 | **Observation Window** | Uses Shannon entropy × exponential recency to dynamically prune old, low-information tool results from context. | **40-70%** on history |
-| **Loop Circuit Breaker** | Detects when an agent calls the same tool with identical args. Injects cached result with a warning, bypassing LLM API. | **100%** on loops |
+| **Loop Circuit Breaker** *(separate)* | Detects when an agent calls the same tool with identical args. Injects cached result with a warning, bypassing LLM API. | **100%** on loops |
 
 ```python
 # The pipeline activates automatically when X-Axon-Session-ID is present.
@@ -219,6 +219,8 @@ sequenceDiagram
     LLM-->>Axon: Final Answer
     Axon-->>Agent: Result (97.6% tokens saved)
 ```
+
+> **See it in action:** Check out the [Real-World Agent Benchmark](docs/01-use-cases.md#9-real-world-agent-benchmark) results verified against a live Groq LLM agent, demonstrating 100% LLM bypass on loops and 25%+ savings on tool schemas.
 
 ---
 
@@ -291,6 +293,8 @@ Axon Bridge is highly configurable via environment variables and exposes a robus
 To keep this README clean, the full **Configuration Variables** and **API Endpoint Reference** have been moved to their own dedicated document.
 
 👉 **[View the Configuration & API Reference](docs/api-reference.md)**
+
+👉 **[View the Architecture Reference & Diagrams](docs/architecture.md)**
 
 ---
 

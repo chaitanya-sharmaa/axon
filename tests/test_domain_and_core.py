@@ -1,10 +1,11 @@
 import json
 import logging
 import os
+import pytest
 from unittest.mock import patch
 
 from core.logging_config import _JSONFormatter, configure_logging, request_id_var
-from core.settings import _as_bool, _as_float, _as_list, load_settings
+from core.settings import load_settings
 from domain.process_handlers import (
     get_handler,
     handler_active_items,
@@ -74,25 +75,6 @@ def test_handler_registry():
 
 # --- Core Settings Tests ---
 
-def test_settings_as_bool():
-    assert _as_bool(None, True) is True
-    assert _as_bool("1", False) is True
-    assert _as_bool("true", False) is True
-    assert _as_bool("yes", False) is True
-    assert _as_bool("on", False) is True
-    assert _as_bool("false", True) is False
-    assert _as_bool("0", True) is False
-
-def test_settings_as_float():
-    assert _as_float(None, 1.5) == 1.5
-    assert _as_float("2.5", 1.5) == 2.5
-    assert _as_float("invalid", 1.5) == 1.5
-
-def test_settings_as_list():
-    assert _as_list(None, ["a", "b"]) == ["a", "b"]
-    assert _as_list("x, y, z", ["a"]) == ["x", "y", "z"]
-    assert _as_list("   ", ["a"]) == ["a"]
-
 def test_load_settings():
     env = {
         "AXON_PORT": "9090",
@@ -108,9 +90,10 @@ def test_load_settings():
         assert s.allowed_domains == ["a.com", "b.com"]
 
 def test_load_settings_invalid_port():
+    from pydantic import ValidationError
     with patch.dict(os.environ, {"AXON_PORT": "invalid"}):
-        s = load_settings()
-        assert s.port == 8080
+        with pytest.raises(ValidationError):
+            s = load_settings()
 
 
 # --- Core Logging Tests ---

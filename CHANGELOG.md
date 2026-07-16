@@ -26,11 +26,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - **Docker support** — multi-stage `Dockerfile` and `docker-compose.yml` (SQLite) + `docker-compose.redis.yml` (Redis)
 - **`.env.example`** — template with every `AXON_*` variable documented
 - **CORS middleware** — configurable via `AXON_CORS_ORIGINS`
-- **Rate limiting** (`slowapi`) — per-IP limits configurable via env vars
+- **Rate limiting** (`cachetools.TTLCache` ASGI middleware) — per-IP limits, 200 req/60s by default; `/health` and `/metrics` are exempt
 - **Payload cache** (`services/payload_cache.py`) — LRU cache keyed on SHA-256 eliminates re-encoding identical payloads
 - **Graceful shutdown** — SQLite connection closed cleanly on app shutdown
 - **LRU eviction for session state** — `TokenOptimizer` now caps in-memory session state (default 1 000 sessions)
 - **`max_sessions` setting** (`AXON_MAX_SESSIONS`) — controls the LRU cap
+- **Agentic Optimization Pipeline** — 7-pass mathematical compression layer (`services/agentic/pipeline.py`): error truncation, whitespace normalization, scratchpad compression, parallel deduplication, prefix caching, schema differential, observation window pruning
+- **Loop Circuit Breaker** — separate from the pipeline; detects and short-circuits identical repeated tool calls with zero LLM spend
+- **Prompt Firewall** — expanded to 27 jailbreak/injection detection patterns
+- **Shannon Entropy Hallucination Guard** — logprobs entropy analysis to block low-confidence responses
+- **Real-time Observability Dashboard** — 10-tab dashboard at `/dashboard` with live metrics, cache explorer, security log, tenant quotas, sessions, API playground, agentic telemetry, and feature flag control
 
 ### Fixed
 - `bridge_service.py`: fixed runtime crash where non-existent `encode_best_effort()` was called

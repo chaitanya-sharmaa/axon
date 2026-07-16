@@ -1,0 +1,257 @@
+{
+  "timestamp": "2026-07-16T11:13:12.513310+00:00",
+  "model": "groq/llama-3.1-8b-instant",
+  "axon_version": "0.3.0",
+  "tests_run": 11,
+  "passed": 11,
+  "failed": 0,
+  "results": [
+    {
+      "name": "Structural Compression \u2014 Code Graph",
+      "description": "30-module AST dependency graph sent as JSON payload; Axon selects optimal structural strategy",
+      "category": "Compression",
+      "tokens_before": 0,
+      "tokens_after": 0,
+      "savings_pct": 100.0,
+      "cost_saved_usd": 0.0,
+      "cache_hit": "",
+      "reply_snippet": "From the provided graph, we can see that the \"edges\" are the dependencies between the modules. The modules with more edges pointing to them from other modules are the ones with more dependencies. \n\nLet's count the number of edges pointing to each module:\n\n- app.module_0 is pointed to by 1 module (ap",
+      "latency_ms": 1529,
+      "feature_verified": "TokenOptimizer selected best of 8 strategies",
+      "raw_metrics": {
+        "strategy": "exact_match",
+        "original_tokens": 0,
+        "compressed_tokens": 0,
+        "savings_pct": 100.0,
+        "cost_saved_usd": 0.0,
+        "cache_hit": "HIT"
+      },
+      "passed": true,
+      "notes": "Payload size: 11,651 chars"
+    },
+    {
+      "name": "Multi-Turn Session Compression",
+      "description": "4-turn conversation with growing context; Axon applies delta/session strategies per turn",
+      "category": "Compression",
+      "tokens_before": 0,
+      "tokens_after": 0,
+      "savings_pct": 100.0,
+      "cost_saved_usd": 0.0,
+      "cache_hit": "",
+      "reply_snippet": "",
+      "latency_ms": 0,
+      "feature_verified": "generic_delta / generic_session strategy on repeat turns",
+      "raw_metrics": {
+        "turns": [
+          {
+            "turn": 1,
+            "tokens_before": 0,
+            "tokens_after": 0,
+            "savings_pct": 100.0,
+            "latency_ms": 1503
+          },
+          {
+            "turn": 2,
+            "tokens_before": 0,
+            "tokens_after": 0,
+            "savings_pct": 100.0,
+            "latency_ms": 1503
+          },
+          {
+            "turn": 3,
+            "tokens_before": 0,
+            "tokens_after": 0,
+            "savings_pct": 100.0,
+            "latency_ms": 1506
+          },
+          {
+            "turn": 4,
+            "tokens_before": 0,
+            "tokens_after": 0,
+            "savings_pct": 100.0,
+            "latency_ms": 1503
+          }
+        ]
+      },
+      "passed": true,
+      "notes": "4 turns, avg savings: 100.0%"
+    },
+    {
+      "name": "L1 Exact-Match Cache",
+      "description": "Identical request sent twice; second must return from SHA-256 KV cache with 100% token savings",
+      "category": "Caching",
+      "tokens_before": 0,
+      "tokens_after": 0,
+      "savings_pct": 100.0,
+      "cost_saved_usd": 0.0,
+      "cache_hit": "HIT",
+      "reply_snippet": "Paris.",
+      "latency_ms": 1525,
+      "feature_verified": "x-axon-cache: HIT",
+      "raw_metrics": {},
+      "passed": true,
+      "notes": "Turn 1: 1523ms \u2192 Turn 2: 1525ms (1.0x faster)"
+    },
+    {
+      "name": "L2 Semantic Vector Cache",
+      "description": "Original question cached; rephrased variant returns from vector similarity cache",
+      "category": "Caching",
+      "tokens_before": 0,
+      "tokens_after": 0,
+      "savings_pct": 100.0,
+      "cost_saved_usd": 0.0,
+      "cache_hit": "HIT",
+      "reply_snippet": "The city that serves as the capital of the French Republic is Paris.",
+      "latency_ms": 1513,
+      "feature_verified": "x-axon-cache: HIT",
+      "raw_metrics": {},
+      "passed": true,
+      "notes": "Requires pip install axon-bridge[semantic] for full semantic vector matching"
+    },
+    {
+      "name": "Prompt Firewall",
+      "description": "Jailbreak injection attempt scanned by 27-pattern firewall before reaching LLM",
+      "category": "Security",
+      "tokens_before": 0,
+      "tokens_after": 0,
+      "savings_pct": 0.0,
+      "cost_saved_usd": 0.0,
+      "cache_hit": "",
+      "reply_snippet": "",
+      "latency_ms": 0,
+      "feature_verified": "PromptFirewall.scan() returned is_safe=False (detected=True)",
+      "raw_metrics": {},
+      "passed": true,
+      "notes": "Set AXON_ENABLE_PROMPT_FIREWALL=true in .env to block at HTTP layer"
+    },
+    {
+      "name": "PII Redaction",
+      "description": "SSN and credit card number redacted from user message before LLM forwarding",
+      "category": "Security",
+      "tokens_before": 0,
+      "tokens_after": 0,
+      "savings_pct": 0.0,
+      "cost_saved_usd": 0.0,
+      "cache_hit": "",
+      "reply_snippet": "My SSN is [SSN_REDACTED] and my credit card is [CREDIT_CARD_REDACTED]. Please help me with my account.",
+      "latency_ms": 0,
+      "feature_verified": "SSN removed=True, CC removed=True",
+      "raw_metrics": {},
+      "passed": true,
+      "notes": "Set AXON_ENABLE_PII_REDACTION=true in .env to activate on all requests"
+    },
+    {
+      "name": "Agentic Loop Circuit Breaker",
+      "description": "Agent calls same tool 3x with identical args; 3th call intercepted and returned from cache",
+      "category": "Agentic",
+      "tokens_before": 0,
+      "tokens_after": 0,
+      "savings_pct": 100.0,
+      "cost_saved_usd": 0.0,
+      "cache_hit": "",
+      "reply_snippet": "",
+      "latency_ms": 0,
+      "feature_verified": "check_and_cache loop=True on call #4 (threshold=3)",
+      "raw_metrics": {},
+      "passed": true,
+      "notes": "100% LLM bypass on loop detection \u2014 zero API cost per repeated call"
+    },
+    {
+      "name": "Full Agentic 3-Turn Code Agent",
+      "description": "3-turn autonomous coding agent: analyze \u2192 optimize \u2192 test. Measures cumulative savings from agentic pipeline.",
+      "category": "Agentic",
+      "tokens_before": 2587,
+      "tokens_after": 2587,
+      "savings_pct": 0.0,
+      "cost_saved_usd": 0.0,
+      "cache_hit": "",
+      "reply_snippet": "",
+      "latency_ms": 0,
+      "feature_verified": "Agentic pipeline (7 passes) active with session ID",
+      "raw_metrics": {
+        "turns": [
+          {
+            "turn": 1,
+            "label": "Code analysis",
+            "tokens_before": 0,
+            "tokens_after": 0,
+            "savings_pct": 100.0,
+            "latency_ms": 1504
+          },
+          {
+            "turn": 2,
+            "label": "Code optimization",
+            "tokens_before": 1027,
+            "tokens_after": 1027,
+            "savings_pct": 0.0,
+            "latency_ms": 2156
+          },
+          {
+            "turn": 3,
+            "label": "Test generation",
+            "tokens_before": 1560,
+            "tokens_after": 1560,
+            "savings_pct": 0.0,
+            "latency_ms": 2042
+          }
+        ]
+      },
+      "passed": true,
+      "notes": "Turns: [{'turn': 1, 'label': 'Code analysis', 'tokens_before': 0, 'tokens_after': 0, 'savings_pct': 100.0, 'latency_ms': 1504}, {'turn': 2, 'label': 'Code optimization', 'tokens_before': 1027, 'tokens_after': 1027, 'savings_pct': 0.0, 'latency_ms': 2156}, {'turn': 3, 'label': 'Test generation', 'tokens_before': 1560, 'tokens_after': 1560, 'savings_pct': 0.0, 'latency_ms': 2042}]"
+    },
+    {
+      "name": "Streaming Budget Circuit Breaker",
+      "description": "X-Axon-Max-Spend header enforces per-request USD budget; stream killed if exceeded",
+      "category": "Security",
+      "tokens_before": 0,
+      "tokens_after": 0,
+      "savings_pct": 0.0,
+      "cost_saved_usd": 0.0,
+      "cache_hit": "",
+      "reply_snippet": "",
+      "latency_ms": 0,
+      "feature_verified": "CostBudgetGuardMiddleware loaded and active in app.py",
+      "raw_metrics": {},
+      "passed": true,
+      "notes": "Set X-Axon-Max-Spend: 0.05 in request headers to activate"
+    },
+    {
+      "name": "JSON Schema Healing Loop",
+      "description": "Structured JSON response requested; Axon validates with Pydantic V2 TypeAdapter and auto-heals malformed output",
+      "category": "Reliability",
+      "tokens_before": 31,
+      "tokens_after": 31,
+      "savings_pct": 0.0,
+      "cost_saved_usd": 0.0,
+      "cache_hit": "",
+      "reply_snippet": "{\"age\":30,\"email\":\"john.doe@example.com\",\"name\":\"John Doe\"}",
+      "latency_ms": 1597,
+      "feature_verified": "JSON validation: \u2705 Valid JSON \u2014 schema satisfied",
+      "raw_metrics": {},
+      "passed": true,
+      "notes": "Pydantic V2 TypeAdapter validates schema; healing loop retries up to 3x"
+    },
+    {
+      "name": "Tool Schema Compression",
+      "description": "3 verbose JSON Schema tool definitions compressed to compact Python function signatures",
+      "category": "Compression",
+      "tokens_before": 455,
+      "tokens_after": 340,
+      "savings_pct": 25.274725274725274,
+      "cost_saved_usd": 0.0,
+      "cache_hit": "",
+      "reply_snippet": "",
+      "latency_ms": 0,
+      "feature_verified": "ToolCompressor reduced 455\u2192340 tokens (25.3% savings)",
+      "raw_metrics": {},
+      "passed": true,
+      "notes": "AXON_ENABLE_TOOL_COMPRESSION=true (default)"
+    }
+  ],
+  "aggregate": {
+    "total_tokens_before": 3073,
+    "total_tokens_after": 2958,
+    "overall_savings_pct": 3.7422713960299383,
+    "total_cost_saved_usd": 0.0
+  }
+}

@@ -9,8 +9,8 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import tiktoken
-from services.agentic.pipeline import optimize_request
-from services.token_optimizer import TokenOptimizer
+from axon.services.agentic.pipeline import optimize_request
+from axon.services.token_optimizer import TokenOptimizer
 
 def count_tokens(model, text):
     enc = tiktoken.get_encoding("cl100k_base")

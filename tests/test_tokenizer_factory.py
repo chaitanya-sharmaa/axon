@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from services.tokenizer_factory import get_tokenizer_for_model
+from axon.services.tokenizer_factory import get_tokenizer_for_model
 
 
 def test_get_tokenizer_openai():
@@ -17,7 +17,7 @@ def test_get_tokenizer_anthropic():
     mock_client.get_tokenizer.return_value = mock_tokenizer
 
     with patch.dict(sys.modules, {'anthropic': mock_anthropic_module}):
-        from services.tokenizer_factory import get_tokenizer_for_model
+        from axon.services.tokenizer_factory import get_tokenizer_for_model
         tokenizer = get_tokenizer_for_model("claude-3-opus")
         assert tokenizer == mock_tokenizer
 

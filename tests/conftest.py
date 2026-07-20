@@ -42,7 +42,7 @@ os.environ["AXON_ENABLE_CORE_ROUTES"] = "true"
 def client():
     """Returns a TestClient instance for the FastAPI app."""
     # We import app here so the environment variables above take effect first
-    from app import app
+    from axon.app import app
     with TestClient(app) as test_client:
         yield test_client
 
@@ -79,7 +79,7 @@ def mock_redis():
 @pytest.fixture(autouse=True)
 def reset_security_config():
     """Reset security config to default test values before and after each test."""
-    from core.app_config import security_config
+    from axon.core.app_config import security_config
 
     def reset():
         security_config.allow_all_domains = True

@@ -84,7 +84,7 @@ Axon's token optimizer is designed to be extended. There are two ways to add a s
 ### Option B — Plugin (third-party, no fork needed)
 
 ```python
-from services.plugin_registry import register_strategy
+from axon.services.plugin_registry import register_strategy
 
 @register_strategy("my_brotli_strategy")
 def encode_brotli(obj: Any, session_id: str | None = None) -> str:

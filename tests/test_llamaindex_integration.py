@@ -21,8 +21,8 @@ sys.modules["llama_index.core.schema"] = MagicMock(NodeWithScore=mock_node_with_
 
 from llama_index.core.schema import NodeWithScore, TextNode
 
-from integrations.llamaindex import AxonNodePostprocessor
-from services.token_optimizer import TokenOptimizer
+from axon.integrations.llamaindex import AxonNodePostprocessor
+from axon.services.token_optimizer import TokenOptimizer
 
 
 def test_llamaindex_postprocessor():
@@ -79,5 +79,5 @@ def test_llamaindex_import_error():
         with pytest.raises(ImportError):
             import importlib
 
-            import integrations.llamaindex
+            import axon.integrations.llamaindex
             importlib.reload(integrations.llamaindex)

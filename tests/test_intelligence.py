@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from services.semantic_cache import SemanticCache
-from services.smart_router import fallback_model, route_model
-from services.token_optimizer import TokenOptimizer, _build_payload
+from axon.services.semantic_cache import SemanticCache
+from axon.services.smart_router import fallback_model, route_model
+from axon.services.token_optimizer import TokenOptimizer, _build_payload
 
 
 def test_smart_router():
@@ -86,7 +86,7 @@ def test_context_pruning():
 
 @pytest.mark.asyncio
 async def test_fact_extraction():
-    from services.fact_extractor import extract_facts_async
+    from axon.services.fact_extractor import extract_facts_async
 
     class DummyMemoryStore:
         def __init__(self):

@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from services.libsql_memory_store import LibsqlMemoryStore
-from services.redis_memory_store import RedisMemoryStore
+from axon.services.libsql_memory_store import LibsqlMemoryStore
+from axon.services.redis_memory_store import RedisMemoryStore
 
 # --- SQLite/libSQL Store Tests ---
 

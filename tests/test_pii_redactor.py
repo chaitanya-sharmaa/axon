@@ -1,4 +1,4 @@
-from services.pii_redactor import PIIRedactor
+from axon.services.pii_redactor import PIIRedactor
 
 
 def test_redactor_disabled():

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import torch
 
-from services.vector_store import VectorStore
+from axon.services.vector_store import VectorStore
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def test_chunk_text(store):
     # Empty text
     assert store.chunk_text("") == []
 
-@patch("services.vector_store.get_embedder")
+@patch("axon.services.vector_store.get_embedder")
 def test_add_file_no_embedder(mock_get_embedder, store):
     mock_get_embedder.return_value = None
     store.add_file("file1", "some text")
@@ -27,7 +27,7 @@ def test_add_file_no_embedder(mock_get_embedder, store):
     assert store.files["file1"]["chunks"] == ["some text"]
     assert store.files["file1"]["embeddings"] is None
 
-@patch("services.vector_store.get_embedder")
+@patch("axon.services.vector_store.get_embedder")
 def test_add_file_empty_text(mock_get_embedder, store):
     mock_embedder = MagicMock()
     mock_get_embedder.return_value = mock_embedder
@@ -36,7 +36,7 @@ def test_add_file_empty_text(mock_get_embedder, store):
     assert store.files["file1"]["embeddings"] is None
     mock_embedder.encode.assert_not_called()
 
-@patch("services.vector_store.get_embedder")
+@patch("axon.services.vector_store.get_embedder")
 def test_add_file_success(mock_get_embedder, store):
     mock_embedder = MagicMock()
     mock_embedder.encode.return_value = [[0.1, 0.2]]
@@ -47,7 +47,7 @@ def test_add_file_success(mock_get_embedder, store):
     assert torch.is_tensor(store.files["file1"]["embeddings"])
     mock_embedder.encode.assert_called_once_with(["hello"])
 
-@patch("services.vector_store.get_embedder")
+@patch("axon.services.vector_store.get_embedder")
 def test_search_no_embedder_or_query(mock_get_embedder, store):
     mock_get_embedder.return_value = None
     assert store.search(["file1"], "query") == []
@@ -55,7 +55,7 @@ def test_search_no_embedder_or_query(mock_get_embedder, store):
     mock_get_embedder.return_value = MagicMock()
     assert store.search(["file1"], "   ") == []
 
-@patch("services.vector_store.get_embedder")
+@patch("axon.services.vector_store.get_embedder")
 def test_search_empty_store(mock_get_embedder, store):
     mock_embedder = MagicMock()
     mock_embedder.encode.return_value = [[1.0, 0.0]]
@@ -67,7 +67,7 @@ def test_search_empty_store(mock_get_embedder, store):
     store.files["file2"] = {"chunks": ["chunk1"], "embeddings": None}
     assert store.search(["file2"], "query") == []
 
-@patch("services.vector_store.get_embedder")
+@patch("axon.services.vector_store.get_embedder")
 def test_search_success(mock_get_embedder, store):
     mock_embedder = MagicMock()
 

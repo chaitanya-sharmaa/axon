@@ -4,8 +4,8 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
 # Ensure we have the app loaded
-from app import app
-from core.settings import settings
+from axon.app import app
+from axon.core.settings import settings
 
 client = TestClient(app)
 
@@ -16,7 +16,7 @@ def test_health_endpoint():
     assert response.json()["version"] == settings.app_version
 
 
-@patch("api.routes.v1_openai_routes.litellm.acompletion")
+@patch("axon.api.routes.v1_openai_routes.litellm.acompletion")
 def test_e2e_proxy_chat_completion(mock_process):
     import asyncio
     

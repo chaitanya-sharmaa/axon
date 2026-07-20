@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-import core.app_config
+import axon.core.app_config
 
 # --- Proxy Routes Tests ---
 
@@ -90,7 +90,7 @@ def test_chat_completions_stream(client):
         yield "data: {\"id\": \"1\"}\n\n"
         yield "data: [DONE]\n\n"
 
-    with patch("api.routes.v1_openai_routes._stream_openai", new=mock_stream_openai):
+    with patch("axon.api.routes.v1_openai_routes._stream_openai", new=mock_stream_openai):
         req = {
             "model": "gpt-4",
             "messages": [{"role": "user", "content": "hello"}],
@@ -102,7 +102,7 @@ def test_chat_completions_stream(client):
         assert "data:" in content
         assert "x-axon-metrics" in res.headers
 
-@patch("api.routes.v1_openai_routes.litellm.aembedding", new_callable=AsyncMock)
+@patch("axon.api.routes.v1_openai_routes.litellm.aembedding", new_callable=AsyncMock)
 def test_embeddings(mock_aembedding, client):
     class MockResponse:
         def model_dump(self):
@@ -117,7 +117,7 @@ def test_embeddings(mock_aembedding, client):
     assert res.status_code == 200
     assert "data" in res.json()
 
-@patch("api.routes.v1_openai_routes.litellm.aembedding", new_callable=AsyncMock)
+@patch("axon.api.routes.v1_openai_routes.litellm.aembedding", new_callable=AsyncMock)
 def test_embeddings_error(mock_aembedding, client):
     mock_aembedding.side_effect = Exception("Error")
     req = {"model": "text-embedding-3", "input": "test"}
@@ -185,7 +185,7 @@ def test_chat_completions_compression_savings(client, mock_litellm_acompletion):
     mock_litellm_acompletion.return_value = MockResponse()
 
     # Mock token optimizer to force savings > 0
-    with patch("core.app_config.axon_service._optimizer.optimize") as mock_opt:
+    with patch("axon.core.app_config.axon_service._optimizer.optimize") as mock_opt:
         class DummyWinner:
             @property
             def encoded(self): return "compressed!"
@@ -207,7 +207,7 @@ def test_chat_completions_compression_savings(client, mock_litellm_acompletion):
 
 @pytest.mark.asyncio
 async def test_stream_openai_error():
-    from api.routes.v1_openai_routes import _stream_openai
+    from axon.api.routes.v1_openai_routes import _stream_openai
     with patch("litellm.acompletion") as mock_stream:
         mock_stream.side_effect = Exception("Stream timeout")
 

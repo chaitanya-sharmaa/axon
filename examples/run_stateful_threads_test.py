@@ -6,7 +6,7 @@ import uuid
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 
-from app import app
+from axon.app import app
 
 load_dotenv()
 

@@ -1,6 +1,6 @@
 import pytest
 
-from integrations.patch import patch
+from axon.integrations.patch import patch
 
 
 class MockCompletions:

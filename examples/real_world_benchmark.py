@@ -5,7 +5,7 @@ import time
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 
-from app import app
+from axon.app import app
 
 load_dotenv()
 
@@ -133,7 +133,7 @@ def test_semantic_caching():
 
 
 if __name__ == "__main__":
-    print("🚀 AXON BRIDGE — REAL-WORLD BENCHMARK SUITE")
+    print("AXON BRIDGE — REAL-WORLD BENCHMARK SUITE")
     test_json_minification()
     test_graph_deduplication()
     test_low_complexity_routing()

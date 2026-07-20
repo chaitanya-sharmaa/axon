@@ -1,5 +1,5 @@
-from services.dom_pruner import compress_html_to_markdown
-from services.token_optimizer import minify_scratchpad, prune_tools
+from axon.services.dom_pruner import compress_html_to_markdown
+from axon.services.token_optimizer import minify_scratchpad, prune_tools
 
 
 def test_compress_html_to_markdown():
@@ -69,7 +69,7 @@ def test_prune_tools():
 def test_parallel_deduplicator():
     import json
 
-    from services.agentic.parallel_deduplicator import _try_parse_json, apply
+    from axon.services.agentic.parallel_deduplicator import _try_parse_json, apply
 
     assert _try_parse_json("not json") is None
     assert _try_parse_json('{"a": 1}') == {"a": 1}
@@ -118,13 +118,13 @@ def test_parallel_deduplicator():
 
 def test_loop_detector():
 
-    from services.agentic.loop_detector import (
+    from axon.services.agentic.loop_detector import (
         _call_hash,
         check_and_cache,
         find_loops_in_history,
         record,
     )
-    from services.agentic.session_state import AgenticSessionState
+    from axon.services.agentic.session_state import AgenticSessionState
 
     # Hash function fallback check
     class Unserializable:
@@ -180,7 +180,7 @@ def test_loop_detector():
     assert loops[0]["repeated"] is True
 
 def test_observation_window():
-    from services.agentic.observation_window import _content_str, _shannon_entropy, apply
+    from axon.services.agentic.observation_window import _content_str, _shannon_entropy, apply
 
     assert _shannon_entropy("") == 0.0
     assert _shannon_entropy("a") == 0.0
@@ -211,7 +211,7 @@ def test_observation_window():
     assert saved > 0
 
     # Test hard cap: mock LAMBDA to 0 so recency doesn't decay
-    import services.agentic.observation_window as obs_win
+    import axon.services.agentic.observation_window as obs_win
     old_lambda = obs_win.LAMBDA
     obs_win.LAMBDA = 0.0
     try:
@@ -237,8 +237,8 @@ def test_observation_window():
         obs_win.LAMBDA = old_lambda
 
 def test_tool_schema_diff():
-    from services.agentic.session_state import AgenticSessionState
-    from services.agentic.tool_schema_diff import apply, update_after_response
+    from axon.services.agentic.session_state import AgenticSessionState
+    from axon.services.agentic.tool_schema_diff import apply, update_after_response
 
     state = AgenticSessionState(session_id="schema_test")
 
@@ -296,7 +296,7 @@ def test_tool_schema_diff():
     assert saved > 0
 
 def test_error_truncator():
-    from services.agentic.error_truncator import (
+    from axon.services.agentic.error_truncator import (
         _extract_final_error,
         _is_stack_trace,
         apply,
@@ -377,7 +377,7 @@ Some line
     assert saved > 0
 
 def test_scratchpad_compressor():
-    from services.agentic.scratchpad_compressor import (
+    from axon.services.agentic.scratchpad_compressor import (
         MIN_LEN,
         apply,
         compress_content,

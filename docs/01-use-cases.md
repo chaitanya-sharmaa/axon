@@ -203,7 +203,7 @@ BASE = "http://localhost:8080"
 KEY  = os.environ.get("AXON_OPENAI_API_KEY", "")
 
 # Step 1 — Register your named agents (via orchestrator)
-from services.agent_orchestrator import AgentOrchestrator
+from axon.services.agent_orchestrator import AgentOrchestrator
 orchestrator = AgentOrchestrator()
 orchestrator.register_agent(
     name="researcher",
@@ -299,8 +299,8 @@ response = client.chat.completions.create(
 | All 10 retrieved documents are sent to the LLM, burning thousands of tokens on noise. | Axon scores documents against the query using BM25, drops the irrelevant bottom 25%, and compresses the rest. |
 
 ```python
-from integrations.llamaindex import AxonNodePostprocessor
-from services.token_optimizer import TokenOptimizer
+from axon.integrations.llamaindex import AxonNodePostprocessor
+from axon.services.token_optimizer import TokenOptimizer
 
 # Plug Axon into your existing LlamaIndex query engine
 axon_postprocessor = AxonNodePostprocessor(
@@ -328,7 +328,7 @@ response = query_engine.query("What is the Q3 revenue figure?")
 ```python
 # The tokenizer factory automatically selects the right backend.
 # For Gemini models, it uses the google-genai client:
-from services.tokenizer_factory import count_tokens
+from axon.services.tokenizer_factory import count_tokens
 
 # OpenAI-style (uses tiktoken — always available)
 count = count_tokens("cl100k_base", messages)

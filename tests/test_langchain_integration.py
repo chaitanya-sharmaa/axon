@@ -3,11 +3,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from integrations.langchain import AxonCallbackHandler
+from axon.integrations.langchain import AxonCallbackHandler
 
 
 def test_langchain_handler_init_error():
-    with patch("integrations.langchain._LANGCHAIN_AVAILABLE", False):
+    with patch("axon.integrations.langchain._LANGCHAIN_AVAILABLE", False):
         with pytest.raises(ImportError):
             AxonCallbackHandler()
 

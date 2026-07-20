@@ -1,4 +1,4 @@
-from services.schema_validator import SchemaValidator
+from axon.services.schema_validator import SchemaValidator
 
 
 def test_schema_validator_no_schema():

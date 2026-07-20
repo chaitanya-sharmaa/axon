@@ -88,7 +88,7 @@ RUN uv pip install --no-cache .[gemini,semantic,pii]
 | Runtime user | `axon` (non-root, UID auto-assigned) |
 | Exposed port | `8080` |
 | Healthcheck interval | 30s, 5s timeout, 10s start period, 3 retries |
-| Default CMD | `granian --interface asgi app:app --host 0.0.0.0 --port 8080` |
+| Default CMD | `axon serve --host 0.0.0.0 --port 8080` |
 
 ---
 

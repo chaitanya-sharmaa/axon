@@ -5,9 +5,9 @@ import pytest
 
 from PIL import Image
 
-from api.routes.v1_openai_routes import ChatMessage, _compress_messages
-from services.text_pruner import prune_text
-from services.vision_optimizer import downscale_base64_image
+from axon.api.routes.v1_openai_routes import ChatMessage, _compress_messages
+from axon.services.text_pruner import prune_text
+from axon.services.vision_optimizer import downscale_base64_image
 
 
 # --- Test 1: Vision Optimizer ---

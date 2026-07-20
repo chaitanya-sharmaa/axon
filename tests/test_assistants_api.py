@@ -11,7 +11,7 @@ load_dotenv()
 
 # Enable assistants routes for this test (opt-in feature)
 os.environ["AXON_ENABLE_ASSISTANTS_ROUTES"] = "true"
-from app import app
+from axon.app import app
 
 # Point the official OpenAI SDK to the local Axon Proxy!
 client = AsyncOpenAI(
@@ -47,7 +47,7 @@ async def mock_acompletion_side_effect(*args, **kwargs):
     return MockResponseNonStream()
 
 @pytest.mark.asyncio
-@patch("api.routes.v1_assistants_routes.litellm.acompletion", new_callable=AsyncMock)
+@patch("axon.api.routes.v1_assistants_routes.litellm.acompletion", new_callable=AsyncMock)
 async def test_assistants_api_flow(mock_acompletion):
     mock_acompletion.side_effect = mock_acompletion_side_effect
     # 1. Create a Thread

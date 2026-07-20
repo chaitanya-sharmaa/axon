@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from services.smart_router import (
+from axon.services.smart_router import (
     analyze_complexity,
     fallback_model,
     get_load_balanced_key,
@@ -39,8 +39,8 @@ def test_analyze_complexity():
     long_text = "a " * 2001
     assert analyze_complexity(long_text) == "high"
 
-@patch("services.smart_router.settings")
-@patch("services.smart_router.classify_intent")
+@patch("axon.services.smart_router.settings")
+@patch("axon.services.smart_router.classify_intent")
 def test_route_model(mock_classify, mock_settings):
     mock_settings.enable_semantic_routing = False
     assert route_model("gpt-4o", 100) == "gpt-4o"

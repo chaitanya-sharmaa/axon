@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
-from app import app
+from axon.app import app
 
 os.environ["OPENAI_API_KEY"] = "dummy"
 os.environ["AXON_REQUIRE_API_KEY"] = "false"
@@ -66,7 +66,7 @@ def test_shannon_entropy_NOT_enabled_for_ollama():
             }
 
     with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion, \
-         patch("services.semantic_cache.SemanticCache.check_cache", new_callable=AsyncMock) as mock_cache:
+         patch("axon.services.semantic_cache.SemanticCache.check_cache", new_callable=AsyncMock) as mock_cache:
         mock_acompletion.return_value = MockResponse()
         mock_cache.return_value = (None, None)
 
@@ -100,7 +100,7 @@ def test_logprobs_not_injected_for_gemini():
             }
 
     with patch("litellm.acompletion", new_callable=AsyncMock) as mock_acompletion, \
-         patch("services.semantic_cache.SemanticCache.check_cache", new_callable=AsyncMock) as mock_cache:
+         patch("axon.services.semantic_cache.SemanticCache.check_cache", new_callable=AsyncMock) as mock_cache:
         mock_acompletion.return_value = MockResponse()
         mock_cache.return_value = (None, None)
 

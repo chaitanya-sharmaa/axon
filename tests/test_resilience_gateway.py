@@ -2,7 +2,7 @@ import copy
 
 from fastapi.testclient import TestClient
 
-from app import app
+from axon.app import app
 
 client = TestClient(app)
 

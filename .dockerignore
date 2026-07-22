@@ -2,11 +2,12 @@
 .venv
 venv
 env
-__pycache__
-*.pyc
+**/__pycache__
+**/*.pyc
 .pytest_cache
 .coverage
 htmlcov/
 tests/
 .env
 .cursor
+**/node_modules

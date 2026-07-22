@@ -59,11 +59,7 @@ Your App (OpenAI SDK)
 **Why the difference?**
 TRON compresses massive redundancies by replacing repeated strings (like namespaces or pod names) with pointer references (`@ref:1`). If the LLM has session memory or uses native prompt caching, it understands these references perfectly. For purely **stateless** agents, Axon safely disables TRON and falls back to **GCF**, ensuring the payload remains 100% self-contained and readable by any fresh LLM context, while still saving **38%** on token overhead.
 
-### 2. Real-World Agent Loop Compression
 
-*Tested by simulating a live autonomous coding agent.*
-
-| Feature | Scenario | Result |
 ### 2. Autonomous Agent Loop Protections
 
 *Tested by simulating the K8s monitoring agent executing autonomous tool calls.*

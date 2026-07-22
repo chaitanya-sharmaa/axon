@@ -2,7 +2,7 @@ import logging
 import time
 import uuid
 
-import PyPDF2
+import pypdf
 from fastapi import APIRouter, File, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
@@ -30,7 +30,7 @@ async def upload_file(
     if file.filename.lower().endswith(".pdf"):
         try:
             from io import BytesIO
-            pdf_reader = PyPDF2.PdfReader(BytesIO(content))
+            pdf_reader = pypdf.PdfReader(BytesIO(content))
             for page in pdf_reader.pages:
                 text += page.extract_text() + "\n"
         except Exception as e:

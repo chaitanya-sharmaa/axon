@@ -101,6 +101,7 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         openapi_url="/openapi.json",
         lifespan=lifespan,
+        root_path="/axon",
     )
 
     # Instrument the FastAPI app

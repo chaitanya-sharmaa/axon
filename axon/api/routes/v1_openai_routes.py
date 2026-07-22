@@ -394,7 +394,10 @@ async def chat_completions(
     # If the client provides no key, fall back to the server's configured key.
     api_key = (authorization or "").removeprefix("Bearer ").strip()
     if not api_key:
-        api_key = os.getenv("OPENAI_API_KEY", "")
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        
+    if api_key in ("", "not-needed", "not-needed-for-bedrock"):
+        api_key = None
         
     upstream_base_url = request.headers.get("X-Upstream-Base-Url") or os.getenv("OPENAI_BASE_URL")
 
@@ -567,12 +570,14 @@ async def chat_completions(
         del upstream_body["tools"]
 
     # Use the appropriate header based on key format
-    if api_key.startswith("AQ."):
+    if api_key and api_key.startswith("AQ."):
         # New Authorization keys must be sent via the x-goog-api-key header
         upstream_headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
-    else:
+    elif api_key:
         # Traditional keys (or OpenAI keys) use the standard Authorization header
         upstream_headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    else:
+        upstream_headers = {"Content-Type": "application/json"}
 
 
     # Add dollar savings if model pricing is known

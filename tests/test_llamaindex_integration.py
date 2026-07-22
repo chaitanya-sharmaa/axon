@@ -80,4 +80,4 @@ def test_llamaindex_import_error():
             import importlib
 
             import axon.integrations.llamaindex
-            importlib.reload(integrations.llamaindex)
+            importlib.reload(axon.integrations.llamaindex)

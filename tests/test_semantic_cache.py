@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import orjson
 import pytest
 
-from services.semantic_cache import SemanticCache
+from axon.services.semantic_cache import SemanticCache
 
 
 @pytest.fixture
@@ -32,19 +32,19 @@ async def test_get_embedding(cache):
     assert await cache.get_embedding("   ", "key") is None
 
     # Embedder failure
-    with patch("services.intent_classifier.get_embedder", return_value=None):
+    with patch("axon.services.intent_classifier.get_embedder", return_value=None):
         assert await cache.get_embedding("test", "key") is None
 
     # Embedder throws exception
     mock_emb = MagicMock()
     mock_emb.embed.side_effect = Exception("err")
-    with patch("services.intent_classifier.get_embedder", return_value=mock_emb):
+    with patch("axon.services.intent_classifier.get_embedder", return_value=mock_emb):
         assert await cache.get_embedding("test", "key") is None
 
     # Success
     mock_emb = MagicMock()
     mock_emb.embed.return_value = [MagicMock(tolist=lambda: [0.1, 0.2])]
-    with patch("services.intent_classifier.get_embedder", return_value=mock_emb):
+    with patch("axon.services.intent_classifier.get_embedder", return_value=mock_emb):
         res = await cache.get_embedding("test", "key")
         assert res == [0.1, 0.2]
 
@@ -64,7 +64,7 @@ async def test_check_cache_edge_cases(cache):
 
     # No memory store support
     with patch.object(cache, "get_embedding", return_value=[0.1]):
-        with patch("services.semantic_cache.memory_store", spec=[]): # No get_active_semantic_cache
+        with patch("axon.services.semantic_cache.memory_store", spec=[]): # No get_active_semantic_cache
             res, state = await cache.check_cache([{"role": "user", "content": "hi"}], "key")
             assert res is None
 
@@ -74,7 +74,7 @@ async def test_check_cache_edge_cases(cache):
         {"embedding": "bad json", "response_json": "{}"}
     ])
     with patch.object(cache, "get_embedding", return_value=[0.1]):
-        with patch("services.semantic_cache.memory_store", mock_store):
+        with patch("axon.services.semantic_cache.memory_store", mock_store):
             res, state = await cache.check_cache([{"role": "user", "content": "hi"}], "key")
             assert res is None
 
@@ -90,7 +90,7 @@ async def test_store_response_edge_cases(cache):
 @pytest.mark.asyncio
 async def test_get_all_entries(cache):
     # No support
-    with patch("services.semantic_cache.memory_store", spec=[]):
+    with patch("axon.services.semantic_cache.memory_store", spec=[]):
         assert await cache.get_all_entries() == []
 
     # Valid support
@@ -99,7 +99,7 @@ async def test_get_all_entries(cache):
         {"created_at": "2023-01-01T00:00:00Z", "context_hash": "a", "question": "q"},
         {"created_at": "bad date", "context_hash": "b", "question": "q2"}
     ])
-    with patch("services.semantic_cache.memory_store", mock_store):
+    with patch("axon.services.semantic_cache.memory_store", mock_store):
         entries = await cache.get_all_entries()
         assert len(entries) == 2
         assert entries[0]["context_hash"] == "a"
@@ -116,7 +116,7 @@ async def test_check_cache_success(cache):
         }
     ])
     with patch.object(cache, "get_embedding", return_value=[1.0, 0.0]):
-        with patch("services.semantic_cache.memory_store", mock_store):
+        with patch("axon.services.semantic_cache.memory_store", mock_store):
             res, state = await cache.check_cache([{"role": "user", "content": "hi"}], "key")
             assert res == {"success": True}
             assert state["question"] == "hi"
@@ -125,7 +125,7 @@ async def test_check_cache_success(cache):
 async def test_store_response_success(cache):
     mock_store = MagicMock()
     mock_store.store_semantic_cache = AsyncMock()
-    with patch("services.semantic_cache.memory_store", mock_store):
+    with patch("axon.services.semantic_cache.memory_store", mock_store):
         await cache.store_response(
             {"context_hash": "abc", "question": "q", "embedding": [0.1]},
             {"response": "ok"}

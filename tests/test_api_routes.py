@@ -14,14 +14,14 @@ def test_health_legacy(client):
     assert res.status_code == 200
 
 def test_health_ready_success(client):
-    with patch("core.app_config.memory_store.session_exists", new_callable=AsyncMock) as mock_exists:
+    with patch("axon.core.app_config.memory_store.session_exists", new_callable=AsyncMock) as mock_exists:
         mock_exists.return_value = False
         res = client.get("/health/ready")
         assert res.status_code == 200
         assert res.json()["status"] == "ok"
 
 def test_health_ready_failure(client):
-    with patch("core.app_config.memory_store.session_exists", new_callable=AsyncMock) as mock_exists:
+    with patch("axon.core.app_config.memory_store.session_exists", new_callable=AsyncMock) as mock_exists:
         mock_exists.side_effect = Exception("DB down")
         res = client.get("/health/ready")
         assert res.status_code == 503
@@ -186,8 +186,8 @@ def test_openapi_schema(client):
     assert res2.status_code == 200
 
 def test_openapi_schema_with_logo(client):
-    from app import app
-    from core.settings import settings as app_settings
+    from axon.app import app
+    from axon.core.settings import settings as app_settings
     old_logo = app_settings.openapi_logo_url
     app_settings.openapi_logo_url = "http://logo.png"
     app.openapi_schema = None # clear cache
@@ -198,7 +198,7 @@ def test_openapi_schema_with_logo(client):
 
 @pytest.mark.asyncio
 async def test_app_lifecycle():
-    from app import app
+    from axon.app import app
     for handler in app.router.on_startup:
         await handler()
     for handler in app.router.on_shutdown:
@@ -210,7 +210,7 @@ def test_list_sessions(client):
     assert "sessions" in res.json()
 
 def test_batch_process_exception(client):
-    with patch("core.app_config.axon_service.convert_output", side_effect=Exception("boom")):
+    with patch("axon.core.app_config.axon_service.convert_output", side_effect=Exception("boom")):
         req = {"requests": [{"payload": "a"}]}
         res = client.post("/batch", json=req)
         assert res.status_code == 200

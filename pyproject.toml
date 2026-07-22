@@ -72,7 +72,7 @@ dev = [
 ]
 
 [project.scripts]
-axon = "cli:app"
+axon = "axon.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/chaitanya-sharmaa/axon"
@@ -81,7 +81,7 @@ Repository = "https://github.com/chaitanya-sharmaa/axon"
 "Bug Tracker" = "https://github.com/chaitanya-sharmaa/axon/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+packages = ["axon"]
 
 [tool.ruff]
 target-version = "py310"

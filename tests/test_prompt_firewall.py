@@ -1,4 +1,4 @@
-from services.prompt_firewall import PromptFirewall
+from axon.services.prompt_firewall import PromptFirewall
 
 
 def test_firewall_disabled():

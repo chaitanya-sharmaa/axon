@@ -1,6 +1,6 @@
 import pytest
 
-from services.plugin_registry import (
+from axon.services.plugin_registry import (
     _REGISTRY,
     PluginRegistry,
     encode,

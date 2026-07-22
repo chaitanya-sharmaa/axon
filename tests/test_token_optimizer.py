@@ -2,8 +2,8 @@
 
 import pytest
 
-from services.bridge_service import AxonService
-from services.token_optimizer import TokenOptimizer
+from axon.services.bridge_service import AxonService
+from axon.services.token_optimizer import TokenOptimizer
 
 
 @pytest.fixture
@@ -229,27 +229,27 @@ def test_unified_session_management(optimizer: TokenOptimizer):
 
 def test_estimate_tokens_fallback():
     # Model doesn't exist, should use heuristic
-    from services.token_optimizer import _estimate_tokens
+    from axon.services.token_optimizer import _estimate_tokens
     assert _estimate_tokens("test string", model="non-existent-model") >= 1
 
 def test_savings_zero_tokens():
-    from services.token_optimizer import _savings
+    from axon.services.token_optimizer import _savings
     assert _savings(0, 100) == 0.0
 
 def test_prune_context_empty_query_terms():
     from gcf import Symbol
 
-    from services.token_optimizer import _prune_context
+    from axon.services.token_optimizer import _prune_context
     syms = [Symbol("a", "func", 1.0, "", 0)] * 60
     assert len(_prune_context(syms, "   ")) == 60
 
 def test_build_payload_invalid_symbols():
-    from services.token_optimizer import _build_payload
+    from axon.services.token_optimizer import _build_payload
     assert _build_payload({"symbols": "not a list"}) is None
     assert _build_payload({"symbols": ["not a dict"]}) is None
 
 def test_build_payload_name_module_score_fallback():
-    from services.token_optimizer import _build_payload
+    from axon.services.token_optimizer import _build_payload
     p = _build_payload({
         "symbols": [
             {"name": "foo", "module": "bar", "score": "invalid"},
@@ -262,7 +262,7 @@ def test_build_payload_name_module_score_fallback():
     assert p.symbols[1].qualified_name == "baz"
 
 def test_build_payload_invalid_edge():
-    from services.token_optimizer import _build_payload
+    from axon.services.token_optimizer import _build_payload
     p = _build_payload({
         "symbols": [{"name": "A"}],
         "edges": ["not a dict", {"source": "A", "target": "B"}]
@@ -270,17 +270,17 @@ def test_build_payload_invalid_edge():
     assert len(p.edges) == 1
 
 def test_build_generic_delta_list_no_change():
-    from services.token_optimizer import _build_generic_delta
+    from axon.services.token_optimizer import _build_generic_delta
     assert _build_generic_delta([1, 2], [1, 2]) is None
 
 def test_build_generic_session_unknown_type():
-    from services.token_optimizer import _build_generic_session
+    from axon.services.token_optimizer import _build_generic_session
     class UnknownType: pass
     obj = UnknownType()
     assert _build_generic_session(obj, {}) == obj
 
 def test_build_delta_none():
-    from services.token_optimizer import _build_delta
+    from axon.services.token_optimizer import _build_delta
     assert _build_delta(None, None) is None
 
 def test_get_gcf_session(optimizer: TokenOptimizer):
@@ -292,10 +292,10 @@ def test_optimizer_strategy_exceptions(optimizer: TokenOptimizer):
     # Mock the encode functions to raise Exceptions
     from unittest.mock import patch
 
-    with patch("services.token_optimizer.encode", side_effect=Exception("mock err")), \
-         patch("services.token_optimizer.encode_with_session", side_effect=Exception("mock err")), \
-         patch("services.token_optimizer.encode_delta", side_effect=Exception("mock err")), \
-         patch("services.token_optimizer.encode_generic", side_effect=Exception("mock err")):
+    with patch("axon.services.token_optimizer.encode", side_effect=Exception("mock err")), \
+         patch("axon.services.token_optimizer.encode_with_session", side_effect=Exception("mock err")), \
+         patch("axon.services.token_optimizer.encode_delta", side_effect=Exception("mock err")), \
+         patch("axon.services.token_optimizer.encode_generic", side_effect=Exception("mock err")):
 
         payload_graph = {"symbols": [{"qualified_name": "A", "kind": "func"}], "edges": []}
         # It should catch the exceptions and fallback to json
@@ -310,8 +310,8 @@ def test_optimizer_strategy_exceptions(optimizer: TokenOptimizer):
 def test_prune_tools_no_bm25():
     from unittest.mock import patch
 
-    from services.token_optimizer import prune_tools
-    with patch("services.token_optimizer.bm25s", None):
+    from axon.services.token_optimizer import prune_tools
+    with patch("axon.services.token_optimizer.bm25s", None):
         tools = [{"type": "function", "function": {"name": "A"}}] * 6
         assert len(prune_tools(tools, "query", top_k=2)) == 6
 

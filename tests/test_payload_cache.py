@@ -1,4 +1,4 @@
-from services.payload_cache import PayloadCache
+from axon.services.payload_cache import PayloadCache
 
 
 def test_cache_set_and_get():

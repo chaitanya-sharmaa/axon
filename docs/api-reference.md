@@ -286,13 +286,13 @@ Axon uses **Granian** (Rust-based ASGI server) for high-throughput, low-latency 
 
 ```bash
 # Standard startup
-python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080
+axon serve --port 8080
 
 # Or via the CLI entry point (if installed via pip)
 axon
 
 # Custom port / bind address
-python -m granian --interface asgi app:app --host 0.0.0.0 --port 9000
+axon serve --host 0.0.0.0 --port 9000
 ```
 
 ---
@@ -318,4 +318,4 @@ docker run -p 8080:8080 --env-file .env axon-bridge
 | Runtime user | `axon` (non-root) |
 | Exposed port | `8080` |
 | Healthcheck | `urllib.request.urlopen('http://localhost:8080/health')` |
-| Server command | `granian --interface asgi app:app --host 0.0.0.0 --port 8080` |
+| Server command | `axon serve --host 0.0.0.0 --port 8080` |

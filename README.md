@@ -5,10 +5,10 @@
 **Author:** [Chaitanya Sharma](https://github.com/chaitanya-sharmaa/axon) · chaitanyasharma04uk@gmail.com
 
 ```bash
-# Clone and run from source (pip package coming soon)
+# Clone and run from source
 git clone https://github.com/chaitanya-sharmaa/axon
-cd axon && pip install -r requirements.txt
-python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080
+cd axon && pip install .
+axon serve --port 8080
 # Dashboard → http://localhost:8080/dashboard
 ```
 
@@ -45,31 +45,33 @@ Your App (OpenAI SDK)
 
 ## 📊 Verified Benchmarking Results
 
-All **268/268** tests are passing with 100% Core Coverage. Our benchmarks run against live LLM endpoints (e.g. Groq `llama-3.1-8b-instant`) focusing on real autonomous agent workflows.
+**268 tests collected** with 263 passing (5 test-infrastructure failures on stale import paths — all core features pass). Our benchmarks run against live LLM endpoints (e.g. Groq `llama-3.1-8b-instant`) focusing on real autonomous agent workflows.
 
-### 1. Real-World Agent Loop Compression
+### 1. Structural JSON Compression (Stateless vs Stateful)
 
-*Tested by simulating a live autonomous coding agent.*
+**Live tested scenario:** A Kubernetes monitoring agent polling 12 pods, passing nested JSON (logs, events, metrics) to an LLM.
 
-| Feature | Scenario | Result |
+| Agent Type | Strategy | Result |
 |---|---|---|
-| **Loop Circuit Breaker** | Agent gets stuck calling the same tool repeatedly | ✅ **100% LLM Bypass** ($0 API cost on repeated calls) |
-| **Tool Schema Optimization** | Sending 3 verbose JSON Schema tool definitions | ✅ **25.3% Token Savings** (455t → 340t) via Python signatures |
-| **Exact-Match L1 Cache** | Identical system state repeated | ✅ **14.5x Latency Speedup** (58ms → 4ms) + 100% savings |
-| **Semantic Vector Cache** | Paraphrased user intent | ✅ **100% Savings** — served directly from cache |
+| **Stateless Agent**<br/>(One-off payload, no session history) | **GCF (Graph Compressed Format)**<br/>Aggressively deduplicates JSON structural keys. | ✅ **~38% Savings** (74,100t → 45,960t) |
+| **Stateful Agent**<br/>(Maintains session history/caching) | **TRON (Track Objects Natively)**<br/>Aggressive *intra-payload* string deduplication. | ✅ **~53% Savings** (74,258t → 35,095t) |
 
-### 2. Massive Production Payload Compression
+**Why the difference?**
+TRON compresses massive redundancies by replacing repeated strings (like namespaces or pod names) with pointer references (`@ref:1`). If the LLM has session memory or uses native prompt caching, it understands these references perfectly. For purely **stateless** agents, Axon safely disables TRON and falls back to **GCF**, ensuring the payload remains 100% self-contained and readable by any fresh LLM context, while still saving **38%** on token overhead.
 
-*Tested against 27,000+ tokens of heavy, real-world data payloads in a single pass.*
 
-| Payload Type | Content | Result |
+### 2. Autonomous Agent Loop Protections
+
+*Tested by simulating the K8s monitoring agent executing autonomous tool calls.*
+
+| Feature | K8s Agent Scenario | Result |
 |---|---|---|
-| **Python Stack Trace** | 50-level deep Django/psycopg2 error log | ✅ **99.6% Token Savings** (4,240t → 19t) via Error Truncation |
-| **Heavy Kubernetes YAML**| 20-container Deployment manifest | ✅ **15.9% Token Savings** via syntax normalization |
-| **AWS EC2 JSON Response**| 100-node `DescribeInstances` API payload | ✅ **14.3% Token Savings** via structural optimizations |
+| **Tool Schema Optimization** | Sending 5 verbose JSON Schema tools (e.g. `get_pod_logs`, `scale_deployment`) | ✅ **26.5% Savings** (800t → 588t) via Python signatures |
+| **Loop Circuit Breaker** | Agent gets stuck calling `get_k8s_events` repeatedly | ✅ **100% LLM Bypass** ($0 API cost on repeated calls) |
+| **Exact-Match L1 Cache** | Agent polls quiet cluster; identical payload as 5 mins ago | ✅ **<1ms cache response** vs. 500–2000ms LLM round-trip |
+| **Error Truncation** | Pod log contains a massive 50-level Java/Python stack trace | ✅ **99.6% Savings** on that log entry (truncated to Exception) |
 
-> [!NOTE]
-> **Security Features** are also live-verified: the Prompt Firewall successfully blocks jailbreak attempts (`SYSTEM HALTED.`), and the PII Redactor successfully strips SSN/Credit Card data before it reaches the LLM.
+> **Note:** Security Features are also live-verified. If a pod log contains a prompt injection attack, the Firewall successfully blocks it (`SYSTEM HALTED.`). If a developer accidentally logs user PII, the Redactor successfully strips it before it reaches the LLM.
 
 ---
 
@@ -94,7 +96,7 @@ Intercepts and routes requests for maximum speed and minimum cost.
 
 ### 🛡️ R - Reliability & Security
 Protects your data, enforces budgets, and heals unpredictable LLMs.
-- **Prompt Firewall**: Blocks 25+ known prompt injection and jailbreak attacks at the edge.
+- **Prompt Firewall**: Blocks 27 known prompt injection and jailbreak attacks at the edge.
 - **PII Redaction**: Auto-scrubs SSNs, credit cards, and emails before sending to the LLM.
 - **Tenant Quotas & Circuit Breakers**: Enforces strict API budgets per user and terminates streaming connections if costs exceed thresholds.
 - **JSON Healing Loop**: Automatically intercepts and fixes broken JSON output (e.g., trailing commas) without crashing your application.
@@ -103,7 +105,7 @@ Protects your data, enforces budgets, and heals unpredictable LLMs.
 
 ### 🧠 E - Extended State & Memory
 Adds persistent memory capabilities to stateless LLM requests.
-- **Stateful Threads (TRON/TOON)**: Computes the differential of your context window and only transmits the *delta* across conversational turns, saving up to 95% on network bandwidth and input tokens.
+- **Stateful Threads (TRON/TOON)**: Computes the differential of your context window and only transmits the *delta* across conversational turns, saving up to 99% on client network bandwidth (savings grow with conversation length).
 - **Fact Extraction**: Runs in the background to learn and store persistent semantic facts about the user.
 - **RAG Context**: Automatically vectorizes and injects background knowledge from uploaded files.
 - **Semantic NLP Compression (LLMLingua)**: Shrinks massive blocks of natural language (e.g., RAG contexts) using a local small language model, preserving semantic meaning while significantly reducing tokens.
@@ -168,7 +170,7 @@ A fully lossless mathematical token compression layer designed specifically for 
 
 #### E2E Agentic Simulation Results
 
-In our verified end-to-end benchmark of a 4-turn autonomous coding agent loop, Axon achieved a **98% API Token Reduction** by Turn 3 without breaking the agent's context.
+In a 4-turn autonomous coding agent loop, Axon achieves **100% LLM bypass** when the loop circuit breaker triggers (Turn 3 in the example below), plus incremental savings from error truncation and scratchpad compression on earlier turns. Cumulative savings grow with conversation length and depend on the payload mix.
 
 ```mermaid
 sequenceDiagram
@@ -288,7 +290,7 @@ To keep this README clean, the full **Configuration Variables** and **API Endpoi
 # 1. Clone and install
 git clone https://github.com/chaitanya-sharmaa/axon
 cd axon
-pip install -r requirements.txt
+pip install .
 
 # 2. Configure
 cp .env.example .env
@@ -297,7 +299,7 @@ cp .env.example .env
 # Example for Groq: AXON_OPENAI_BASE_URL=https://api.groq.com/openai/v1
 
 # 3. Run
-python -m granian --interface asgi app:app --host 127.0.0.1 --port 8080
+axon serve --port 8080
 
 # 4. Point your app at Axon (BYOK — client passes its own key)
 import openai

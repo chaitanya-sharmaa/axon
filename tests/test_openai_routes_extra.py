@@ -5,14 +5,14 @@ import pytest
 from fastapi.testclient import TestClient
 from litellm import APIError, ServiceUnavailableError
 
-from app import app
-from core.settings import settings
+from axon.app import app
+from axon.core.settings import settings
 
 client = TestClient(app)
 
 @pytest.fixture
 def mock_litellm():
-    with patch("api.routes.v1_openai_routes.litellm.acompletion", new_callable=AsyncMock) as mock_lite:
+    with patch("axon.api.routes.v1_openai_routes.litellm.acompletion", new_callable=AsyncMock) as mock_lite:
         mock_response = MagicMock()
         mock_response.model_dump.return_value = {
             "choices": [{"message": {"content": "mocked response"}}],
@@ -125,7 +125,7 @@ def test_fallback_retry_loop(mock_litellm):
         assert mock_litellm.call_args_list[1].kwargs["model"] == "gpt-3.5-turbo"
 
 def test_streaming_exception_handling():
-    with patch("api.routes.v1_openai_routes.litellm.acompletion") as mock_lite:
+    with patch("axon.api.routes.v1_openai_routes.litellm.acompletion") as mock_lite:
         async def mock_stream(*args, **kwargs):
             raise APIError(message="stream err", status_code=500, request=MagicMock(), llm_provider="openai", model="gpt-4o")
             yield  # To make it an async generator
@@ -141,7 +141,7 @@ def test_streaming_exception_handling():
             client.post("/v1/chat/completions", json=req)
 
 def test_tracking_and_background_tasks(mock_litellm):
-    from core.app_config import memory_store
+    from axon.core.app_config import memory_store
     with patch.object(settings, "enable_tenant_quotas", True):
         with patch.object(memory_store, "increment_tenant_spend", new_callable=AsyncMock) as mock_inc:
             req = {

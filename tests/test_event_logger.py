@@ -1,4 +1,4 @@
-from services.event_logger import EventLogger
+from axon.services.event_logger import EventLogger
 
 
 def test_event_logger():

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app import app
+from axon.app import app
 
 client = TestClient(app)
 
@@ -61,7 +61,7 @@ async def test_swarm_completions_non_streaming():
             return MockCompletionResponse("Synthesized Final Answer")
         return MockCompletionResponse("Unknown")
 
-    with patch("api.routes.v1_swarm_routes.litellm.acompletion", new_callable=AsyncMock) as mock_lite:
+    with patch("axon.api.routes.v1_swarm_routes.litellm.acompletion", new_callable=AsyncMock) as mock_lite:
         mock_lite.side_effect = mock_acompletion
 
         payload = {
@@ -100,7 +100,7 @@ async def test_swarm_completions_streaming():
         elif model == "gpt-4o":
             return mock_streaming_generator()
 
-    with patch("api.routes.v1_swarm_routes.litellm.acompletion", new_callable=AsyncMock) as mock_lite:
+    with patch("axon.api.routes.v1_swarm_routes.litellm.acompletion", new_callable=AsyncMock) as mock_lite:
         mock_lite.side_effect = mock_acompletion
 
         payload = {

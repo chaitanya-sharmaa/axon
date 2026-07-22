@@ -5,21 +5,21 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.routes.v1_files_routes import router
+from axon.api.routes.v1_files_routes import router
 
 app = FastAPI()
 app.include_router(router)
 client = TestClient(app)
 
 def test_upload_file_no_filename():
-    with patch("api.routes.v1_files_routes.vector_store"):
+    with patch("axon.api.routes.v1_files_routes.vector_store"):
         response = client.post("/v1/files", files={"file": (" ", b"test", "text/plain")})
         # If space is empty string, fastapi catches it. If it's a single space, we catch it?
         # Let's just assert something.
         assert response.status_code in (200, 400)
 
 def test_upload_file_success_txt():
-    with patch("api.routes.v1_files_routes.vector_store") as mock_vs:
+    with patch("axon.api.routes.v1_files_routes.vector_store") as mock_vs:
         response = client.post(
             "/v1/files",
             files={"file": ("test.txt", b"hello world", "text/plain")},
@@ -37,7 +37,7 @@ def test_upload_file_pdf():
     pdf_bytes = BytesIO()
     writer.write(pdf_bytes)
 
-    with patch("api.routes.v1_files_routes.vector_store"):
+    with patch("axon.api.routes.v1_files_routes.vector_store"):
         response = client.post(
             "/v1/files",
             files={"file": ("test.pdf", pdf_bytes.getvalue(), "application/pdf")},

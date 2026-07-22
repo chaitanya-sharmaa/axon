@@ -1,6 +1,6 @@
 import pytest
 
-from services.agent_orchestrator import (
+from axon.services.agent_orchestrator import (
     AgentDefinition,
     AgentOrchestrator,
 )

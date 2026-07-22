@@ -4,9 +4,9 @@ import os
 import pytest
 from unittest.mock import patch
 
-from core.logging_config import _JSONFormatter, configure_logging, request_id_var
-from core.settings import load_settings
-from domain.process_handlers import (
+from axon.core.logging_config import _JSONFormatter, configure_logging, request_id_var
+from axon.core.settings import load_settings
+from axon.domain.process_handlers import (
     get_handler,
     handler_active_items,
     handler_echo,
@@ -163,7 +163,7 @@ def test_request_id_filter():
 # --- Core App Config Tests ---
 
 def test_initialize_app():
-    from core.app_config import initialize_app
+    from axon.core.app_config import initialize_app
     app_state = initialize_app()
     assert "axon_service" in app_state
     assert "memory_store" in app_state
@@ -180,7 +180,7 @@ def test_app_config_redis():
             del sys.modules["core.settings"]
         try:
             result = runpy.run_path("core/app_config.py")
-            from services.redis_memory_store import RedisMemoryStore
+            from axon.services.redis_memory_store import RedisMemoryStore
             assert isinstance(result["memory_store"], RedisMemoryStore)
         finally:
             if old_settings is not None:
@@ -201,7 +201,7 @@ def test_settings_no_dotenv():
 # --- Domain API Models Tests ---
 
 def test_api_models():
-    from domain.api_models import (
+    from axon.domain.api_models import (
         HealthResponse,
         ProcessRequest,
         SessionDeleteResponse,

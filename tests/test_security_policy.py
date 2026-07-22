@@ -1,4 +1,4 @@
-from services.security_policy import SecurityConfig
+from axon.services.security_policy import SecurityConfig
 
 
 def test_security_config_defaults():

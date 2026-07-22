@@ -7,8 +7,8 @@ import openai
 import pytest
 from fastapi.testclient import TestClient
 
-from app import app
-from integrations.patch import patch as axon_patch
+from axon.app import app
+from axon.integrations.patch import patch as axon_patch
 
 # Generate a massively complex payload to test the structural compression limits
 MASSIVE_COMPLEX_PAYLOAD = [
@@ -85,7 +85,7 @@ async def test_fastapi_proxy_highest_complexity():
 
         return mock_streaming_generator()
 
-    with patch("api.routes.v1_openai_routes.litellm.acompletion", new_callable=AsyncMock) as mock_lite:
+    with patch("axon.api.routes.v1_openai_routes.litellm.acompletion", new_callable=AsyncMock) as mock_lite:
         mock_lite.side_effect = mock_acompletion
 
         payload = {

@@ -3,8 +3,8 @@ from unittest.mock import patch
 
 import pytest
 
-from services.bridge_service import AxonService
-from services.token_optimizer import TokenOptimizer
+from axon.services.bridge_service import AxonService
+from axon.services.token_optimizer import TokenOptimizer
 
 
 @dataclass
@@ -65,13 +65,13 @@ def test_bridge_service_from_any_to_object():
 
     # Compact Axon format (Graph)
     # Mock decode since we don't have a valid Axon string handy
-    with patch("services.bridge_service.decode") as mock_decode:
+    with patch("axon.services.bridge_service.decode") as mock_decode:
         mock_decode.return_value = {"decoded": "graph"}
         res = service.from_any_to_object("Axon profile=graph\nline2")
         assert res == {"decoded": "graph"}
 
     # Compact Axon format (Generic)
-    with patch("services.bridge_service.decode_generic") as mock_decode_gen:
+    with patch("axon.services.bridge_service.decode_generic") as mock_decode_gen:
         mock_decode_gen.return_value = {"decoded": "generic"}
         res = service.from_any_to_object("Axon profile=generic\nline2")
         assert res == {"decoded": "generic"}
@@ -122,7 +122,7 @@ def test_bridge_service_to_compact_text_exceptions():
 def test_bridge_service_from_compact_text():
     optimizer = TokenOptimizer()
     service = AxonService(optimizer)
-    with patch("services.bridge_service.decode_generic") as mock_dec:
+    with patch("axon.services.bridge_service.decode_generic") as mock_dec:
         mock_dec.return_value = {"a": 1}
         assert service.from_compact_text("some text") == {"a": 1}
 

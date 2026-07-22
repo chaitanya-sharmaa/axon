@@ -1,4 +1,4 @@
-from services.tool_compressor import (
+from axon.services.tool_compressor import (
     _json_schema_to_python_type,
     compress_tools_to_prompt,
     reconstruct_tool_calls,

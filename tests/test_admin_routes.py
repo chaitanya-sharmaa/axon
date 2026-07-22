@@ -2,8 +2,8 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app import app
-from core.settings import settings
+from axon.app import app
+from axon.core.settings import settings
 
 client = TestClient(app)
 

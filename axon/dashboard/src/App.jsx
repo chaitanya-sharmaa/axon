@@ -8,7 +8,7 @@ import {
 import AgenticAnalytics from './pages/AgenticAnalytics';
 import './index.css';
 
-const BASE = 'http://localhost:8080';
+const BASE = window.location.pathname.startsWith('/axon') ? '/axon' : '';
 const MOCK_DATA = [];
 
 const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];

@@ -18,7 +18,10 @@ class RequestLogger:
                     tenant_id: str = "default",
                     cost: float = 0.0,
                     status_code: int = 200,
-                    error: str = None):
+                    error: str = None,
+                    tokens_saved: int = 0,
+                    cost_saved: float = 0.0,
+                    compression_strategy: str = None):
 
         entry = {
             "id": str(uuid.uuid4()),
@@ -32,7 +35,10 @@ class RequestLogger:
             "cache_hit": cache_hit,
             "tenant_id": tenant_id,
             "status_code": status_code,
-            "error": error
+            "error": error,
+            "tokens_saved": tokens_saved,
+            "cost_saved": cost_saved,
+            "compression_strategy": compression_strategy
         }
         self._logs.appendleft(entry)
 

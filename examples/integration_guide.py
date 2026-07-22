@@ -8,7 +8,7 @@ through a series of API calls.
 
 Requirements
 ------------
-  pip install -r requirements.txt
+  pip install .
 
 Start the server (separate terminal)
 -------------------------------------

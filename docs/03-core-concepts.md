@@ -61,7 +61,7 @@ Axon's **Stateful Threads API** solves this. By sending the header `X-Axon-State
 3. Axon applies structural compression to the full history.
 4. The compressed full context is forwarded to the stateless LLM.
 
-**Result:** Client transmits ~1 message over the network. LLM receives a fully rehydrated, compressed context — combining 99% bandwidth savings with up to 99.6% API token savings.
+**Result:** Client transmits ~1 message over the network. LLM receives a fully rehydrated, compressed context — combining up to 99% client bandwidth savings (grows with conversation length) with up to 99.6% API token savings on agentic payloads.
 
 ---
 

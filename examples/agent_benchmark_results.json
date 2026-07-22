@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-07-16T11:13:12.513310+00:00",
+  "timestamp": "2026-07-21T09:17:20.371010+00:00",
   "model": "groq/llama-3.1-8b-instant",
   "axon_version": "0.3.0",
   "tests_run": 11,
-  "passed": 11,
-  "failed": 0,
+  "passed": 10,
+  "failed": 1,
   "results": [
     {
       "name": "Structural Compression \u2014 Code Graph",
@@ -15,8 +15,8 @@
       "savings_pct": 100.0,
       "cost_saved_usd": 0.0,
       "cache_hit": "",
-      "reply_snippet": "From the provided graph, we can see that the \"edges\" are the dependencies between the modules. The modules with more edges pointing to them from other modules are the ones with more dependencies. \n\nLet's count the number of edges pointing to each module:\n\n- app.module_0 is pointed to by 1 module (ap",
-      "latency_ms": 1529,
+      "reply_snippet": "To determine the 3 most connected modules, we need to count the number of imports for each module. \n\nLet's iterate over the edges in the dependency graph and count the imports for each module:\n\n```python\ndef count_imports(edges):\n    import_counts = {}\n    for edge in edges:\n        source, target =",
+      "latency_ms": 1521,
       "feature_verified": "TokenOptimizer selected best of 8 strategies",
       "raw_metrics": {
         "strategy": "exact_match",
@@ -55,21 +55,21 @@
             "tokens_before": 0,
             "tokens_after": 0,
             "savings_pct": 100.0,
-            "latency_ms": 1503
+            "latency_ms": 1521
           },
           {
             "turn": 3,
             "tokens_before": 0,
             "tokens_after": 0,
             "savings_pct": 100.0,
-            "latency_ms": 1506
+            "latency_ms": 1515
           },
           {
             "turn": 4,
             "tokens_before": 0,
             "tokens_after": 0,
             "savings_pct": 100.0,
-            "latency_ms": 1503
+            "latency_ms": 1522
           }
         ]
       },
@@ -86,11 +86,11 @@
       "cost_saved_usd": 0.0,
       "cache_hit": "HIT",
       "reply_snippet": "Paris.",
-      "latency_ms": 1525,
+      "latency_ms": 1503,
       "feature_verified": "x-axon-cache: HIT",
       "raw_metrics": {},
       "passed": true,
-      "notes": "Turn 1: 1523ms \u2192 Turn 2: 1525ms (1.0x faster)"
+      "notes": "Turn 1: 1522ms \u2192 Turn 2: 1503ms (1.0x faster)"
     },
     {
       "name": "L2 Semantic Vector Cache",
@@ -102,7 +102,7 @@
       "cost_saved_usd": 0.0,
       "cache_hit": "HIT",
       "reply_snippet": "The city that serves as the capital of the French Republic is Paris.",
-      "latency_ms": 1513,
+      "latency_ms": 1523,
       "feature_verified": "x-axon-cache: HIT",
       "raw_metrics": {},
       "passed": true,
@@ -160,9 +160,9 @@
       "name": "Full Agentic 3-Turn Code Agent",
       "description": "3-turn autonomous coding agent: analyze \u2192 optimize \u2192 test. Measures cumulative savings from agentic pipeline.",
       "category": "Agentic",
-      "tokens_before": 2587,
-      "tokens_after": 2587,
-      "savings_pct": 0.0,
+      "tokens_before": 0,
+      "tokens_after": 0,
+      "savings_pct": 0,
       "cost_saved_usd": 0.0,
       "cache_hit": "",
       "reply_snippet": "",
@@ -176,28 +176,28 @@
             "tokens_before": 0,
             "tokens_after": 0,
             "savings_pct": 100.0,
-            "latency_ms": 1504
+            "latency_ms": 1503
           },
           {
             "turn": 2,
             "label": "Code optimization",
-            "tokens_before": 1027,
-            "tokens_after": 1027,
-            "savings_pct": 0.0,
-            "latency_ms": 2156
+            "tokens_before": 0,
+            "tokens_after": 0,
+            "savings_pct": 100.0,
+            "latency_ms": 1521
           },
           {
             "turn": 3,
             "label": "Test generation",
-            "tokens_before": 1560,
-            "tokens_after": 1560,
-            "savings_pct": 0.0,
-            "latency_ms": 2042
+            "tokens_before": 0,
+            "tokens_after": 0,
+            "savings_pct": 100.0,
+            "latency_ms": 1517
           }
         ]
       },
-      "passed": true,
-      "notes": "Turns: [{'turn': 1, 'label': 'Code analysis', 'tokens_before': 0, 'tokens_after': 0, 'savings_pct': 100.0, 'latency_ms': 1504}, {'turn': 2, 'label': 'Code optimization', 'tokens_before': 1027, 'tokens_after': 1027, 'savings_pct': 0.0, 'latency_ms': 2156}, {'turn': 3, 'label': 'Test generation', 'tokens_before': 1560, 'tokens_after': 1560, 'savings_pct': 0.0, 'latency_ms': 2042}]"
+      "passed": false,
+      "notes": "Turns: [{'turn': 1, 'label': 'Code analysis', 'tokens_before': 0, 'tokens_after': 0, 'savings_pct': 100.0, 'latency_ms': 1503}, {'turn': 2, 'label': 'Code optimization', 'tokens_before': 0, 'tokens_after': 0, 'savings_pct': 100.0, 'latency_ms': 1521}, {'turn': 3, 'label': 'Test generation', 'tokens_before': 0, 'tokens_after': 0, 'savings_pct': 100.0, 'latency_ms': 1517}]"
     },
     {
       "name": "Streaming Budget Circuit Breaker",
@@ -219,13 +219,13 @@
       "name": "JSON Schema Healing Loop",
       "description": "Structured JSON response requested; Axon validates with Pydantic V2 TypeAdapter and auto-heals malformed output",
       "category": "Reliability",
-      "tokens_before": 31,
-      "tokens_after": 31,
-      "savings_pct": 0.0,
+      "tokens_before": 0,
+      "tokens_after": 0,
+      "savings_pct": 100.0,
       "cost_saved_usd": 0.0,
       "cache_hit": "",
-      "reply_snippet": "{\"age\":30,\"email\":\"john.doe@example.com\",\"name\":\"John Doe\"}",
-      "latency_ms": 1597,
+      "reply_snippet": "{\"age\":30,\"email\":\"john@example.com\",\"name\":\"John Doe\"}",
+      "latency_ms": 1525,
       "feature_verified": "JSON validation: \u2705 Valid JSON \u2014 schema satisfied",
       "raw_metrics": {},
       "passed": true,
@@ -249,9 +249,9 @@
     }
   ],
   "aggregate": {
-    "total_tokens_before": 3073,
-    "total_tokens_after": 2958,
-    "overall_savings_pct": 3.7422713960299383,
+    "total_tokens_before": 455,
+    "total_tokens_after": 340,
+    "overall_savings_pct": 25.274725274725274,
     "total_cost_saved_usd": 0.0
   }
 }

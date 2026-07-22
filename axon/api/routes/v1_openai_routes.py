@@ -353,7 +353,10 @@ async def _stream_openai(
             cache_hit=False,
             tenant_id=tenant_id or "default",
             cost=input_cost + output_cost,
-            status_code=200
+            status_code=200,
+            tokens_saved=0,
+            cost_saved=0.0,
+            compression_strategy=None
         )
 
 
@@ -453,7 +456,10 @@ async def chat_completions(
                 cache_hit=True,
                 tenant_id=tenant_id or "default",
                 cost=0.0,
-                status_code=200
+                status_code=200,
+                tokens_saved=0,
+                cost_saved=0.0,
+                compression_strategy="exact_match"
             )
 
             return ORJSONResponse(
@@ -535,7 +541,10 @@ async def chat_completions(
                 cache_hit=True,
                 tenant_id=tenant_id or "default",
                 cost=0.0,
-                status_code=200
+                status_code=200,
+                tokens_saved=0,
+                cost_saved=0.0,
+                compression_strategy="semantic_match"
             )
 
             return ORJSONResponse(
@@ -826,6 +835,8 @@ async def chat_completions(
     if settings.enable_tenant_quotas and tenant_id and memory_store and total_cost > 0:
         background_tasks.add_task(memory_store.increment_tenant_spend, tenant_id, total_cost)
 
+    savings_usd = estimate_savings_usd(metrics.get("original_tokens", 0), metrics.get("compressed_tokens", 0), routed_model) or 0.0
+
     request_logger.log_request(
         model=routed_model,
         latency_ms=latency_ms,
@@ -835,7 +846,10 @@ async def chat_completions(
         cache_hit=False,
         tenant_id=tenant_id or "default",
         cost=total_cost,
-        status_code=response.status_code
+        status_code=response.status_code,
+        tokens_saved=metrics.get("original_tokens", 0) - metrics.get("compressed_tokens", 0),
+        cost_saved=savings_usd,
+        compression_strategy=metrics.get("strategy_used")
     )
 
     return response

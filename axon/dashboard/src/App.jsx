@@ -9,15 +9,7 @@ import AgenticAnalytics from './pages/AgenticAnalytics';
 import './index.css';
 
 const BASE = 'http://localhost:8080';
-const MOCK_DATA = [
-  { time: '10:00', tokens: 12000, errors: 0 },
-  { time: '10:05', tokens: 19000, errors: 1 },
-  { time: '10:10', tokens: 15000, errors: 0 },
-  { time: '10:15', tokens: 28000, errors: 2 },
-  { time: '10:20', tokens: 22000, errors: 0 },
-  { time: '10:25', tokens: 35000, errors: 1 },
-  { time: '10:30', tokens: 42000, errors: 0 }
-];
+const MOCK_DATA = [];
 
 const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
@@ -138,13 +130,13 @@ export default function App() {
     setSessions(sessionsResp);
     if (flagsData) setFlags(flagsData);
     if (agenticData) setAgenticStats(agenticData);
-    const cost = logs.reduce((s, l) => s + (l.cost || 0), 0);
+    const costSaved = logs.reduce((s, l) => s + (l.cost_saved || 0), 0);
     const hits = logs.filter(l => l.cache_hit).length;
-    const totalTokens = logs.reduce((s, l) => s + (l.total_tokens || 0), 0);
-    setMetrics({ tokensSaved: totalTokens, costSaved: cost, cacheHits: hits });
+    const tokensSaved = logs.reduce((s, l) => s + (l.tokens_saved || 0), 0);
+    setMetrics({ tokensSaved, costSaved, cacheHits: hits });
     const now = new Date();
     const t = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
-    setChartData(prev => { const next = [...prev, { time: t, tokens: totalTokens, errors: healthData?.error_count ?? 0 }]; return next.length > 20 ? next.slice(-20) : next; });
+    setChartData(prev => { const next = [...prev, { time: t, tokens: tokensSaved, errors: healthData?.error_count ?? 0 }]; return next.length > 20 ? next.slice(-20) : next; });
   }, []);
 
   useEffect(() => { fetchAll(); const iv = setInterval(fetchAll, 5000); return () => clearInterval(iv); }, [fetchAll]);
@@ -190,11 +182,18 @@ export default function App() {
   const p95 = sortedLat[Math.floor(sortedLat.length * 0.95)] ?? 0;
   const p99 = sortedLat[Math.floor(sortedLat.length * 0.99)] ?? 0;
   const totalCost = firehoseLogs.reduce((s, l) => s + (l.cost || 0), 0);
+  const totalCostSaved = firehoseLogs.reduce((s, l) => s + (l.cost_saved || 0), 0);
   const errorLogs = firehoseLogs.filter(l => l.status_code >= 400);
   const errorRate = firehoseLogs.length > 0 ? ((errorLogs.length / firehoseLogs.length) * 100).toFixed(1) : '0.0';
   const cacheHitCount = firehoseLogs.filter(l => l.cache_hit).length;
   const cacheHitRate = firehoseLogs.length > 0 ? ((cacheHitCount / firehoseLogs.length) * 100).toFixed(0) : '0';
-  const strategyData = [{ name: 'Graph', wins: 42 }, { name: 'Schema', wins: 28 }, { name: 'Generic', wins: 18 }, { name: 'Delta', wins: 12 }];
+  const stratCounts = firehoseLogs.reduce((acc, l) => {
+    if (l.compression_strategy) {
+      acc[l.compression_strategy] = (acc[l.compression_strategy] || 0) + 1;
+    }
+    return acc;
+  }, {});
+  const strategyData = Object.entries(stratCounts).map(([name, wins]) => ({ name, wins }));
 
   const chartTooltipStyle = { backgroundColor: 'var(--surface-color)', borderColor: 'var(--surface-border)', borderRadius: '8px', color: 'var(--text-primary)' };
 
@@ -232,8 +231,8 @@ export default function App() {
       {/* ─── METRICS ─── */}
       {activeTab === 'metrics' && (<>
         <div className="layout-grid">
-          <MetricCard title="Tokens Saved" value={metrics.tokensSaved > 0 ? metrics.tokensSaved.toLocaleString() : '245,000'} icon={Zap} trend={12.5} colorClass="warning" />
-          <MetricCard title="Est. Cost Avoided" value={`$${totalCost > 0 ? totalCost.toFixed(4) : '0.3675'}`} icon={DollarSign} trend={12.5} colorClass="success" sub={`Projected: $${(totalCost * 30).toFixed(2)}/mo`} />
+          <MetricCard title="Tokens Saved" value={metrics.tokensSaved > 0 ? metrics.tokensSaved.toLocaleString() : '0'} icon={Zap} trend={0} colorClass="warning" />
+          <MetricCard title="Est. Cost Avoided" value={`$${totalCostSaved > 0 ? totalCostSaved.toFixed(4) : '0.0000'}`} icon={DollarSign} trend={0} colorClass="success" sub={`Projected: $${(totalCostSaved * 30).toFixed(2)}/mo`} />
           <MetricCard title="Cache Hit Rate" value={`${cacheHitRate}%`} icon={Database} colorClass="accent-primary" sub={`${cacheHitCount} of ${firehoseLogs.length} requests`} />
           <MetricCard title="Error Rate" value={`${errorRate}%`} icon={AlertTriangle} colorClass={parseFloat(errorRate) > 5 ? 'error' : 'accent-secondary'} sub={`${errorLogs.length} errors total`} />
         </div>

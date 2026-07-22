@@ -45,6 +45,11 @@ _DEFAULT_PRICES: dict[str, ModelPrice] = {
     "claude-3-opus-20240229":     ModelPrice(input=0.015, output=0.075),
     "claude-3-sonnet-20240229":   ModelPrice(input=0.003, output=0.015),
     "claude-3-haiku-20240307":    ModelPrice(input=0.00025, output=0.00125),
+    # Groq / Llama
+    "llama-3.1-8b-instant":       ModelPrice(input=0.00005, output=0.00008),
+    "llama3-8b-8192":             ModelPrice(input=0.00005, output=0.00008),
+    "groq/llama-3.1-8b-instant":  ModelPrice(input=0.00005, output=0.00008),
+    "groq/":                      ModelPrice(input=0.00005, output=0.00008),
     # Gemini
     "gemini/gemini-2.5-flash":  ModelPrice(input=0.00015, output=0.0006),
     "gemini/gemini-2.0-flash":  ModelPrice(input=0.0001,  output=0.0004),

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Axon Bridge — Reduce LLM Costs by 70%</title>
-  <meta name="description" content="Production-grade, drop-in OpenAI proxy with autonomous token compression, multi-provider routing, agentic protections, and real-time observability. Reduce LLM API costs by up to 70%." />
+  <title>Axon Bridge — Cut LLM Costs by 38% on Structured JSON</title>
+  <meta name="description" content="Production-grade, drop-in OpenAI proxy. Verified benchmark: ~38% token savings on stateless cluster log monitoring agents sending nested JSON. Up to 99.6% on error log truncation. 100% savings on cached/looping requests." />
   <meta property="og:title" content="Axon Bridge — LLM Cost Reduction Middleware" />
   <meta property="og:description" content="Drop-in OpenAI proxy. Automatic token savings, ML smart routing, agentic protections. One command to install." />
   <meta property="og:type" content="website" />
@@ -48,11 +48,11 @@
     <div class="container hero-content">
       <div class="pill">
         <span class="pill-dot"></span>
-        v0.3.0 &nbsp;·&nbsp; 266 Tests Passing (100% Core Coverage) &nbsp;·&nbsp; MIT License
+        v0.3.0 &nbsp;·&nbsp; 263/268 Tests Passing &nbsp;·&nbsp; MIT License
       </div>
       <h1 class="hero-h1">
         Cut your LLM API costs<br/>
-        <span class="gradient-text">by up to 99.6%</span><br/>
+        <span class="gradient-text">by 38% on JSON agents</span><br/>
         with one command.
       </h1>
       <p class="hero-p">
@@ -103,7 +103,7 @@
   <!-- STATS -->
   <section class="stats">
     <div class="container stats-inner">
-      <div class="stat"><span class="stat-n" data-target="99">0</span><span class="stat-unit">%</span><div class="stat-l">Max Token Savings<br/><span style="font-size:0.75rem; color:#9ca3af; font-weight:normal;">(via Error Truncation)</span></div></div>
+      <div class="stat"><span class="stat-n" data-target="38">0</span><span class="stat-unit">%</span><div class="stat-l">Typical Savings<br/><span style="font-size:0.75rem; color:#9ca3af; font-weight:normal;">(Cluster log agents, nested JSON)</span></div></div>
       <div class="stat-div"></div>
       <div class="stat"><span class="stat-n" data-target="100">0</span><span class="stat-unit">%</span><div class="stat-l">KV Cache Savings</div></div>
       <div class="stat-div"></div>
@@ -111,7 +111,7 @@
       <div class="stat-div"></div>
       <div class="stat"><span class="stat-n">8</span><div class="stat-l">Compression Strategies</div></div>
       <div class="stat-div"></div>
-      <div class="stat"><span class="stat-n" data-target="268">0</span><div class="stat-l">Tests Passing</div></div>
+      <div class="stat"><span class="stat-n" data-target="263">0</span><div class="stat-l">Tests Passing</div></div>
     </div>
   </section>
 
@@ -142,11 +142,23 @@
     <div class="container">
       <p class="eyebrow">Verified Results</p>
       <h2 class="section-h2">Real benchmarks. Real savings.</h2>
-      <p class="section-p">Tested against live agentic workflows and massive production payloads (Stack Traces, YAML, JSON). 268/268 CI tests passing.</p>
+      <p class="section-p">Live-tested against realistic production workloads. Stateless cluster log monitoring agents (nested JSON) see <strong>~38%</strong> savings. Error log truncation achieves <strong>99.6%</strong>. Cached or looping requests achieve <strong>100%</strong>.</p>
       <div class="bench-table-wrap">
         <table class="bench-table">
           <thead><tr><th>Scenario</th><th>Payload</th><th>Strategy</th><th>Proven Result</th></tr></thead>
           <tbody>
+            <tr>
+              <td><span class="turn">Stateless Agent</span></td>
+              <td>K8s pod logs + events + metrics (nested JSON)</td>
+              <td><span class="chip">GCF Structural Compression</span></td>
+              <td><span class="win win-gold">✅ 38.0% Savings (74,100t → 45,960t)</span></td>
+            </tr>
+            <tr>
+              <td><span class="turn">Stateful Agent (Session)</span></td>
+              <td>Same K8s payload, but LLM has session history</td>
+              <td><span class="chip">TRON (Pointer References)</span></td>
+              <td><span class="win win-gold">✅ 52.7% Savings (74,258t → 35,095t)</span></td>
+            </tr>
             <tr>
               <td><span class="turn">Live Agent (Groq)</span></td>
               <td>Infinite Tool Calling Loop</td>
@@ -382,7 +394,7 @@ response = client.chat.completions.create(
         <div class="feat">
           <div class="feat-ico">💬</div>
           <h3>Stateful Threads</h3>
-          <p>Client sends only the new message. Axon rehydrates full history from local storage. 99% network bandwidth reduction.</p>
+          <p>Client sends only the new message. Axon rehydrates full history from local storage. Up to 99% client bandwidth reduction on long conversations.</p>
           <span class="feat-tag">Efficiency</span>
         </div>
         <div class="feat">
@@ -576,7 +588,7 @@ docker run -p 8080:8080 --env-file .env axon-bridge
       <h2 class="section-h2">Unlock advanced features with one header.</h2>
       <div class="headers-grid">
         <div class="hdr-card"><code class="hdr-key">X-Axon-Session-ID</code><p>Enable session memory, fact extraction, and the full agentic pipeline.</p></div>
-        <div class="hdr-card"><code class="hdr-key">X-Axon-Stateful-Thread: true</code><p>Send only the new message. Axon rehydrates the full history from local storage — 99% bandwidth saved.</p></div>
+        <div class="hdr-card"><code class="hdr-key">X-Axon-Stateful-Thread: true</code><p>Send only the new message. Axon rehydrates the full history from local storage — up to 99% client bandwidth saved on long conversations (grows with conversation length).</p></div>
         <div class="hdr-card"><code class="hdr-key">X-Axon-Tenant-ID</code><p>Identify your tenant for per-tenant USD quota tracking and enforcement.</p></div>
         <div class="hdr-card"><code class="hdr-key">X-Axon-Max-Spend: 0.05</code><p>Per-request USD budget. Axon kills the streaming connection if the agent exceeds it.</p></div>
       </div>

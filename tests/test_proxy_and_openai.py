@@ -8,7 +8,7 @@ import axon.core.app_config
 # --- Proxy Routes Tests ---
 
 def test_proxy_upstream_forbidden(client):
-    with patch.object(core.app_config.security_config, "allow_all_domains", False):
+    with patch.object(axon.core.app_config.security_config, "allow_all_domains", False):
         req = {
             "upstream_url": "https://not-allowed.com/api",
             "method": "POST"
@@ -138,8 +138,8 @@ def test_request_id_middleware(client):
     assert len(res2.headers["X-Request-ID"]) > 10
 
 def test_proxy_upstream_invalid_api_key(client):
-    with patch.object(core.app_config.security_config, "require_api_key", True), \
-         patch.object(core.app_config.security_config, "api_key", "secret"):
+    with patch.object(axon.core.app_config.security_config, "require_api_key", True), \
+         patch.object(axon.core.app_config.security_config, "api_key", "secret"):
         req = {"upstream_url": "https://api.github.com/test", "method": "POST"}
         res = client.post("/proxy/upstream", json=req, headers={"X-API-Key": "wrong"})
         assert res.status_code == 401

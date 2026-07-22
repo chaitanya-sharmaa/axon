@@ -175,16 +175,16 @@ def test_app_config_redis():
     import runpy
     import sys
     with patch.dict(os.environ, {"AXON_MEMORY_TYPE": "redis"}):
-        old_settings = sys.modules.get("core.settings")
-        if "core.settings" in sys.modules:
-            del sys.modules["core.settings"]
+        old_settings = sys.modules.get("axon.core.settings")
+        if "axon.core.settings" in sys.modules:
+            del sys.modules["axon.core.settings"]
         try:
-            result = runpy.run_path("core/app_config.py")
+            result = runpy.run_path("axon/core/app_config.py")
             from axon.services.redis_memory_store import RedisMemoryStore
             assert isinstance(result["memory_store"], RedisMemoryStore)
         finally:
             if old_settings is not None:
-                sys.modules["core.settings"] = old_settings
+                sys.modules["axon.core.settings"] = old_settings
             else:
                 pass
 
@@ -194,9 +194,9 @@ def test_settings_no_dotenv():
 
     # Hide dotenv
     with patch.dict(sys.modules, {"dotenv": None}):
-        importlib.reload(sys.modules["core.settings"])
+        importlib.reload(sys.modules["axon.core.settings"])
     # Restore
-    importlib.reload(sys.modules["core.settings"])
+    importlib.reload(sys.modules["axon.core.settings"])
 
 # --- Domain API Models Tests ---
 

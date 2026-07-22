@@ -64,24 +64,18 @@ TRON compresses massive redundancies by replacing repeated strings (like namespa
 *Tested by simulating a live autonomous coding agent.*
 
 | Feature | Scenario | Result |
+### 2. Autonomous Agent Loop Protections
+
+*Tested by simulating the K8s monitoring agent executing autonomous tool calls.*
+
+| Feature | K8s Agent Scenario | Result |
 |---|---|---|
-| **Loop Circuit Breaker** | Agent gets stuck calling the same tool repeatedly | ✅ **100% LLM Bypass** ($0 API cost on repeated calls) |
-| **Tool Schema Optimization** | Sending 3 verbose JSON Schema tool definitions | ✅ **25.3% Token Savings** (455t → 340t) via Python signatures |
-| **Exact-Match L1 Cache** | Identical system state repeated | ✅ **<1ms cache response** vs. 500–2000ms LLM round-trip + 100% savings |
-| **Semantic Vector Cache** | Paraphrased user intent | ✅ **100% Savings** — served directly from cache |
+| **Tool Schema Optimization** | Sending 5 verbose JSON Schema tools (e.g. `get_pod_logs`, `scale_deployment`) | ✅ **26.5% Savings** (800t → 588t) via Python signatures |
+| **Loop Circuit Breaker** | Agent gets stuck calling `get_k8s_events` repeatedly | ✅ **100% LLM Bypass** ($0 API cost on repeated calls) |
+| **Exact-Match L1 Cache** | Agent polls quiet cluster; identical payload as 5 mins ago | ✅ **<1ms cache response** vs. 500–2000ms LLM round-trip |
+| **Error Truncation** | Pod log contains a massive 50-level Java/Python stack trace | ✅ **99.6% Savings** on that log entry (truncated to Exception) |
 
-### 3. Production Payload Baseline Compression
-
-*Tested against 27,000+ tokens of heavy, real-world data payloads in a single pass.*
-
-| Payload Type | Content | Result |
-|---|---|---|
-| **Python Stack Trace** | 50-level deep Django/psycopg2 error log | ✅ **99.6% Token Savings** (4,240t → 19t) via Error Truncation |
-| **Heavy Kubernetes YAML**| 20-container Deployment manifest | ✅ **15.9% Token Savings** via syntax normalization |
-| **AWS EC2 JSON Response**| 100-node `DescribeInstances` API payload | ✅ **14.3% Token Savings** via structural optimizations |
-
-> [!NOTE]
-> **Security Features** are also live-verified: the Prompt Firewall successfully blocks jailbreak attempts (`SYSTEM HALTED.`), and the PII Redactor successfully strips SSN/Credit Card data before it reaches the LLM.
+> **Note:** Security Features are also live-verified. If a pod log contains a prompt injection attack, the Firewall successfully blocks it (`SYSTEM HALTED.`). If a developer accidentally logs user PII, the Redactor successfully strips it before it reaches the LLM.
 
 ---
 

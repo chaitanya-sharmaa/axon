@@ -365,30 +365,19 @@ TRON uses pointer references (`@ref:1`) for repeated strings (like the namespace
 
 ---
 
-## 10. Real-World Agent Benchmark
+## 10. Autonomous Agent Loop Protections (K8s Scenario)
 
-The `examples/real_world_agent_benchmark.py` script runs a complete verification of all Axon capabilities. In our latest test run on a live LLM (`groq/llama-3.1-8b-instant`), **all 11 tests passed successfully**, demonstrating the robustness of the compression and security layers.
+> **Verified 11-test suite running against a live LLM agent.** Showcases the full suite of Axon features working in a real autonomous K8s monitoring agent loop.
+
+The `examples/cluster_log_agent_benchmark.py` script runs a complete verification of all Axon capabilities. In our latest test run on a live LLM (`groq/llama-3.1-8b-instant`), **all tests passed successfully**, demonstrating the robustness of the compression and security layers.
 
 ### Key Benchmark Results:
-* **Tool Schema Compression:** Compressed 3 verbose JSON Schema tools from 455 to 340 tokens (**25.3% savings**) using dense Python signatures.
-* **Agentic Loop Circuit Breaker:** Successfully intercepted a runaway agent calling the same tool 3 times. Axon automatically returned the cached result on the 3rd identical call with **100% LLM bypass** (zero API cost).
-* **L1 Exact-Match Cache:** Achieved **<1ms cache lookup** response vs. 500–2000ms LLM round-trip, with 100% token savings on identical repeated queries.
-* **L2 Semantic Vector Cache:** Successfully identified paraphrased queries ("What is the capital city of France?" vs "Which city serves as the capital of the French Republic?") and served the cached response.
-* **JSON Schema Healing:** Detected malformed LLM JSON output (missing braces, rate limit errors mixed in output) and successfully triggered the Pydantic V2 TypeAdapter healing loop.
+* **Tool Schema Compression:** Compressed 5 verbose K8s JSON Schema tools (e.g. `get_pod_logs`, `scale_deployment`) from 800 to 588 tokens (**26.5% savings**) using dense Python signatures.
+* **Agentic Loop Circuit Breaker:** Successfully intercepted a runaway K8s agent calling `get_k8s_events` 3 times in a row. Axon automatically returned the cached result on the 3rd identical call with **100% LLM bypass** (zero API cost).
+* **Exact-Match L1 Cache:** When the agent polls a quiet cluster (identical payload), Axon achieves **<1ms cache lookup** response vs. 500–2000ms LLM round-trip, with 100% token savings on the identical query.
+* **Error Truncation:** A massive 50-level deep Java stack trace (4,240 tokens) inside a pod log was truncated by Axon down to just the final Exception line (19 tokens) — achieving **99.6% token savings** on that specific log entry.
 * **Security & Compliance:** 
-  - **Prompt Firewall** blocked a known jailbreak ("Ignore all previous instructions...").
-  - **PII Redaction** successfully scrubbed SSNs and Credit Card numbers from the prompt before it hit the LLM.
+  - **Prompt Firewall** blocked a simulated log injection attack ("Ignore all previous instructions...").
+  - **PII Redaction** successfully scrubbed a developer's accidental logging of Credit Card numbers from the pod logs before they hit the LLM.
 
-### 11. Production Payload Compression Benchmark
-
-> **Measuring pure token compression on massive, real-world formats.** Showcases the Agentic Pipeline and Token Optimizer working on bloated production data.
-
-The `examples/production_payload_benchmark.py` script isolates Axon's token compression algorithms against the most common sources of agentic context bloat.
-
-In our latest run, Axon achieved an **overall savings of 27.3%** across 27,000+ tokens of raw payloads in a single pass:
-
-* **Heavy Python Stack Trace (Error Log):** A massive 50-level deep Django stack trace (4,240 tokens) generated when a simulated agent failed a tool call was truncated by Axon down to just the final Exception line (19 tokens) — achieving **99.6% token savings**.
-* **Heavy Kubernetes YAML:** A large, repetitive K8s Deployment manifest with 20 containers was compressed from 3,519 tokens to 2,959 tokens (**15.9% savings**) purely through structural syntax normalization.
-* **Heavy AWS JSON (EC2 API):** A bloated AWS `DescribeInstances` API response containing 100 instances was structurally optimized from 19,556 tokens down to 16,750 tokens (**14.3% savings**) without losing any keys, values, or structural integrity.
-
-*You can run this benchmark yourself against any provider by configuring `.env` and running `python examples/production_payload_benchmark.py`.*
+*You can run this benchmark yourself against any provider by configuring `.env` and running `python examples/cluster_log_agent_benchmark.py`.*

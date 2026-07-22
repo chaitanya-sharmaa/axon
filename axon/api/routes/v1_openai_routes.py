@@ -267,7 +267,11 @@ async def _stream_openai(
     tenant_id: str | None = None,
     input_cost: float = 0.0,
     api_key: str = "",
-    upstream_base_url: str | None = None
+    upstream_base_url: str | None = None,
+    metrics: dict = None,
+    agentic_tokens_saved: int = 0,
+    agentic_breakdown: dict = None,
+    savings_usd: float = 0.0
 ) -> AsyncIterator[str]:
     """Async generator that proxies a stream using LiteLLM with an optional budget circuit breaker."""
     accumulated_tokens = 0
@@ -354,9 +358,11 @@ async def _stream_openai(
             tenant_id=tenant_id or "default",
             cost=input_cost + output_cost,
             status_code=200,
-            tokens_saved=0,
-            cost_saved=0.0,
-            compression_strategy=None
+            tokens_saved=(metrics.get("original_tokens", 0) - metrics.get("compressed_tokens", 0)) + agentic_tokens_saved if metrics else agentic_tokens_saved,
+            cost_saved=savings_usd,
+            compression_strategy=metrics.get("strategy_used") if metrics else None,
+            agentic_tokens_saved=agentic_tokens_saved,
+            agentic_breakdown=agentic_breakdown
         )
 
 
@@ -610,7 +616,7 @@ async def chat_completions(
         input_cost = estimate_cost_usd(metrics["compressed_tokens"], routed_model, direction="input") or 0.0
 
         return StreamingResponse(
-            _stream_openai(url, upstream_headers, upstream_body, max_spend, routed_model, tenant_id, input_cost, api_key, upstream_base_url),
+            _stream_openai(url, upstream_headers, upstream_body, max_spend, routed_model, tenant_id, input_cost, api_key, upstream_base_url, metrics, agentic_tokens_saved, agentic_result.savings_breakdown, savings_usd),
             media_type="text/event-stream",
             headers=headers_to_send,
         )
@@ -852,9 +858,11 @@ async def chat_completions(
         tenant_id=tenant_id or "default",
         cost=total_cost,
         status_code=response.status_code,
-        tokens_saved=metrics.get("original_tokens", 0) - metrics.get("compressed_tokens", 0),
+        tokens_saved=metrics.get("original_tokens", 0) - metrics.get("compressed_tokens", 0) + agentic_tokens_saved,
         cost_saved=savings_usd,
-        compression_strategy=metrics.get("strategy_used")
+        compression_strategy=metrics.get("strategy_used"),
+        agentic_tokens_saved=agentic_tokens_saved,
+        agentic_breakdown=agentic_result.savings_breakdown
     )
 
     return response

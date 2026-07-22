@@ -21,7 +21,9 @@ class RequestLogger:
                     error: str = None,
                     tokens_saved: int = 0,
                     cost_saved: float = 0.0,
-                    compression_strategy: str = None):
+                    compression_strategy: str = None,
+                    agentic_tokens_saved: int = 0,
+                    agentic_breakdown: dict = None):
 
         entry = {
             "id": str(uuid.uuid4()),
@@ -38,7 +40,9 @@ class RequestLogger:
             "error": error,
             "tokens_saved": tokens_saved,
             "cost_saved": cost_saved,
-            "compression_strategy": compression_strategy
+            "compression_strategy": compression_strategy,
+            "agentic_tokens_saved": agentic_tokens_saved,
+            "agentic_breakdown": agentic_breakdown or {}
         }
         self._logs.appendleft(entry)
 

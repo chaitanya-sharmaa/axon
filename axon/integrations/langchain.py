@@ -1,8 +1,8 @@
 """LangChain integration for Axon Bridge.
 
-Provides ``AxonCallbackHandler`` — a LangChain callback that automatically
-compresses LLM prompts using Axon's token optimizer before they are sent,
-and reports savings after each call.
+Provides ``AxonCallbackHandler`` — a LangChain callback that calculates local
+token savings estimates and reports telemetry. Note that LangChain callbacks
+are observational; the actual prompt compression occurs on the Axon Proxy server.
 
 Installation
 ------------
@@ -21,7 +21,13 @@ Usage
     optimizer = TokenOptimizer()
     handler = AxonCallbackHandler(optimizer=optimizer, session_id="my-session")
 
-    llm = ChatOpenAI(model="gpt-4o", callbacks=[handler])
+    # Point the client to your Axon Bridge instance so the proxy can compress the payload
+    llm = ChatOpenAI(
+        model="gpt-4o", 
+        base_url="http://localhost:8080/v1", 
+        api_key="your-key", 
+        callbacks=[handler]
+    )
     response = llm.invoke("Summarise the latest earnings report...")
 
     print(handler.last_savings)

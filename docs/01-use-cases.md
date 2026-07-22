@@ -290,13 +290,13 @@ response = client.chat.completions.create(
 
 ## 7. RAG and Vector DB Integration (LlamaIndex)
 
-> **Stop burning tokens on irrelevant retrieved documents.** Axon's BM25 postprocessor scores and prunes the bottom 25% of retrieved chunks before they reach the LLM.
+> **Stop burning tokens on retrieved documents.** Axon's postprocessor applies semantic text pruning and structural token optimization to retrieved chunks before they reach the LLM.
 
 **Prerequisites:** `pip install axon-bridge[llamaindex]`
 
 | Without Axon | With Axon |
 |---|---|
-| All 10 retrieved documents are sent to the LLM, burning thousands of tokens on noise. | Axon scores documents against the query using BM25, drops the irrelevant bottom 25%, and compresses the rest. |
+| All retrieved documents are sent to the LLM with full whitespace and stop-words intact, burning tokens on noise. | Axon applies semantic text pruning (removing stop-words and excessive whitespace) and compresses the remaining structural elements. |
 
 ```python
 from axon.integrations.llamaindex import AxonNodePostprocessor
@@ -306,7 +306,7 @@ from axon.services.token_optimizer import TokenOptimizer
 axon_postprocessor = AxonNodePostprocessor(
     optimizer=TokenOptimizer(),
     model="groq/llama-3.1-8b-instant",
-    enable_pruning=True   # Drop bottom 25% irrelevant nodes
+    enable_pruning=True   # Enable semantic pruning (removes redundant whitespace and stop words)
 )
 
 query_engine = index.as_query_engine(
@@ -314,7 +314,7 @@ query_engine = index.as_query_engine(
 )
 
 response = query_engine.query("What is the Q3 revenue figure?")
-# Axon automatically dropped 2-3 irrelevant nodes before the LLM call.
+# Axon automatically pruned and compressed the retrieved nodes before the LLM call.
 ```
 
 ---

@@ -208,6 +208,20 @@ sequenceDiagram
 
 > **See it in action:** Check out the [Real-World Agent Benchmark](docs/01-use-cases.md#9-real-world-agent-benchmark) results verified against a live Groq LLM agent, demonstrating 100% LLM bypass on loops and 25%+ savings on tool schemas.
 
+#### Real-World Deployment: AI SRE Agent
+
+In our live Kubernetes deployment, Axon sits in front of a **fully autonomous AI SRE Agent** built on LangChain (`create_react_agent`) using Amazon Bedrock (`eu.amazon.nova-lite-v1:0`). 
+
+**The Challenge:** The agent constantly polls large Kubernetes resources (`kubectl get pods -A`, `kubectl describe deployments`) producing massive tabular output with heavy whitespace and redundant columns.
+**The Solution:** Axon's **Whitespace Normalizer** and **Session-Aware Modules** transparently compress these payloads before they hit the LLM.
+
+**Results:**
+- **Tokens Saved:** > 525,000 tokens saved within a few hours of automated scanning.
+- **Cost Avoided:** Direct reduction in AWS Bedrock API bills via token reduction (approx. $0.032 saved on just this single short run, projected to scale massively over 24/7 continuous polling).
+- **No Hallucinations:** Because the agent is stateless across scan loops (utilizing fresh `session_id` per cycle), it never hallucinates from cross-scan contamination, while still benefiting from session-aware pruning *within* a single diagnostic loop.
+
+![Axon Metrics showing 500k+ tokens saved](docs/images/sre-agent-axon-metrics.png)
+
 ---
 
 ## 📈 Real-Time Observability Dashboard

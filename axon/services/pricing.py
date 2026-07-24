@@ -55,6 +55,10 @@ _DEFAULT_PRICES: dict[str, ModelPrice] = {
     "gemini/gemini-2.0-flash":  ModelPrice(input=0.0001,  output=0.0004),
     "gemini/gemini-1.5-pro":    ModelPrice(input=0.00125, output=0.005),
     "gemini/gemini-1.5-flash":  ModelPrice(input=0.000075, output=0.0003),
+    # Bedrock / Amazon
+    "bedrock/eu.amazon.nova-lite": ModelPrice(input=0.00006, output=0.00024),
+    "bedrock/amazon.nova-lite":    ModelPrice(input=0.00006, output=0.00024),
+    "eu.amazon.nova-lite":         ModelPrice(input=0.00006, output=0.00024),
     # Shorthand aliases
     "gpt-4o-2024-05-13":        ModelPrice(input=0.005,   output=0.015),
     "cl100k_base":              ModelPrice(input=0.0005,  output=0.0015),  # GPT-3.5 proxy
